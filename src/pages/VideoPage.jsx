@@ -18,7 +18,9 @@ export default function VideoPage() {
   const params = useParams();
   const tutsref = collection(fireDB, "folders", params.fname, "tutorials");
   const lessonref = doc(fireDB, tutsref.path, params.lname);
-  const [vurl, setvurl] = useState("");
+  // const [vurl, setvurl] = useState("");
+  const [vurl, setvurl] = useState("http://localhost:3000/uploads/myVideo-1715438432526/output.m3u8");
+
 
   const emailListref = collection(
     fireDB,
@@ -35,25 +37,25 @@ export default function VideoPage() {
 
   const [focused, setFocused] = useState(true);
 
-  useEffect(() => {
-    async function geturl() {
-      if (tut) {
-        const vref = ref(
-          fireStorage,
-          `videos/${params.fname}/${params.lname}/${tut.video}`
-        );
-        await getDownloadURL(vref)
-          .then((url) => {
-            setvurl(url);
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      }
-    }
+  // useEffect(() => {
+  //   async function geturl() {
+  //     if (tut) {
+  //       const vref = ref(
+  //         fireStorage,
+  //         `videos/${params.fname}/${params.lname}/${tut.video}`
+  //       );
+  //       await getDownloadURL(vref)
+  //         .then((url) => {
+  //           setvurl(url);
+  //         })
+  //         .catch((err) => {
+  //           console.log(err);
+  //         });
+  //     }
+  //   }
 
-    geturl();
-  }, [tut, loading, params.fname, params.lname]);
+  //   geturl();
+  // }, [tut, loading, params.fname, params.lname]);
 
   if (loading) {
     return <Loading text="Loading Document" />;
