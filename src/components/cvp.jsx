@@ -1,4 +1,5 @@
 /* eslint-disable react/prop-types */
+import Hls from 'hls.js';
 import {
   FastForward,
   Fullscreen,
@@ -61,14 +62,21 @@ export default function CVPL({ watermark, url }) {
   };
 
   uE(() => {
-    vdrf.current.addEventListener("playing", () => {
-      stPlyV(true);
-    });
-    vdrf.current.addEventListener("pause", () => {
-      stPlyV(false);
-    });
-    cancelAnimationFrame(animationRef.current);
-  }, []);
+  if(Hls.isSupported()) {
+    const hls = new Hls();
+    hls.loadSource(url);
+    hls.attachMedia(vdrf.current);
+  } else {
+    console.log('HLS not supported');
+  }
+  vdrf.current.addEventListener("playing", () => {
+    stPlyV(true);
+  });
+  vdrf.current.addEventListener("pause", () => {
+    stPlyV(false);
+  });
+  cancelAnimationFrame(animationRef.current);
+}, []);
 
   uE(() => {
     if (vdrf.current) {
@@ -103,45 +111,44 @@ export default function CVPL({ watermark, url }) {
         }}
       >
         <video
-          width="100%"
-          controls={false}
-          preload="metadata"
-          controlsList="nodownload"
-          ref={vdrf}
-          style={{
-            backgroundColor: "black",
-            borderRadius: fhandle.active ? "0px" : "6px",
-          }}
-          disablePictureInPicture
-          disableRemotePlayback
-          onContextMenu={(e) => {
-            e.preventDefault();
-          }}
-          onClick={() => {
-            if (isPlyV) {
-              vdrf.current.pause();
-            } else {
-              vdrf.current.play();
-            }
-          }}
-          className="video-player"
-        >
-          <T
-            sx={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              color: "white",
-              fontSize: "30px",
-              fontWeight: "bold",
-              zIndex: 10000,
-            }}
-          >
-            Your browser does not support this video.
-          </T>
-          <source src={url} type="video/mp4" />
-        </video>
+  width="100%"
+  controls={false}
+  preload="metadata"
+  controlsList="nodownload"
+  ref={vdrf}
+  style={{
+    backgroundColor: "black",
+    borderRadius: fhandle.active ? "0px" : "6px",
+  }}
+  disablePictureInPicture
+  disableRemotePlayback
+  onContextMenu={(e) => {
+    e.preventDefault();
+  }}
+  onClick={() => {
+    if (isPlyV) {
+      vdrf.current.pause();
+    } else {
+      vdrf.current.play();
+    }
+  }}
+  className="video-player"
+>
+  <T
+    sx={{
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      color: "white",
+      fontSize: "30px",
+      fontWeight: "bold",
+      zIndex: 10000,
+    }}
+  >
+    Your browser does not support this video.
+  </T>
+</video>
         <i className="watermark">{watermark}</i>
         <B
           sx={{
