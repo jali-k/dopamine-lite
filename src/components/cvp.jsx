@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import Hls from 'hls.js';
 import {
   FastForward,
@@ -9,7 +8,6 @@ import {
 } from "@mui/icons-material";
 import {
   Box as B,
-  Button as Bt,
   IconButton as IBT,
   Slider as Sl,
   Typography as T,
@@ -19,7 +17,6 @@ import {
   FullScreen as FSC,
   useFullScreenHandle as uFSC,
 } from "react-full-screen";
-import L from "./Loading";
 import { jhsfg } from "../../af";
 
 export default function CVPL({ watermark, url }) {
@@ -61,22 +58,54 @@ export default function CVPL({ watermark, url }) {
     }
   };
 
+  const fetchWithRetry = async (url, maxRetries, delay = 1000) => {
+    let retries = 0;
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          return response;
+        } else {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } catch (error) {
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    throw new Error('Failed to fetch manifest after several retries.');
+  };
+
+  const fetchManifest = async () => {
+    try {
+      const response = await fetchWithRetry(url, 3);
+      const data = await response.json();
+      const modifiedManifest = data.modified_m3u8_content;
+
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
+        const blobUrl = URL.createObjectURL(blob);
+        hls.loadSource(blobUrl);
+        hls.attachMedia(vdrf.current);
+      } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
+        vdrf.current.src = data.manifest_url;
+        vdrf.current.addEventListener('loadedmetadata', () => {
+          vdrf.current.play();
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching manifest:', error);
+    }
+  };
+
   uE(() => {
-  if(Hls.isSupported()) {
-    const hls = new Hls();
-    hls.loadSource(url);
-    hls.attachMedia(vdrf.current);
-  } else {
-    console.log('HLS not supported');
-  }
-  vdrf.current.addEventListener("playing", () => {
-    stPlyV(true);
-  });
-  vdrf.current.addEventListener("pause", () => {
-    stPlyV(false);
-  });
-  cancelAnimationFrame(animationRef.current);
-}, []);
+    fetchManifest();
+    const intervalId = setInterval(fetchManifest, 55 * 60 * 1000); // Refresh manifest every 55 minutes
+
+    return () => clearInterval(intervalId); // Cleanup interval on component unmount
+  }, []);
 
   uE(() => {
     if (vdrf.current) {
@@ -111,44 +140,44 @@ export default function CVPL({ watermark, url }) {
         }}
       >
         <video
-  width="100%"
-  controls={false}
-  preload="metadata"
-  controlsList="nodownload"
-  ref={vdrf}
-  style={{
-    backgroundColor: "black",
-    borderRadius: fhandle.active ? "0px" : "6px",
-  }}
-  disablePictureInPicture
-  disableRemotePlayback
-  onContextMenu={(e) => {
-    e.preventDefault();
-  }}
-  onClick={() => {
-    if (isPlyV) {
-      vdrf.current.pause();
-    } else {
-      vdrf.current.play();
-    }
-  }}
-  className="video-player"
->
-  <T
-    sx={{
-      position: "absolute",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      color: "white",
-      fontSize: "30px",
-      fontWeight: "bold",
-      zIndex: 10000,
-    }}
-  >
-    Your browser does not support this video.
-  </T>
-</video>
+          width="100%"
+          controls={false}
+          preload="metadata"
+          controlsList="nodownload"
+          ref={vdrf}
+          style={{
+            backgroundColor: "black",
+            borderRadius: fhandle.active ? "0px" : "6px",
+          }}
+          disablePictureInPicture
+          disableRemotePlayback
+          onContextMenu={(e) => {
+            e.preventDefault();
+          }}
+          onClick={() => {
+            if (isPlyV) {
+              vdrf.current.pause();
+            } else {
+              vdrf.current.play();
+            }
+          }}
+          className="video-player"
+        >
+          <T
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "white",
+              fontSize: "30px",
+              fontWeight: "bold",
+              zIndex: 10000,
+            }}
+          >
+            Your browser does not support this video.
+          </T>
+        </video>
         <i className="watermark">{watermark}</i>
         <B
           sx={{
@@ -238,7 +267,6 @@ export default function CVPL({ watermark, url }) {
             top: "4px",
             left: "8px",
             color: "#f4f4f4",
-
             backdropFilter: "blur(5px)",
             cursor: "pointer",
           }}
