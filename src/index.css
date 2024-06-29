@@ -39,34 +39,26 @@ video::-webkit-media-controls-fullscreen-button {
   position: absolute;
   pointer-events: none;
   text-shadow: 4px 4px 4px rgba(0, 0, 0, 0.5);
-  left: 3%;
-  top: 3%;
   color: white;
-  animation: 25s moving-watermark infinite;
-  opacity: 0.5;
+  opacity: 0.4; /* Adjust opacity for less attention */
   z-index: 1000;
+  width: 200px; /* Adjust width as needed */
+  height: auto; /* Maintain aspect ratio */
+  font-size: 20px; /* Adjust font size */
+  text-align: center; /* Center text horizontally */
+  line-height: 1.5; /* Adjust line height for vertical centering */
+  top: 0px; /* Initial position off-screen */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%);
+  animation: moving-watermark 25s infinite linear;
 }
 
 @keyframes moving-watermark {
   0% {
-    left: 10%;
-    top: -10%;
-  }
-  25% {
-    left: 25%;
-    top: 110%;
-  }
-  50% {
-    left: 50%;
-    top: -10%;
-    font-size: 50px;
-  }
-  75% {
-    left: 75%;
-    top: 110%;
+    top: 0px;
   }
   100% {
-    left: 90%;
-    top: -10%;
+    top: calc(100vh + 100px); /* Moves the watermark to bottom */
   }
 }
+
