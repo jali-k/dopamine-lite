@@ -11,6 +11,7 @@ import {
   IconButton as IBT,
   Slider as Sl,
   Typography as T,
+  CircularProgress as CP,
 } from "@mui/material";
 import { useEffect as uE, useRef as uR, useState as uS } from "react";
 import {
@@ -29,9 +30,9 @@ export default function CVPL({ watermark, url }) {
   const speeds = [0.5, 1, 1.5, 2];
 
   const [isPlyV, stPlyV] = uS(false);
-
   const [cTV, stCTV] = uS(0);
   const [duration, stDV] = uS(0);
+  const [loading, setLoading] = uS(true);
 
   const hTUF = () => {
     stCTV(vdrf.current.currentTime);
@@ -89,9 +90,14 @@ export default function CVPL({ watermark, url }) {
         const blobUrl = URL.createObjectURL(blob);
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setLoading(false);
+          vdrf.current.play();
+        });
       } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
         vdrf.current.src = data.manifest_url;
         vdrf.current.addEventListener('loadedmetadata', () => {
+          setLoading(false);
           vdrf.current.play();
         });
       }
@@ -111,12 +117,16 @@ export default function CVPL({ watermark, url }) {
     if (vdrf.current) {
       vdrf.current.addEventListener("timeupdate", hTUF);
       vdrf.current.addEventListener("durationchange", hDCF);
+      vdrf.current.addEventListener("playing", () => stPlyV(true));
+      vdrf.current.addEventListener("pause", () => stPlyV(false));
     }
 
     return () => {
       if (vdrf.current) {
         vdrf.current.removeEventListener("timeupdate", hTUF);
         vdrf.current.removeEventListener("durationchange", hDCF);
+        vdrf.current.removeEventListener("playing", () => stPlyV(true));
+        vdrf.current.removeEventListener("pause", () => stPlyV(false));
       }
     };
   }, []);
@@ -178,6 +188,25 @@ export default function CVPL({ watermark, url }) {
             Your browser does not support this video.
           </T>
         </video>
+        {loading && (
+          <B
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "white",
+              fontSize: "30px",
+              fontWeight: "bold",
+              zIndex: 10000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <CP color="inherit" />
+          </B>
+        )}
         <i className="watermark">{watermark}</i>
         <B
           sx={{
