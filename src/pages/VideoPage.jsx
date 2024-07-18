@@ -1,7 +1,7 @@
 import { Backdrop, Box, Container, Typography } from "@mui/material";
 import Appbar from "../components/Appbar";
 import { fireDB, fireStorage } from "../../firebaseconfig";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, getDoc } from "firebase/firestore";
 import {
   useCollectionData,
   useDocumentData,
@@ -43,6 +43,7 @@ export default function VideoPage() {
     console.log('====================================');
     console.log(params.lname);
     console.log('====================================');
+ 
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
         const nextProgress = prevProgress + 1;

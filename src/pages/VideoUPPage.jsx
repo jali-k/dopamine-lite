@@ -33,6 +33,7 @@ export default function VideoUPPage() {
     thumbnail: null,
     video: null,
     description: "",
+    handler: "",
     lesson: "",
     date: "",
   });
@@ -95,6 +96,7 @@ export default function VideoUPPage() {
         thumbnail: values.thumbnail.name,
         video: values.video.name,
         description: values.description,
+        handler: values.handler,
         lesson: values.lesson,
         date: values.date,
       });
@@ -203,6 +205,14 @@ export default function VideoUPPage() {
           variant="filled"
           required
           name="title"
+          onChange={handleInputs}
+        />
+        <TextField
+          label="Handler"
+          placeholder="Handler"
+          variant="filled"
+          required
+          name="handler"
           onChange={handleInputs}
         />
         <TextField
