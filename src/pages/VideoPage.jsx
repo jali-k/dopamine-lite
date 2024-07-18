@@ -40,6 +40,9 @@ export default function VideoPage() {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
+    console.log('====================================');
+    console.log(params.lname);
+    console.log('====================================');
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
         const nextProgress = prevProgress + 1;
@@ -122,7 +125,7 @@ export default function VideoPage() {
           {tut.title} - {tut.lesson}
         </Typography>
         {vurl ? (
-          <CVPL url={'https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=test2&expiration=3600'} watermark={user.email} />
+          <CVPL url={'https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+params.lname+'&expiration=3600'} watermark={user.email} />
         ) : (
           <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
         )}
