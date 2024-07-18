@@ -13,14 +13,14 @@ import { useEffect, useState } from "react";
 import NotFocus from "./NotFocus";
 import { useUser } from "../contexts/UserProvider";
 import CVPL from "../components/cvp";
-import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
-import "react-circular-progressbar/dist/styles.css";
 
 export default function VideoPage() {
   const params = useParams();
   const tutsref = collection(fireDB, "folders", params.fname, "tutorials");
   const lessonref = doc(fireDB, tutsref.path, params.lname);
+  // const [vurl, setvurl] = useState("");
   const [vurl, setvurl] = useState("http://localhost:3000/uploads/myVideo-1715438432526/output.m3u8");
+
 
   const emailListref = collection(
     fireDB,
@@ -36,23 +36,26 @@ export default function VideoPage() {
   const [tut, loading] = useDocumentData(lessonref);
 
   const [focused, setFocused] = useState(true);
-  const [securityCheck, setSecurityCheck] = useState(true);
-  const [progress, setProgress] = useState(0);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((prevProgress) => {
-        const nextProgress = prevProgress + 1;
-        if (nextProgress === 100) {
-          clearInterval(interval);
-          setSecurityCheck(false);
-        }
-        return nextProgress;
-      });
-    }, 400);
+  // useEffect(() => {
+  //   async function geturl() {
+  //     if (tut) {
+  //       const vref = ref(
+  //         fireStorage,
+  //         `videos/${params.fname}/${params.lname}/${tut.video}`
+  //       );
+  //       await getDownloadURL(vref)
+  //         .then((url) => {
+  //           setvurl(url);
+  //         })
+  //         .catch((err) => {
+  //           console.log(err);
+  //         });
+  //     }
+  //   }
 
-    return () => clearInterval(interval);
-  }, []);
+  //   geturl();
+  // }, [tut, loading, params.fname, params.lname]);
 
   if (loading) {
     return <Loading text="Loading Document" />;
@@ -136,39 +139,6 @@ export default function VideoPage() {
         </Typography>
         <Typography variant="body1">{tut.description}</Typography>
       </Box>
-      <Backdrop
-        sx={{
-          color: '#fff',
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          backdropFilter: 'blur(10px)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-        open={securityCheck}
-      >
-        <div style={{ width: 200, height: 200 }}>
-          <CircularProgressbar
-        
-          value={progress}
-          text={`${progress}%`}
-          styles={buildStyles({
-            textSize: '24px',
-            textColor: '#fff',
-            pathColor: '#4caf50',
-            trailColor: 'rgba(255, 255, 255, 0.2)',
-          })}
-        />
-        </div>
-        <Typography
-          variant="h6"
-          sx={{
-            mt: 2,
-          }}
-        >
-          Performing security checks...
-        </Typography>
-      </Backdrop>
     </Container>
   );
 }
