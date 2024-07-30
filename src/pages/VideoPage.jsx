@@ -37,12 +37,57 @@ export default function VideoPage() {
   const [tut, loading] = useDocumentData(lessonref);
 
   const [focused, setFocused] = useState(true);
+  const [handler, setHandler] = useState("");
   const [securityCheck, setSecurityCheck] = useState(true);
   const [progress, setProgress] = useState(0);
 
-  useEffect(() => {
+  async function getHandler() {
     console.log('====================================');
-    console.log(params.lname);
+    console.log("The tut"+tut);
+    console.log('====================================');
+  
+    // Create a reference to the Firestore document
+    const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
+    try {
+      // Fetch the document
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        // Use the document data
+        setHandler(docSnap.data().handler); // Assuming the document has a field named 'url'
+        
+        console.log('====================================');
+        console.log('====================================');
+        console.log("Inside the get url");
+        console.log('====================================');
+        console.log(docSnap.data().handler);
+        console.log('====================================');
+
+        setHandler(docSnap.data().handler);
+      } else {
+        console.log("No such document!");
+      }
+    } catch (err) {
+      console.log(err);
+    
+  }
+
+  
+}
+
+useEffect(() => {
+  console.log('====================================');
+  console.log("Fetching the handler");
+  console.log('====================================');
+    getHandler();
+}, []);
+
+
+  useEffect(() => {
+
+  
+  
+    console.log('====================================');
+    console.log(handler);
     console.log('====================================');
  
     const interval = setInterval(() => {
@@ -127,12 +172,14 @@ export default function VideoPage() {
           {tut.title} - {tut.lesson}
         </Typography>
         {vurl ? (
-          <CVPL url={'https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=test2&expiration=3600'} watermark={user.email} />
+          <CVPL url={'https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl-2?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600'} watermark={user.email} />
           // https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=myVideo&expiration=3600
+          // https://convertedvs.s3.amazonaws.com/kana/index.m3u8
+          // https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600
         ) : (
           <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
         )}
-        {<BaseHlsPlayer src={'https://convertedvs.s3.amazonaws.com/myVideo/index.m3u8'} />}
+       
         <Typography
           variant="h5"
           sx={{
