@@ -20,7 +20,7 @@ export default function Appbar() {
       <AppBar position="static" sx={{ mb: 1 }} color="primary">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Educator
+            Dopamine Lite
           </Typography>
           <IconButton
             onClick={() => {
