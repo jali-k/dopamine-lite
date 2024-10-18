@@ -57,7 +57,7 @@ export default function AdmFileView() {
         .replaceAll(",", "\n")
         .split("\n")
         .filter((email) => email !== "")
-        .map((email) => email.trim())
+        .map((email) => email.trim().toLowerCase())
     ),
   ];
 
