@@ -15,7 +15,7 @@
     "@mui/icons-material": "^5.15.10",
     "@mui/material": "^5.16.4",
     "dotenv": "^16.4.5",
-    "firebase": "^10.8.0",
+    "firebase": "^10.12.4",
     "hls.js": "^1.5.8",
     "react": "^18.2.0",
     "react-circular-progressbar": "^2.1.0",
@@ -23,7 +23,8 @@
     "react-firebase-hooks": "^5.1.1",
     "react-full-screen": "^1.1.1",
     "react-player": "^2.16.0",
-    "react-router-dom": "^6.22.1"
+    "react-router-dom": "^6.22.1",
+    "tuitionclass": "file:"
   },
   "devDependencies": {
     "@types/react": "^18.2.55",
