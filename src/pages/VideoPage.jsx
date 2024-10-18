@@ -172,7 +172,7 @@ useEffect(() => {
           {tut.title} - {tut.lesson}
         </Typography>
         {vurl ? (
-          <CVPL url={'https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl-2?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600'} watermark={user.email} />
+          <CVPL url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600'} watermark={user.email} />
           // https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=myVideo&expiration=3600
           // https://convertedvs.s3.amazonaws.com/kana/index.m3u8
           // https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600
