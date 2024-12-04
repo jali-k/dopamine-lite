@@ -8,7 +8,8 @@ import AdmFileView from "./pages/AdmFileView";
 import ADVideoPage from "./pages/ADVideoPage";
 import Error404 from "./pages/Error404";
 import AdminButton from "./components/AdminButton";
-import { Box, Typography } from "@mui/material";
+import PDFFileView from "./pages/PDFFileView"; // New page for PDF files
+import PDFPage from "./pages/PDFPage"; // New page for individual PDFs
 
 export default function App() {
   return (
@@ -21,13 +22,22 @@ export default function App() {
           </>
         }
       >
-        <Route path="/admin" element={<FVAdPage />} />
+        {/* Student routes */}
         <Route path="/" element={<FVStuPage />} />
-        <Route path="/admin/:fname/add" element={<VideoUPPage />}></Route>
-        <Route path="/admin/:fname" element={<AdmFileView />}></Route>
-        <Route path="/:fname" element={<StuFileView />}></Route>
-        <Route path="/:fname/:lname" element={<VideoPage />}></Route>
-        <Route path="/admin/:fname/:lname" element={<ADVideoPage />}></Route>
+        <Route path="/video/:fname" element={<StuFileView />} />
+        <Route path="/video/:fname/:lname" element={<VideoPage />} />
+        <Route path="/pdf/:fname" element={<PDFFileView />} />
+        <Route path="/pdf/:fname/:lname" element={<PDFPage />} />
+
+        {/* Admin routes */}
+        <Route path="/admin" element={<FVAdPage />} />
+        <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
+        <Route path="/admin/video/:fname" element={<AdmFileView />} />
+        <Route path="/admin/video/:fname/:lname" element={<ADVideoPage />} />
+        <Route path="/admin/pdf/:fname/add" element={<VideoUPPage />} /> {/* Modify as needed */}
+        <Route path="/admin/pdf/:fname" element={<AdmFileView />} /> {/* Modify as needed */}
+        <Route path="/admin/pdf/:fname/:lname" element={<ADVideoPage />} /> {/* Modify as needed */}
+
         <Route path="*" element={<Error404 />} />
       </Route>
     </Routes>
