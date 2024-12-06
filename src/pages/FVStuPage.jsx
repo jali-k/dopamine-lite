@@ -9,14 +9,14 @@ import Appbar from "../components/Appbar";
 
 export default function FVStuPage() {
   const [activeTab, setActiveTab] = React.useState(0);
-  
+
   const videoFoldersRef = collection(fireDB, "folders");
   const pdfFoldersRef = collection(fireDB, "pdfFolders");
-  
+
   const [videoFolders, videoLoading] = useCollectionData(videoFoldersRef, {
     idField: "fname",
   });
-  
+
   const [pdfFolders, pdfLoading] = useCollectionData(pdfFoldersRef, {
     idField: "fname",
   });
@@ -30,15 +30,13 @@ export default function FVStuPage() {
   }
 
   const renderFolderGrid = (folders, type) => (
-    <Grid 
-      container 
-      spacing={2} 
-      sx={{ 
-        px: 2, 
-        minHeight: '100vh',
-        backgroundColor: type === 'video' ? '#eeeeee' : '#d6eaf8',
+    <Grid
+      container
+      spacing={2}
+      sx={{
+        px: 2,
         width: '100%',
-        margin: 0
+        margin: 0,
       }}
     >
       {folders && folders.length > 0 ? (
@@ -50,16 +48,19 @@ export default function FVStuPage() {
             md={3}
             lg={2}
             key={index}
-            sx={{ 
-              display: 'flex', 
+            sx={{
+              display: 'flex',
               justifyContent: 'center',
-              width: '100%',
-              height: '100%'
             }}
           >
-            <FButton 
-              fname={file.fname} 
-              to={`/${type}/${file.fname}`} 
+            <FButton
+              fname={file.fname}
+              to={`/${type}/${file.fname}`}
+              sx={{
+                width: '100%',
+                height: '100%',
+                minHeight: '150px', // Or a fixed height
+              }}
             />
           </Grid>
         ))
@@ -74,32 +75,30 @@ export default function FVStuPage() {
   );
 
   return (
-    <Box 
+    <Box
       sx={{
         backgroundColor: '#f0f0f0', // Full page background color
-        minHeight: '100vh',
         width: '100vw',
         margin: 0,
         padding: 0,
-        overflow: 'auto'
+        overflow: 'hidden', // Prevent scroll bars
       }}
     >
-      <Container 
+      <Container
         maxWidth="lg"
         sx={{
-          minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
           width: '100%',
-          padding: 0
+          padding: 0,
         }}
       >
         <Appbar />
-        
+
         <Box sx={{ borderBottom: 1, borderColor: 'divider', width: '100%' }}>
-          <Tabs 
-            value={activeTab} 
-            onChange={handleTabChange} 
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
             centered
             variant="fullWidth"
           >
@@ -108,8 +107,19 @@ export default function FVStuPage() {
           </Tabs>
         </Box>
 
-        {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
-        {activeTab === 1 && renderFolderGrid(pdfFolders, 'pdf')}
+        {/* Full height wrapper for each tab */}
+        <Box
+          sx={{
+            height: '100vh', // Ensure the content fills the viewport height
+            overflowY: 'auto', // Enable scrolling for content if needed
+            backgroundColor: activeTab === 0 ? '#eeeeee' : '#d6eaf8', // Different background for each tab
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
+          {activeTab === 1 && renderFolderGrid(pdfFolders, 'pdf')}
+        </Box>
       </Container>
     </Box>
   );
