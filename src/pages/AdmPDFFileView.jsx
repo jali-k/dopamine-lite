@@ -16,8 +16,9 @@ import {
   Typography as T,
 } from "@mui/material";
 import { collection, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
-import { fireDB } from "../../firebaseconfig";
+import { fireDB, fireStorage } from "../../firebaseconfig";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
@@ -25,7 +26,7 @@ import { useUser } from "../contexts/UserProvider";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import EmailIcon from "@mui/icons-material/Email";
 import DoneIcon from "@mui/icons-material/Done";
-import { PictureAsPdf } from "@mui/icons-material"; // Icon for PDF
+import { PictureAsPdf, DeleteForever } from "@mui/icons-material";
 import { useState } from "react";
 import { Add } from "@mui/icons-material";
 
@@ -95,6 +96,26 @@ export default function AdmPDFFileView() {
     });
 
     setEditableEmails("");
+  };
+
+  // Modified function to delete individual PDF from Firestore and Storage
+  const deletePDF = async (pdf) => {
+    try {
+      // Validate PDF title
+      if (!pdf.title || pdf.title.trim() === '') {
+        console.error("Invalid PDF title");
+        return;
+      }
+
+      // Delete PDF document from Firestore
+      await deleteDoc(doc(pdfRef, pdf.title));
+
+      // Use full path from storage root
+      const storageRef = ref(fireStorage, `${pdf.url}`);
+      await deleteObject(storageRef);
+    } catch (err) {
+      console.error("Error deleting PDF:", err);
+    }
   };
 
   if (loading) {
@@ -168,15 +189,28 @@ export default function AdmPDFFileView() {
                     sx={{ fontSize: 100, color: "red", mb: 2 }}
                   />
                   <T variant="h6">{pdf.title}</T>
-                  <B
-                    variant="contained"
-                    color="primary"
-                    href={pdf.url}
-                    target="_blank"
-                    sx={{ mt: 2 }}
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    sx={{ mt: 2, width: '100%', justifyContent: 'center' }}
                   >
-                    View PDF
-                  </B>
+                    <B
+                      variant="contained"
+                      color="primary"
+                      href={pdf.url}
+                      target="_blank"
+                    >
+                      View PDF
+                    </B>
+                    <B
+                      variant="contained"
+                      color="error"
+                      startIcon={<DeleteForever />}
+                      onClick={() => deletePDF(pdf)}
+                    >
+                      Delete
+                    </B>
+                  </Stack>
                 </Bx>
               </Grid>
             ))
