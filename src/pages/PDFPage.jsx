@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
   Box,
   IconButton,
-  Tooltip
+  Tooltip,
+  CircularProgress
 } from '@mui/material';
 import {
   Fullscreen as FullscreenIcon,
@@ -20,9 +21,10 @@ export default function PDFPage() {
   const [pdfData, setPdfData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const params = useParams();
 
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchPDFData = async () => {
       try {
         const pdfRef = doc(
@@ -95,13 +97,15 @@ export default function PDFPage() {
             </Typography>
           </>
         )} */}
-
         <Box
           sx={{
             flexGrow: 1,
             border: '1px solid #ddd',
             borderRadius: 2,
-            position: 'relative'
+            position: 'relative',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
           }}
         >
           <Tooltip title={isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
@@ -123,12 +127,32 @@ export default function PDFPage() {
             </IconButton>
           </Tooltip>
 
+          {isIframeLoading && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 10,
+                backgroundColor: 'rgba(255,255,255,0.7)'
+              }}
+            >
+              <CircularProgress />
+            </Box>
+          )}
+
           <iframe
             src={pdfData.url}
             width="100%"
             height="100%"
             title={pdfData.title}
             frameBorder="0"
+            onLoad={() => setIsIframeLoading(false)}
             style={{
               position: 'absolute',
               top: 0,
