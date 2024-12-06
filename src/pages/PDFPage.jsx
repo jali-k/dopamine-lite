@@ -1,131 +1,150 @@
 import React, { useState } from 'react';
-import { 
-  Container, 
-  Typography, 
-  Box, 
-  Button,
-  Paper
+import {
+  Container,
+  Typography,
+  Box,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import {
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon
+} from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from 'firebase/firestore';
 import { fireDB } from "../../firebaseconfig";
-import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
+import Loading from "../components/Loading";
 
 export default function PDFPage() {
-  const { fname, lname } = useParams();
-  const [pdfDetails, setPdfDetails] = useState(null);
+  const [pdfData, setPdfData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const params = useParams();
 
   React.useEffect(() => {
-    const fetchPdfDetails = async () => {
+    const fetchPDFData = async () => {
       try {
-        const pdfDocRef = doc(fireDB, "pdfs", `${fname}_${lname}`);
-        const pdfDoc = await getDoc(pdfDocRef);
-        
-        if (pdfDoc.exists()) {
-          setPdfDetails(pdfDoc.data());
+        const pdfRef = doc(
+          fireDB,
+          "pdfFolders",
+          params.fname,
+          "pdfs",
+          params.lname
+        );
+
+        const docSnap = await getDoc(pdfRef);
+
+        if (docSnap.exists()) {
+          setPdfData(docSnap.data());
         }
       } catch (error) {
-        console.error("Error fetching PDF details:", error);
+        console.error("Error fetching PDF:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPdfDetails();
-  }, [fname, lname]);
+    fetchPDFData();
+  }, [params.fname, params.lname]);
+
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
+  };
 
   if (loading) {
-    return <Loading text="Loading PDF Details" />;
+    return <Loading text="Loading PDF" />;
   }
 
-  if (!pdfDetails) {
+  if (!pdfData || !pdfData.url) {
     return (
-      <Container 
-        sx={{ 
-          minHeight: '100vh', 
-          backgroundColor: '#e6f3e6',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
+      <Container>
+        <Appbar />
         <Typography variant="h6" color="error">
-          PDF Not Found
+          PDF not found
         </Typography>
       </Container>
     );
   }
 
   return (
-    <Box 
+    <Box
       sx={{
-        minHeight: "100vh",
-        backgroundColor: '#e6f3e6',
-        py: { xs: 2, sm: 4 },
-        px: { xs: 1, sm: 0 }
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column'
       }}
     >
-      <Container 
-        maxWidth="lg"
+      <Appbar />
+      <Container
         sx={{
+          flexGrow: 1,
           display: 'flex',
           flexDirection: 'column',
-          height: '100%'
+          py: 2,
+          position: 'relative'
         }}
       >
-        <Appbar />
-        
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            backgroundColor: 'white', 
-            p: { xs: 2, sm: 4 },
-            mt: { xs: 2, sm: 4 },
-            borderRadius: 2 
+        {/* {!isFullScreen && (
+          <>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              {pdfData.title}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              {pdfData.description}
+            </Typography>
+          </>
+        )} */}
+
+        <Box
+          sx={{
+            flexGrow: 1,
+            border: '1px solid #ddd',
+            borderRadius: 2,
+            position: 'relative'
           }}
         >
-          <Box sx={{ 
-            textAlign: 'center', 
-            mb: 4 
-          }}>
-            <Typography variant="h4" gutterBottom>
-              {lname}
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              {pdfDetails.description || 'No description available'}
-            </Typography>
-          </Box>
-
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            mb: 4 
-          }}>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              href={pdfDetails.url} 
-              target="_blank"
+          <Tooltip title={isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
+            <IconButton
+              onClick={toggleFullScreen}
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                zIndex: 10,
+                bgcolor: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                '&:hover': {
+                  bgcolor: 'rgba(0,0,0,0.7)'
+                }
+              }}
             >
-              Open PDF
-            </Button>
-          </Box>
+              {isFullScreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+            </IconButton>
+          </Tooltip>
 
-          {pdfDetails.additionalInfo && (
-            <Box sx={{ 
-              backgroundColor: '#f0f8f0', 
-              p: 3, 
-              borderRadius: 2 
-            }}>
-              <Typography variant="h6">Additional Information</Typography>
-              <Typography variant="body1">
-                {pdfDetails.additionalInfo}
-              </Typography>
-            </Box>
-          )}
-        </Paper>
+          <iframe
+            src={pdfData.url}
+            width="100%"
+            height="100%"
+            title={pdfData.title}
+            frameBorder="0"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              ...(isFullScreen && {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                zIndex: 1000,
+                backgroundColor: 'white'
+              })
+            }}
+          />
+        </Box>
       </Container>
     </Box>
   );

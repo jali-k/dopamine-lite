@@ -16,6 +16,7 @@ import { collection, doc, setDoc } from "firebase/firestore";
 import { useUser } from "../contexts/UserProvider";
 import { useUploadFile } from "react-firebase-hooks/storage";
 import { ref } from "firebase/storage";
+import { getDownloadURL } from "firebase/storage";
 
 export default function PDFUploaderPage() {
   const params = useParams();
@@ -40,7 +41,8 @@ export default function PDFUploaderPage() {
     const pdfRef = collection(fireDB, "pdfFolders", params.fname, "pdfs");
     alert("Don't close the tab until the upload is complete!");
     try {
-      await uploadFile(
+      // Upload the file
+      const snapshot = await uploadFile(
         ref(
           fireStorage,
           `pdfs/${params.fname}/${values.title}/${values.pdf.name}`
@@ -51,9 +53,14 @@ export default function PDFUploaderPage() {
         }
       );
 
+      // Get the download URL
+      const downloadURL = await getDownloadURL(snapshot.ref);
+
+      // Save document with download URL
       await setDoc(doc(pdfRef, values.title), {
         title: values.title,
         pdf: values.pdf.name,
+        url: downloadURL, // New field to store download URL
         description: values.description,
         date: values.date,
       });

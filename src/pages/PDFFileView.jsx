@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Container, 
   Grid, 
@@ -33,6 +34,7 @@ export default function PDFFileView() {
   if (loading) {
     return <Loading text="Loading PDFs" />;
   }
+  console.log(pdfs);
 
   return (
     <Box 
@@ -66,7 +68,8 @@ export default function PDFFileView() {
                   }}
                 >
                   <CardActionArea 
-                    href={pdf.url} 
+                    component={Link}
+                    to={`/pdf/${params.fname}/${pdf.title}`} 
                     target="_blank"
                     sx={{ 
                       flexGrow: 1,
