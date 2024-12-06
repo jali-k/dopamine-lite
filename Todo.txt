@@ -1,2 +1,7 @@
 - Show loggedd in email
 - Limit description to a certain characters
+- Resolve cross origin-opener-policy error
+- Add fallback on video loading error
+- Redirect to home on 404 error
+- Fix navigation bar clicking errors
+- Fix [Violation] 'submit' handler took 1472ms - Change the alert to a toast
