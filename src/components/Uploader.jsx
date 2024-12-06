@@ -1,11 +1,11 @@
 /* eslint-disable react/prop-types */
 import { Paper as P, Stack as St, Typography as T } from "@mui/material";
-import { CloudUpload } from "@mui/icons-material";
+import { CloudUpload, PictureAsPdf } from "@mui/icons-material";
 import { useState } from "react";
 
 export default function Uploader({
-  text = "Upload the image file",
-  type = "thumbnails",
+  text = "Upload the file",
+  type = "thumbnails", // "thumbnails", "videos", or "pdfs"
   helperText = "Cannot be empty",
   onChange,
   inerror = false,
@@ -57,6 +57,11 @@ export default function Uploader({
               src={URL.createObjectURL(selectedfile)}
               controls
             />
+          ) : type === "pdfs" ? (
+            <PictureAsPdf
+              sx={{ fontSize: "60px", color: "red" }}
+              titleAccess="PDF file selected"
+            />
           ) : (
             <img
               width={150}
@@ -77,7 +82,13 @@ export default function Uploader({
       <input
         type="file"
         hidden
-        accept={type === "videos" ? "video/*" : "image/*"}
+        accept={
+          type === "videos"
+            ? "video/*"
+            : type === "pdfs"
+            ? "application/pdf"
+            : "image/*"
+        }
         onChange={handleFileInput}
         required
         className={name}

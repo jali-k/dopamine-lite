@@ -21,7 +21,7 @@ import { useCollectionData } from "react-firebase-hooks/firestore";
 import Loading from "./Loading";
 import { useNavigate } from "react-router-dom";
 
-export default function CreateFModal() {
+export default function CreateFModal({ activeTab }) {
   const [open, setOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [fNameError, setFNameError] = useState("");
@@ -35,7 +35,10 @@ export default function CreateFModal() {
     severity: "success",
   });
 
-  const foldersRef = collection(fireDB, "folders");
+  // Dynamically determine collection based on activeTab
+  const isVideoTab = activeTab === 0; // 0 for Video, 1 for PDF
+  const collectionName = isVideoTab ? "folders" : "pdfFolders";
+  const foldersRef = collection(fireDB, collectionName);
   const [folders, loading] = useCollectionData(foldersRef, {
     idField: "fname",
   });
@@ -54,6 +57,7 @@ export default function CreateFModal() {
       }
       setOpen(false);
 
+      // Create the folder document
       await setDoc(doc(fireDB, foldersRef.path, folderName), {
         fname: folderName,
         createdAt: Timestamp.now(),
@@ -73,9 +77,10 @@ export default function CreateFModal() {
     }
 
     try {
+      // Add emails to the emailslist subcollection
       const emailListRef = collection(
         fireDB,
-        "folders",
+        collectionName,
         folderName,
         "emailslist"
       );
@@ -89,16 +94,14 @@ export default function CreateFModal() {
         ),
       ];
       emails.forEach(async (email) => {
-        await setDoc(doc(emailListRef, email), {
-          email: email,
-        });
+        await setDoc(doc(emailListRef, email), { email });
       });
       setSnackbar({
         show: true,
         message: "Email list added successfully",
         severity: "success",
       });
-      navigator(`/admin/${folderName}/add`);
+      navigator(`/admin/${isVideoTab ? "video" : "pdf"}/${folderName}/add`);
     } catch (err) {
       setSnackbar({
         show: true,
@@ -107,7 +110,8 @@ export default function CreateFModal() {
       });
     }
   };
-  const handleCancle = () => {
+
+  const handleCancel = () => {
     setOpen(false);
     setFNameError("");
   };
@@ -131,9 +135,9 @@ export default function CreateFModal() {
         </Alert>
       </Snackbar>
       {loading ? (
-        <Loading text="Loading Folders " />
+        <Loading text="Loading Folders" />
       ) : open === true ? (
-        <Modal open={open} onClose={handleCancle}>
+        <Modal open={open} onClose={handleCancel}>
           <Box
             sx={{
               bgcolor: "white",
@@ -152,7 +156,7 @@ export default function CreateFModal() {
               borderRadius: "10px",
             }}
           >
-            <Typography variant="h6">Create New Folder</Typography>
+            <Typography variant="h6">Create New {isVideoTab ? "Video" : "PDF"} Folder</Typography>
             <TextField
               label="Folder Name"
               variant="filled"
@@ -174,7 +178,7 @@ export default function CreateFModal() {
                 <Button
                   variant="contained"
                   color="error"
-                  onClick={handleCancle}
+                  onClick={handleCancel}
                 >
                   Cancel
                 </Button>
@@ -199,7 +203,7 @@ export default function CreateFModal() {
           </Box>
         </Modal>
       ) : (
-        <Tooltip title="Create New Folder">
+        <Tooltip title={`Create New ${isVideoTab ? "Video" : "PDF"} Folder`}>
           <Fab
             color="success"
             sx={{

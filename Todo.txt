@@ -1,0 +1,2 @@
+- Show loggedd in email
+- Limit description to a certain characters

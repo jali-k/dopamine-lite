@@ -17,14 +17,18 @@ import Appbar from "../components/Appbar";
 import { Description as PdfIcon } from '@mui/icons-material';
 
 export default function PDFFileView() {
-  const { fname } = useParams();
-  
-  const pdfsRef = collection(fireDB, "pdfs");
-  const pdfQuery = query(pdfsRef, where("folder", "==", fname));
-  
-  const [pdfs, loading] = useCollectionData(pdfQuery, {
-    idField: "lname",
-  });
+ const params = useParams();
+  const pdfRef = collection(fireDB, "pdfFolders", params.fname, "pdfs");
+  const emailListref = collection(
+    fireDB,
+    "pdfFolders",
+    params.fname,
+    "emailslist"
+  );
+
+  const [pdfs, loading] = useCollectionData(pdfRef);
+
+
 
   if (loading) {
     return <Loading text="Loading PDFs" />;
@@ -48,16 +52,6 @@ export default function PDFFileView() {
       >
         <Appbar />
         
-        <Typography 
-          variant="h4" 
-          sx={{ 
-            my: 3, 
-            textAlign: 'center',
-            color: 'dark-green'
-          }}
-        >
-          {fname} Folder PDFs
-        </Typography>
 
         <Grid container spacing={3} sx={{ py: 2 }}>
           {pdfs && pdfs.length > 0 ? (
@@ -91,7 +85,7 @@ export default function PDFFileView() {
                         }} 
                       />
                       <Typography variant="h6">
-                        {pdf.lname}
+                        {pdf.title}
                       </Typography>
                       <Typography 
                         variant="body2" 

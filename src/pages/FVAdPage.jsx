@@ -1,8 +1,6 @@
-/* eslint-disable react/prop-types */
-
-import { Container, Grid, Typography } from "@mui/material";
+import React, { useState } from "react";
+import { Container, Grid, Typography, Box, Tabs, Tab } from "@mui/material";
 import FButton from "../components/FButton";
-
 import CreateFModal from "../components/CreateFModal";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { collection } from "firebase/firestore";
@@ -13,13 +11,25 @@ import { NavLink } from "react-router-dom";
 import { useUser } from "../contexts/UserProvider";
 
 export default function FVAdPage() {
-  const foldersRef = collection(fireDB, "folders");
-  const [folders, loading] = useCollectionData(foldersRef, {
+  const [activeTab, setActiveTab] = useState(0);
+
+  const videoFoldersRef = collection(fireDB, "folders");
+  const pdfFoldersRef = collection(fireDB, "pdfFolders");
+
+  const [videoFolders, videoLoading] = useCollectionData(videoFoldersRef, {
+    idField: "fname",
+  });
+  const [pdfFolders, pdfLoading] = useCollectionData(pdfFoldersRef, {
     idField: "fname",
   });
 
   const { isAdmin } = useUser();
-  if (loading) {
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  if (videoLoading || pdfLoading) {
     return <Loading text="Loading Files" />;
   }
 
@@ -41,6 +51,47 @@ export default function FVAdPage() {
     );
   }
 
+  const renderFolderGrid = (folders, type) => (
+    <Grid
+      container
+      spacing={2}
+      sx={{
+        px: 2,
+        minHeight: "100vh",
+        backgroundColor: type === "video" ? "#eeeeee" : "#d6eaf8",
+        width: "100%",
+        margin: 0,
+      }}
+    >
+      {folders && folders.length > 0 ? (
+        folders.map((file, index) => (
+          <Grid
+            item
+            xs={6}
+            sm={4}
+            md={3}
+            lg={2}
+            key={index}
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <FButton fname={file.fname} to={`/admin/${type}/${file.fname}`} />
+          </Grid>
+        ))
+      ) : (
+        <Grid item xs={12} textAlign="center">
+          <Typography variant="h6" color="textSecondary">
+            No {type === "video" ? "Video" : "PDF"} Folders Found
+          </Typography>
+        </Grid>
+      )}
+    </Grid>
+  );
+
   return (
     <Container
       disableGutters
@@ -52,41 +103,17 @@ export default function FVAdPage() {
         bgcolor: "#f4f4f4",
       }}
     >
-      <CreateFModal />
+      <CreateFModal activeTab={activeTab} />
       <Appbar />
-      <Grid container columns={18} spacing={2}>
-        {folders.length > 0 &&
-          folders.map((file, index) => (
-            <Grid
-              justifyContent={"center"}
-              display={"flex"}
-              item
-              xs={9}
-              sm={6}
-              md={3}
-              lg={2}
-              key={index}
-            >
-              <FButton fname={file.fname} to={`/admin/${file.fname}`} />
-            </Grid>
-          ))}
-      </Grid>
-      {(folders === undefined || folders.length < 1) && (
-        <Typography
-          variant="h3"
-          sx={{
-            textAlign: "center",
-            my: 4,
-            fontSize: "24px",
-            position: "absolute",
-            top: "30%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          No Files Found
-        </Typography>
-      )}
+      <Box sx={{ borderBottom: 1, borderColor: "divider", width: "100%" }}>
+        <Tabs value={activeTab} onChange={handleTabChange} centered variant="fullWidth">
+          <Tab label="Video Folders" />
+          <Tab label="PDF Folders" />
+        </Tabs>
+      </Box>
+
+      {activeTab === 0 && renderFolderGrid(videoFolders, "video")}
+      {activeTab === 1 && renderFolderGrid(pdfFolders, "pdf")}
     </Container>
   );
 }

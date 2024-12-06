@@ -1,10 +1,12 @@
 import FVAdPage from "./pages/FVAdPage";
 import { Outlet, Route, Routes } from "react-router-dom";
 import VideoUPPage from "./pages/VideoUPPage";
+import PDFUploaderPage from "./pages/PDFUploaderPage";
 import FVStuPage from "./pages/FVStuPage";
 import StuFileView from "./pages/StuFileView";
 import VideoPage from "./pages/VideoPage";
 import AdmFileView from "./pages/AdmFileView";
+import AdmPDFFileView from "./pages/AdmPDFFileView";
 import ADVideoPage from "./pages/ADVideoPage";
 import Error404 from "./pages/Error404";
 import AdminButton from "./components/AdminButton";
@@ -34,8 +36,8 @@ export default function App() {
         <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
         <Route path="/admin/video/:fname" element={<AdmFileView />} />
         <Route path="/admin/video/:fname/:lname" element={<ADVideoPage />} />
-        <Route path="/admin/pdf/:fname/add" element={<VideoUPPage />} /> {/* Modify as needed */}
-        <Route path="/admin/pdf/:fname" element={<AdmFileView />} /> {/* Modify as needed */}
+        <Route path="/admin/pdf/:fname/add" element={<PDFUploaderPage />} /> {/* Modify as needed */}
+        <Route path="/admin/pdf/:fname" element={<AdmPDFFileView />} /> {/* Modify as needed */}
         <Route path="/admin/pdf/:fname/:lname" element={<ADVideoPage />} /> {/* Modify as needed */}
 
         <Route path="*" element={<Error404 />} />
