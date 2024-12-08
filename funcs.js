@@ -10,22 +10,29 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-export const deleteTutorial = async (
-  folderName,
-  tutName,
-  vdName,
-  thumbName
-) => {
+export const deleteTutorial = async (folderName, title, video, thumbnail) => {
   try {
-    await deleteObject(
-      ref(fireStorage, `videos/${folderName}/${tutName}/${vdName}`)
-    );
-    await deleteObject(
-      ref(fireStorage, `thumbnails/${folderName}/${tutName}/${thumbName}`)
-    );
-    await deleteDoc(doc(fireDB, "folders", folderName, "tutorials", tutName));
-    console.log(`Deleted ${folderName} folder`);
+    // Delete thumbnail from storage if it exists
+    if (thumbnail) {
+      const thumbnailRef = ref(
+        fireStorage,
+        `thumbnails/${folderName}/${title}/${thumbnail}`
+      );
+      try {
+        await deleteObject(thumbnailRef);
+      } catch (error) {
+        console.log("Thumbnail might not exist:", error);
+        // Continue with deletion even if thumbnail doesn't exist
+      }
+    }
+
+    // Delete the document from Firestore
+    const tutorialRef = doc(fireDB, "folders", folderName, "tutorials", title);
+    await deleteDoc(tutorialRef);
+
+    return true;
   } catch (err) {
-    console.log(err);
+    console.error("Error in deleteTutorial:", err);
+    throw err;
   }
 };
