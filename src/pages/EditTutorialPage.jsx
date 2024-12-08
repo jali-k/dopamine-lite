@@ -9,21 +9,23 @@ import {
 } from "@mui/material";
 import Appbar from "../components/Appbar";
 import Uploader from "../components/Uploader";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { fireDB, fireStorage } from "../../firebaseconfig";
-import { NavLink, useNavigate, useParams } from "react-router-dom";
+import { NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
 import Loading from "../components/Loading";
-import { collection, doc, setDoc } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { useUser } from "../contexts/UserProvider";
-import SFVL from "../components/SFVL";
 import { useUploadFile } from "react-firebase-hooks/storage";
 import { ref } from "firebase/storage";
 
-export default function VideoUPPage() {
+export default function EditTutorialPage() {
   const params = useParams();
+  const location = useLocation();
   const navigator = useNavigate();
   const { isAdmin } = useUser();
+  const [uploadFile, uploading, snapshot] = useUploadFile();
   const [upload, setUpload] = useState(false);
+
   const [values, setValues] = useState({
     title: "",
     thumbnail: null,
@@ -31,8 +33,23 @@ export default function VideoUPPage() {
     handler: "",
     lesson: "",
     date: "",
+    originalTitle: "",
   });
-  const [uploadFile, uploading, snapshot] = useUploadFile();
+
+  useEffect(() => {
+    if (location.state?.tutorial) {
+      const { tutorial } = location.state;
+      setValues({
+        title: tutorial.title || "",
+        thumbnail: null,
+        description: tutorial.description || "",
+        handler: tutorial.handler || "",
+        lesson: tutorial.lesson || "",
+        date: tutorial.date || "",
+        originalTitle: tutorial.title || "",
+      });
+    }
+  }, [location.state]);
 
   const lessonlist = [
     "ජීව විද්‍යාව හැඳින්වීම",
@@ -52,9 +69,9 @@ export default function VideoUPPage() {
     setValues({ ...values, [e.target.name]: e.target.value });
   };
 
-  const handleUploaddata = async () => {
+  const handleUpdateData = async () => {
     if (!values.thumbnail || !values.title) {
-      alert("Please fill in all required fields");
+      alert("Please select a new thumbnail and fill all required fields");
       return;
     }
 
@@ -64,8 +81,9 @@ export default function VideoUPPage() {
       params.fname,
       "tutorials"
     );
-    alert("Don't close the tab until the upload is complete!");
+
     try {
+      // Upload new thumbnail
       await uploadFile(
         ref(
           fireStorage,
@@ -77,22 +95,27 @@ export default function VideoUPPage() {
         }
       );
 
+      // If title has changed, delete old document
+      if (values.title !== values.originalTitle) {
+        await deleteDoc(doc(tutorialref, values.originalTitle));
+      }
+
+      // Create/Update document
       await setDoc(doc(tutorialref, values.title), {
         title: values.title,
         thumbnail: values.thumbnail.name,
-        video: "", // Set empty string for video since we're not uploading it
+        video: "",
         description: values.description,
         handler: values.handler,
         lesson: values.lesson,
         date: values.date,
       });
-    } catch (err) {
-      console.log(err);
-      alert("An error occurred during upload");
-      return;
-    }
 
-    navigator("/admin");
+      navigator(`/admin/video/${params.fname}`);
+    } catch (err) {
+      console.error("Error updating tutorial:", err);
+      alert("An error occurred while updating the tutorial");
+    }
   };
 
   if (!isAdmin) {
@@ -111,10 +134,6 @@ export default function VideoUPPage() {
         </Typography>
       </NavLink>
     );
-  }
-
-  if (params.fname === undefined || params.fname === null) {
-    return <Loading text="Please wait" />;
   }
 
   if (snapshot) {
@@ -155,59 +174,62 @@ export default function VideoUPPage() {
         autoFocus
         onSubmit={(e) => {
           e.preventDefault();
-          console.log("Form Submitted");
           setUpload(true);
-          handleUploaddata();
+          handleUpdateData();
         }}
       >
-        {/* Move title field to top */}
+        <Typography variant="h5" sx={{ mb: 2 }}>
+          Edit Tutorial
+        </Typography>
+
         <TextField
           label="Title"
           placeholder="Title"
           variant="filled"
           required
           name="title"
-          onChange={handleInputs}
           value={values.title}
+          onChange={handleInputs}
         />
 
         <Uploader
-          text="Upload the thumbnail"
+          text="Upload new thumbnail"
           type="thumbnails"
           savetitle={`${params.fname}/${values.title || 'untitled'}`}
           startupload={upload}
           onChange={(file) => {
             setValues({ ...values, thumbnail: file });
           }}
-          inerror={values.thumbnail === null}
+          inerror={!values.thumbnail}
           name="thumbnail-upload"
+          helperText="Please select a new thumbnail"
         />
 
-        <TextField
-          label="Handler"
-          placeholder="Handler"
-          variant="filled"
-          required
-          name="handler"
-          onChange={handleInputs}
-          value={values.handler}
-        />
         <TextField
           label="Description"
           placeholder="Description"
           variant="filled"
           required
           name="description"
-          onChange={handleInputs}
           value={values.description}
+          onChange={handleInputs}
+        />
+        <TextField
+          label="Handler"
+          placeholder="Handler"
+          variant="filled"
+          required
+          name="handler"
+          value={values.handler}
+          onChange={handleInputs}
         />
         <Select
           label="Lesson"
           id="select"
           required
           name="lesson"
+          value={values.lesson}
           onChange={handleInputs}
-          value={values.lesson || ""}
         >
           {lessonlist.map((lesson, index) => (
             <MenuItem key={index} value={lesson}>
@@ -229,17 +251,13 @@ export default function VideoUPPage() {
           type="date"
           required
           name="date"
-          onChange={handleInputs}
           value={values.date}
+          onChange={handleInputs}
         />
 
-        <Button
-          type="submit"
-          variant="contained"
-        >
-          Upload
+        <Button type="submit" variant="contained" color="primary">
+          Update Tutorial
         </Button>
-        <SFVL foldername={params.fname} />
       </Box>
     </Container>
   );

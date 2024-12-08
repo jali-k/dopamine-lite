@@ -10,8 +10,9 @@ import AdmPDFFileView from "./pages/AdmPDFFileView";
 import ADVideoPage from "./pages/ADVideoPage";
 import Error404 from "./pages/Error404";
 import AdminButton from "./components/AdminButton";
-import PDFFileView from "./pages/PDFFileView"; // New page for PDF files
-import PDFPage from "./pages/PDFPage"; // New page for individual PDFs
+import PDFFileView from "./pages/PDFFileView";
+import PDFPage from "./pages/PDFPage";
+import EditTutorialPage from "./pages/EditTutorialPage"; // New import
 
 export default function App() {
   return (
@@ -36,9 +37,10 @@ export default function App() {
         <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
         <Route path="/admin/video/:fname" element={<AdmFileView />} />
         <Route path="/admin/video/:fname/:lname" element={<ADVideoPage />} />
-        <Route path="/admin/pdf/:fname/add" element={<PDFUploaderPage />} /> {/* Modify as needed */}
-        <Route path="/admin/pdf/:fname" element={<AdmPDFFileView />} /> {/* Modify as needed */}
-        <Route path="/admin/pdf/:fname/:lname" element={<ADVideoPage />} /> {/* Modify as needed */}
+        <Route path="/admin/video/:fname/edit/:tname" element={<EditTutorialPage />} /> 
+        <Route path="/admin/pdf/:fname/add" element={<PDFUploaderPage />} />
+        <Route path="/admin/pdf/:fname" element={<AdmPDFFileView />} />
+        <Route path="/admin/pdf/:fname/:lname" element={<ADVideoPage />} />
 
         <Route path="*" element={<Error404 />} />
       </Route>

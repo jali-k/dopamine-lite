@@ -14,6 +14,13 @@ import {
   Stack,
   TextField as Tf,
   Typography as T,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Card,
+  CardContent,
+  CardActions
 } from "@mui/material";
 import { collection, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
@@ -22,10 +29,12 @@ import { useCollectionData } from "react-firebase-hooks/firestore";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import VCad from "../components/VCad";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { useUser } from "../contexts/UserProvider";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import EmailIcon from "@mui/icons-material/Email";
 import DoneIcon from "@mui/icons-material/Done";
+import EditIcon from "@mui/icons-material/Edit";
 import { useState } from "react";
 import { deleteTutorial, isValidEmail } from "../../funcs";
 import { Add } from "@mui/icons-material";
@@ -42,6 +51,7 @@ export default function AdmFileView() {
   );
 
   const [editableemails, setEditableEmails] = useState("");
+  const [openDeleteFolderConfirm, setOpenDeleteFolderConfirm] = useState(false);
 
   const { isAdmin } = useUser();
 
@@ -105,6 +115,50 @@ export default function AdmFileView() {
     setEditableEmails("");
   };
 
+  const deleteIndividualTutorial = async (tut) => {
+    try {
+      await deleteTutorial(params.fname, tut.title, null, tut.thumbnail);
+      console.log(`Tutorial ${tut.title} deleted`);
+    } catch (err) {
+      console.error("Error deleting tutorial:", err);
+    }
+  };
+
+  const handleEditTutorial = (tut) => {
+    navigator(`edit/${tut.title}`, {
+      state: {
+        tutorial: tut,
+        folderName: params.fname
+      }
+    });
+  };
+
+  const handleDeleteFolder = async () => {
+    try {
+      // Delete all tutorials in the folder
+      tuts.forEach((tut) => {
+        deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
+      });
+
+      // Delete all emails
+      snapshot.forEach(async (doc) => {
+        try {
+          await deleteDoc(doc.ref);
+        } catch (err) {
+          console.log(err);
+        }
+      });
+
+      // Delete the folder itself
+      await deleteDoc(doc(fireDB, "folders", params.fname));
+
+      console.log(`Folder ${params.fname} deleted`);
+      navigator("/admin");
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+    }
+  };
+
   if (loading) {
     return <Loading text="Loading Tutorials" />;
   }
@@ -155,41 +209,76 @@ export default function AdmFileView() {
           gap: 2,
           px: 2,
           overflowY: "auto",
+          pb: 10,
         }}
       >
-        <Grid container columns={12} spacing={1}>
-          {tuts.length > 0 ? (
-            tuts.map((tut, index) => (
-              <Grid
-                item
-                key={index}
-                justifyContent={"center"}
-                display={"flex"}
-                xs={12}
-                sm={6}
-                md={4}
-              >
-                <VCad tut={{ ...tut, fpath: params.fname }} />
-              </Grid>
-            ))
-          ) : (
-            <T
-              variant="h3"
-              sx={{
-                textAlign: "center",
-                my: 4,
-                fontSize: "24px",
-                width: "100%",
-                // position: "absolute",
-                // top: "30%",
-                // left: "50%",
-                // transform: "translate(-50%, -50%)",
-              }}
-            >
-              No Files Found
+        {/* Tutorials Grid */}
+        <Card variant="outlined" sx={{ mb: 2 }}>
+          <CardContent>
+            <T variant="h5" sx={{ mb: 2 }}>
+              {params.fname} Tutorials
             </T>
-          )}
-        </Grid>
+            <Grid container spacing={2} columns={12}>
+              {tuts.length > 0 ? (
+                tuts.map((tut, index) => (
+                  <Grid
+                    item
+                    key={index}
+                    xs={12}
+                    sm={6}
+                    md={4}
+                  >
+                    <Card
+                      variant="outlined"
+                      sx={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}
+                    >
+                      <VCad tut={{ ...tut, fpath: params.fname }} />
+                      <CardActions sx={{ flexDirection: 'column', gap: 1 }}>
+                        <B
+                          fullWidth
+                          startIcon={<EditIcon />}
+                          variant="contained"
+                          color="primary"
+                          onClick={() => handleEditTutorial(tut)}
+                        >
+                          Edit Tutorial
+                        </B>
+                        <B
+                          fullWidth
+                          startIcon={<DeleteIcon />}
+                          variant="contained"
+                          color="error"
+                          onClick={() => deleteIndividualTutorial(tut)}
+                        >
+                          Delete Tutorial
+                        </B>
+                      </CardActions>
+                    </Card>
+                  </Grid>
+                ))
+              ) : (
+                <Grid item xs={12}>
+                  <T
+                    variant="body1"
+                    color="text.secondary"
+                    sx={{
+                      textAlign: "center",
+                      py: 4,
+                    }}
+                  >
+                    No Tutorials Found in {params.fname}
+                  </T>
+                </Grid>
+              )}
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Authorized Users Accordion */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <T variant="h6">Authorized Users</T>
@@ -216,9 +305,11 @@ export default function AdmFileView() {
             </L>
           </AccordionDetails>
         </Accordion>
+
+        {/* Edit Access Accordion */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            Edit Access
+            <T variant="h6">Edit Access</T>
           </AccordionSummary>
           <AccordionDetails
             sx={{
@@ -232,7 +323,8 @@ export default function AdmFileView() {
               multiline
               minRows={3}
               maxRows={5}
-              placeholder="Use comma or new line separated emails to give or revoke access to specific users. type DELETE_ALL to remove all emails and give free access."
+              variant="outlined"
+              placeholder="Use comma or new line separated emails to give or revoke access to specific users. Type DELETE_ALL to remove all emails and give free access."
               value={editableemails}
               onChange={(e) => setEditableEmails(e.target.value)}
             />
@@ -240,56 +332,40 @@ export default function AdmFileView() {
               <B
                 variant="contained"
                 color="success"
-                onClick={() => {
-                  addEmailsToDB();
-                }}
+                onClick={addEmailsToDB}
               >
                 Add
               </B>
               <B
                 variant="contained"
                 color="error"
-                onClick={() => {
-                  deleteEmailsfromDB();
-                }}
+                onClick={deleteEmailsfromDB}
               >
                 Remove
               </B>
             </Stack>
           </AccordionDetails>
         </Accordion>
+
+        {/* Delete Folder Button */}
         <B
-          onContextMenu={(e) => {
-            e.preventDefault();
-          }}
+          fullWidth
           color="error"
           variant="contained"
-          onClick={async () => {
-            tuts.forEach((tut) => {
-              deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
-            });
-            snapshot.forEach(async (doc) => {
-              try {
-                await deleteDoc(doc.ref);
-              } catch (err) {
-                console.log(err);
-              }
-            });
-            console.log("All emails deleted");
-            await deleteDoc(doc(fireDB, "folders", params.fname));
-            console.log(`Folder ${params.fname} deleted`);
-            navigator("/admin");
-          }}
+          onClick={() => setOpenDeleteFolderConfirm(true)}
         >
           Delete {params.fname} Folder
         </B>
       </Bx>
+
+      {/* Add Tutorial FAB */}
       <Fab
         color="success"
         sx={{
-          position: "absolute",
+          position: "fixed",
           bottom: "20px",
           right: "20px",
+          zIndex: 1000,
         }}
         onClick={() => {
           navigator("add");
@@ -297,6 +373,33 @@ export default function AdmFileView() {
       >
         <Add />
       </Fab>
+
+      {/* Folder Delete Confirmation Dialog */}
+      <Dialog
+        open={openDeleteFolderConfirm}
+        onClose={() => setOpenDeleteFolderConfirm(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Folder</DialogTitle>
+        <DialogContent>
+          <T variant="body1">
+            Are you sure you want to delete the folder "{params.fname}"?
+            This will remove all tutorials and email access settings.
+          </T>
+        </DialogContent>
+        <DialogActions>
+          <B onClick={() => setOpenDeleteFolderConfirm(false)}>
+            Cancel
+          </B>
+          <B
+            color="error"
+            onClick={handleDeleteFolder}
+          >
+            Delete
+          </B>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
