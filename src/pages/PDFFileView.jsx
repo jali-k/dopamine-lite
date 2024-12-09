@@ -39,30 +39,36 @@ export default function PDFFileView() {
   return (
     <Box 
       sx={{
+       
         minHeight: "100vh",
-        backgroundColor: '#e6f3e6',
-        py: { xs: 2, sm: 4 },
-        px: { xs: 1, sm: 0 }
+        backgroundColor: '#f4f4f4',
+        display: "flex"
       }}
     >
       <Container 
+      
         maxWidth="lg"
         sx={{
           display: 'flex',
           flexDirection: 'column',
+          flex: 1,
+          py: { xs: 2, sm: 4 },
+          px: { xs: 1, sm: 2 }
         }}
       >
         <Appbar />
         
 
-        <Grid container spacing={3} sx={{ py: 2 }}>
+        <Grid container spacing={3} sx={{
+          py: 2, flex: 1, margin: 0, width: "100%" }} backgroundColor="#eeeeee">
           {pdfs && pdfs.length > 0 ? (
             pdfs.map((pdf, index) => (
               <Grid item xs={12} sm={6} md={4} key={index}>
                 <Card 
+                 
                   elevation={3}
                   sx={{ 
-                    height: '100%', 
+              
                     display: 'flex', 
                     flexDirection: 'column' 
                   }}
