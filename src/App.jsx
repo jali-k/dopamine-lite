@@ -27,6 +27,8 @@ export default function App() {
       >
         {/* Student routes */}
         <Route path="/" element={<FVStuPage />} />
+        <Route path="/video" element={<FVStuPage />} />
+        <Route path="/pdf" element={<FVStuPage />} />
         <Route path="/video/:fname" element={<StuFileView />} />
         <Route path="/video/:fname/:lname" element={<VideoPage />} />
         <Route path="/pdf/:fname" element={<PDFFileView />} />
@@ -34,13 +36,15 @@ export default function App() {
 
         {/* Admin routes */}
         <Route path="/admin" element={<FVAdPage />} />
+        <Route path="/admin/video" element={<FVAdPage />} />
         <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
         <Route path="/admin/video/:fname" element={<AdmFileView />} />
         <Route path="/admin/video/:fname/:lname" element={<ADVideoPage />} />
-        <Route path="/admin/video/:fname/edit/:tname" element={<EditTutorialPage />} /> 
+        <Route path="/admin/video/:fname/edit/:tname" element={<EditTutorialPage />} />
+        <Route path="/admin/pdf" element={<FVAdPage />} /> 
         <Route path="/admin/pdf/:fname/add" element={<PDFUploaderPage />} />
         <Route path="/admin/pdf/:fname" element={<AdmPDFFileView />} />
-        <Route path="/admin/pdf/:fname/:lname" element={<ADVideoPage />} />
+        <Route path="/admin/pdf/:fname/:lname" element={<PDFPage />} />
 
         <Route path="*" element={<Error404 />} />
       </Route>
