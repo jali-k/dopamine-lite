@@ -15,6 +15,8 @@ import { useUser } from "../contexts/UserProvider";
 import CVPL from "../components/cvp";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
+import VideoErrorDialog from "../components/VideoErrorDialog";
+import SecurityCheckUI from "../components/SecurityCheck";
 import BaseHlsPlayer from "../components/BaseHlsPlayer";
 
 export default function VideoPage() {
@@ -22,6 +24,8 @@ export default function VideoPage() {
   const tutsref = collection(fireDB, "folders", params.fname, "tutorials");
   const lessonref = doc(fireDB, tutsref.path, params.lname);
   const [vurl, setvurl] = useState("http://localhost:3000/uploads/myVideo-1715438432526/output.m3u8");
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
 
   const emailListref = collection(
     fireDB,
@@ -89,20 +93,22 @@ useEffect(() => {
     console.log('====================================');
     console.log(handler);
     console.log('====================================');
+
+    if (!handler || hasLoadError) return; // Don't start or stop if there's an error
  
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
         const nextProgress = prevProgress + 1;
         if (nextProgress === 100) {
           clearInterval(interval);
-          setSecurityCheck(false);
+          setSecurityCheck(false);  // Only remove security check at 100% if no error
         }
         return nextProgress;
       });
     }, 300);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [handler, hasLoadError]);
 
   if (loading) {
     return <Loading text="Loading Document" />;
@@ -172,10 +178,24 @@ useEffect(() => {
           {tut.title} - {tut.lesson}
         </Typography>
         {vurl ? (
-          <CVPL url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600'} watermark={user.email} />
-          // https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=myVideo&expiration=3600
-          // https://convertedvs.s3.amazonaws.com/kana/index.m3u8
-          // https://us-central1-video-sharing-web-81a82.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder='+handler+'&expiration=3600
+          <>
+            <CVPL
+              url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=3600'}
+              watermark={user.email}
+              canPlay={!securityCheck && progress === 100}
+              onError={() => {
+                setShowErrorDialog(true);
+                setHasLoadError(true);
+
+              }}
+            />
+            <VideoErrorDialog
+              open={showErrorDialog}
+              onClose={() => setShowErrorDialog(false)
+              }
+              
+            />
+          </>
         ) : (
           <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
         )}
@@ -199,29 +219,9 @@ useEffect(() => {
           flexDirection: 'column',
           alignItems: 'center',
         }}
-        open={securityCheck}
+        open={securityCheck || hasLoadError}  // Keep backdrop open if there's an error
       >
-        <div style={{ width: 200, height: 200 }}>
-          <CircularProgressbar
-        
-          value={progress}
-          text={`${progress}%`}
-          styles={buildStyles({
-            textSize: '24px',
-            textColor: '#fff',
-            pathColor: '#4caf50',
-            trailColor: 'rgba(255, 255, 255, 0.2)',
-          })}
-        />
-        </div>
-        <Typography
-          variant="h6"
-          sx={{
-            mt: 2,
-          }}
-        >
-          Performing security checks...
-        </Typography>
+        <SecurityCheckUI progress={progress} />
       </Backdrop>
     </Container>
   );

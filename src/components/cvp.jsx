@@ -20,7 +20,7 @@ import {
 } from "react-full-screen";
 import { jhsfg } from "../../af";
 
-export default function CVPL({ watermark, url }) {
+export default function CVPL({ watermark, url, canPlay, onError }) {
   const fhandle = uFSC();
   const vdrf = uR(null);
   const slrf = uR(null);
@@ -90,21 +90,45 @@ export default function CVPL({ watermark, url }) {
         const blobUrl = URL.createObjectURL(blob);
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
+
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLoading(false);
-          vdrf.current.play();
+          if (canPlay) {
+            vdrf.current.play();
+          }
+        });
+
+        hls.on(Hls.Events.ERROR, () => {
+          setLoading(false);
+          onError?.();
         });
       } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
         vdrf.current.src = data.manifest_url;
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
-          vdrf.current.play();
+          if (canPlay) {
+            vdrf.current.play();
+          }
+        });
+
+        vdrf.current.addEventListener('error', () => {
+          setLoading(false);
+          onError?.();
         });
       }
     } catch (error) {
       console.error('Error fetching manifest:', error);
+      setLoading(false);
+      onError?.();
     }
   };
+
+  // Add this effect to handle playback when security check completes
+  uE(() => {
+    if (canPlay && vdrf.current && !loading) {
+      vdrf.current.play();
+    }
+  }, [canPlay]);
 
   uE(() => {
     fetchManifest();
@@ -301,9 +325,9 @@ export default function CVPL({ watermark, url }) {
           }}
         >
           {jhsfg([
-            32, 80, 111, 119, 101, 114, 101, 100, 32, 98, 121, 32, 68, 97, 115,
-            97, 32, 71, 97, 109, 101, 115, 32, 83, 116, 117, 100, 105, 111,
+            80, 111, 119, 101, 114, 101, 100, 32, 98, 121, 32, 79, 110, 101, 67, 111, 100, 101
           ])}
+
         </T>
       </B>
     </FSC>
