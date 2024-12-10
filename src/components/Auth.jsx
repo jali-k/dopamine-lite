@@ -33,7 +33,10 @@ export default function Auth({ open = true }) {
     try {
       const user = await swggle();
       if (user) {
-        navigator("/"); // Redirect on success
+        // Add a small delay before navigation
+        setTimeout(() => {
+          navigator("/");
+        }, 500);
       }
     } catch (err) {
       setError(err.message);

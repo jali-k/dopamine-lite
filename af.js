@@ -35,10 +35,26 @@ const mapAuthError = (error) => {
 // This is your Google login function
 export const swggle = async () => {
   try {
+    // Try to sign out any existing session
+    try {
+      await fireauth.signOut();
+    } catch (e) {
+      // Ignore signout errors
+    }
+
+    // Add a small delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const res = await sgnp(fireauth, gprovider);
+    if (!res || !res.user) {
+      throw new Error('Login failed. Please try again.');
+    }
     return res.user;
   } catch (error) {
     console.error("Google login error:", error);
+    if (error.code === 'auth/popup-closed-by-user') {
+      throw new Error('The sign-in was cancelled. Please try again.');
+    }
     throw new Error(mapAuthError(error));
   }
 };

@@ -18,7 +18,23 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const db = getFirestore(app);
 const gprovider = new GoogleAuthProvider();
-gprovider.setCustomParameters({ prompt: "select_account" });
+// gprovider.setCustomParameters({
+//   prompt: "select_account",
+//   // Add your custom domain to allowed origins
+//   authDomain: 'dopamineapplite.com'
+// });
+// gprovider.setCustomParameters({ prompt: "select_account" });
+
+gprovider.addScope('email');
+gprovider.addScope('profile');
+
+auth.onAuthStateChanged((user) => {
+  console.log('Auth state changed:', user);
+});
+
+auth.onIdTokenChanged((user) => {
+  console.log('ID token changed:', user);
+});
 
 export {
   auth as fireauth,
