@@ -6,7 +6,14 @@ import {
   Select,
   TextField,
   Typography,
+  Paper,
+  Card,
+  CardContent,
+  Stack
 } from "@mui/material";
+import BiotechIcon from '@mui/icons-material/Biotech';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
 import Appbar from "../components/Appbar";
 import Uploader from "../components/Uploader";
 import { useState, useEffect } from "react";
@@ -154,8 +161,8 @@ export default function EditTutorialPage() {
     <Container
       disableGutters
       sx={{
-        bgcolor: "#f4f4f4",
-        height: "100vh",
+        bgcolor: "background.default",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         gap: 2,
@@ -166,98 +173,134 @@ export default function EditTutorialPage() {
         sx={{
           display: "flex",
           flexDirection: "column",
-          gap: 2,
+          gap: 3,
           px: 2,
           pb: 4,
         }}
         component={"form"}
-        autoFocus
+        autoComplete="off"
         onSubmit={(e) => {
           e.preventDefault();
           setUpload(true);
           handleUpdateData();
         }}
       >
-        <Typography variant="h5" sx={{ mb: 2 }}>
-          Edit Tutorial
-        </Typography>
-
-        <TextField
-          label="Title"
-          placeholder="Title"
-          variant="filled"
-          required
-          name="title"
-          value={values.title}
-          onChange={handleInputs}
-        />
-
-        <Uploader
-          text="Upload new thumbnail"
-          type="thumbnails"
-          savetitle={`${params.fname}/${values.title || 'untitled'}`}
-          startupload={upload}
-          onChange={(file) => {
-            setValues({ ...values, thumbnail: file });
-          }}
-          inerror={!values.thumbnail}
-          name="thumbnail-upload"
-          helperText="Please select a new thumbnail"
-        />
-
-        <TextField
-          label="Description"
-          placeholder="Description"
-          variant="filled"
-          required
-          name="description"
-          value={values.description}
-          onChange={handleInputs}
-        />
-        <TextField
-          label="Handler"
-          placeholder="Handler"
-          variant="filled"
-          required
-          name="handler"
-          value={values.handler}
-          onChange={handleInputs}
-        />
-        <Select
-          label="Lesson"
-          id="select"
-          required
-          name="lesson"
-          value={values.lesson}
-          onChange={handleInputs}
-        >
-          {lessonlist.map((lesson, index) => (
-            <MenuItem key={index} value={lesson}>
-              {lesson}
-            </MenuItem>
-          ))}
-        </Select>
-
-        <Box
-          component={"input"}
+        {/* Header */}
+        <Paper
+          elevation={0}
           sx={{
-            px: 4,
-            py: 2,
-            borderRadius: "4px",
-            border: "2px solid #bbb",
-            fontSize: "16px",
-            color: "#777",
+            p: 3,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
           }}
-          type="date"
-          required
-          name="date"
-          value={values.date}
-          onChange={handleInputs}
-        />
+        >
+          <EditIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <Typography variant="h4">
+            Edit Tutorial
+          </Typography>
+        </Paper>
 
-        <Button type="submit" variant="contained" color="primary">
-          Update Tutorial
-        </Button>
+        {/* Form Card */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent>
+            <Stack spacing={3}>
+              <TextField
+                label="Title"
+                placeholder="Enter tutorial title"
+                variant="outlined"
+                required
+                name="title"
+                value={values.title}
+                onChange={handleInputs}
+                fullWidth
+              />
+
+              <Uploader
+                text="Upload new thumbnail"
+                type="thumbnails"
+                savetitle={`${params.fname}/${values.title || 'untitled'}`}
+                startupload={upload}
+                onChange={(file) => {
+                  setValues({ ...values, thumbnail: file });
+                }}
+                inerror={!values.thumbnail}
+                name="thumbnail-upload"
+                helperText="Please select a new thumbnail"
+              />
+
+              <TextField
+                label="Description"
+                placeholder="Enter tutorial description"
+                variant="outlined"
+                required
+                multiline
+                rows={4}
+                name="description"
+                value={values.description}
+                onChange={handleInputs}
+                fullWidth
+              />
+
+              <TextField
+                label="Handler"
+                placeholder="Enter handler name"
+                variant="outlined"
+                required
+                name="handler"
+                value={values.handler}
+                onChange={handleInputs}
+                fullWidth
+              />
+
+              <Select
+                label="Lesson"
+                displayEmpty
+                required
+                name="lesson"
+                value={values.lesson}
+                onChange={handleInputs}
+                fullWidth
+                sx={{ textAlign: 'left' }}
+              >
+                {lessonlist.map((lesson, index) => (
+                  <MenuItem key={index} value={lesson}>
+                    {lesson}
+                  </MenuItem>
+                ))}
+              </Select>
+
+              <TextField
+                type="date"
+                required
+                name="date"
+                value={values.date}
+                onChange={handleInputs}
+                fullWidth
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                label="Date"
+              />
+
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                sx={{
+                  mt: 2,
+                  borderRadius: 2,
+                  textTransform: 'none'
+                }}
+              >
+                Update Tutorial
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
       </Box>
     </Container>
   );

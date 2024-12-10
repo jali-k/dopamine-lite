@@ -1,11 +1,19 @@
 import {
-  Backdrop,
   Box,
   Button,
   Container,
   Modal,
   Typography as T,
+  Paper,
+  Card,
+  CardContent,
+  Stack
 } from "@mui/material";
+import ScienceIcon from '@mui/icons-material/Science';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import DescriptionIcon from '@mui/icons-material/Description';
 import Appbar from "../components/Appbar";
 import { fireDB, fireStorage } from "../../firebaseconfig";
 import { collection, doc } from "firebase/firestore";
@@ -106,7 +114,7 @@ export default function ADVideoPage() {
         display: "flex",
         flexDirection: "column",
         position: "relative",
-        bgcolor: "#f4f4f4",
+        bgcolor: "background.default",
       }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -118,61 +126,101 @@ export default function ADVideoPage() {
           p: 2,
           display: "flex",
           flexDirection: "column",
-          gap: 2,
-          overflow: "scroll",
+          gap: 3,
+          overflow: "auto",
         }}
         onContextMenu={(e) => {
           e.preventDefault();
         }}
       >
-        <T
-          variant={"h4"}
+        {/* Title Header */}
+        <Paper
+          elevation={0}
           sx={{
-            fontSize: { xs: "24px", sm: "28px", md: "32px" },
+            p: 3,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
           }}
         >
-          {tut.title} - {tut.lesson}
-        </T>
-        {vurl ? (
-          //   <video
-          //     width="100%"
-          //     controls
-          //     src={vurl}
-          //     preload="metadata"
-          //     controlsList="nodownload"
-          //     style={{
-          //       backgroundColor: "black",
-          //       borderRadius: "6px",
-          //       maxHeight: "600px",
-          //     }}
-          //     onContextMenu={(e) => {
-          //       e.preventDefault();
-          //     }}
-          //   />
+          <BiotechIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <T variant="h4">
+            {tut.title} - {tut.lesson}
+          </T>
+        </Paper>
 
-          <CVPL url={vurl} watermark={user.email} />
-        ) : (
-          <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
-        )}
-        <T
-          variant="h5"
+        {/* Video Player Card */}
+        <Card
+          variant="outlined"
           sx={{
-            fontSize: { xs: "16px", sm: "18px", md: "20px" },
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            overflow: 'hidden'
           }}
         >
-          {tut.date.replaceAll("-", "/")}
-        </T>
-        <Button
-          variant="contained"
-          color="error"
-          onClick={() => {
-            deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
-            nv(`/admin/${params.fname}`);
-          }}
-        >
-          Delete
-        </Button>
-        <T variant="body1">{tut.description}</T>
+          <CardContent sx={{ p: 0 }}>
+            {vurl ? (
+              <CVPL url={vurl} watermark={user.email} />
+            ) : (
+              <Box sx={{
+                width: "100%",
+                aspectRatio: "16/9",
+                bgcolor: "black",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <ScienceIcon sx={{ fontSize: 64, color: 'grey.500' }} />
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Info Section */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent>
+            <Stack spacing={2}>
+              {/* Date */}
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <CalendarTodayIcon color="primary" />
+                <T variant="h6">
+                  {tut.date.replaceAll("-", "/")}
+                </T>
+              </Stack>
+
+              {/* Description */}
+              <Stack spacing={1}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <DescriptionIcon color="primary" />
+                  <T variant="h6">Description</T>
+                </Stack>
+                <T variant="body1" sx={{ pl: 4 }}>
+                  {tut.description}
+                </T>
+              </Stack>
+
+              {/* Delete Button */}
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => {
+                  deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
+                  nv(`/admin/${params.fname}`);
+                }}
+                sx={{
+                  mt: 2,
+                  borderRadius: 2,
+                  textTransform: 'none'
+                }}
+              >
+                Delete Tutorial
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
       </Box>
     </Container>
   );

@@ -1,21 +1,26 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Container, 
-  Grid, 
-  Typography, 
-  Card, 
-  CardActionArea, 
+import {
+  Container,
+  Grid,
+  Typography,
+  Card,
+  CardActionArea,
   CardContent,
-  Box
+  Box,
+  Paper
 } from '@mui/material';
+import {
+  Description as PdfIcon,
+  BiotechOutlined,
+  Science
+} from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { collection, query, where } from "firebase/firestore";
 import { fireDB } from "../../firebaseconfig";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
-import { Description as PdfIcon } from '@mui/icons-material';
 
 export default function PDFFileView() {
  const params = useParams();
@@ -37,16 +42,14 @@ export default function PDFFileView() {
   console.log(pdfs);
 
   return (
-    <Box 
+    <Box
       sx={{
-       
         minHeight: "100vh",
-        backgroundColor: '#f4f4f4',
+        backgroundColor: 'background.default',
         display: "flex"
       }}
     >
-      <Container 
-      
+      <Container
         maxWidth="lg"
         sx={{
           display: 'flex',
@@ -57,61 +60,99 @@ export default function PDFFileView() {
         }}
       >
         <Appbar />
-        
 
-        <Grid container spacing={3} sx={{
-          py: 2, flex: 1, margin: 0, width: "100%" }} backgroundColor="#eeeeee">
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 2,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
+          }}
+        >
+          <BiotechOutlined sx={{ fontSize: 32, color: 'primary.main' }} />
+          <Typography variant="h4">
+            {params.fname} Documents
+          </Typography>
+        </Paper>
+
+        <Grid container spacing={3}>
           {pdfs && pdfs.length > 0 ? (
             pdfs.map((pdf, index) => (
               <Grid item xs={12} sm={6} md={4} key={index}>
-                <Card 
-                 
-                  elevation={3}
-                  sx={{ 
-              
-                    display: 'flex', 
-                    flexDirection: 'column' 
+                <Card
+                  sx={{
+                    height: '100%',
+                    transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
+                    }
                   }}
                 >
-                  <CardActionArea 
+                  <CardActionArea
                     component={Link}
-                    to={`/pdf/${params.fname}/${pdf.title}`} 
+                    to={pdf.url}
                     target="_blank"
-                    sx={{ 
-                      flexGrow: 1,
-                      display: 'flex', 
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      p: 3
                     }}
                   >
-                    <CardContent sx={{ textAlign: 'center' }}>
-                      <PdfIcon 
-                        sx={{ 
-                          fontSize: 60, 
-                          color: 'primary.main',
-                          mb: 2 
-                        }} 
-                      />
-                      <Typography variant="h6">
-                        {pdf.title}
-                      </Typography>
-                      <Typography 
-                        variant="body2" 
-                        color="textSecondary"
+                    <PdfIcon
+                      sx={{
+                        fontSize: 64,
+                        color: 'error.main',
+                        mb: 2
+                      }}
+                    />
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontFamily: 'Quicksand, Arial, sans-serif',
+                        fontWeight: 600,
+                        color: 'primary.main'
+                      }}
+                    >
+                      {pdf.title}
+                    </Typography>
+                    {pdf.description && (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 1 }}
                       >
-                        {pdf.description || 'No description'}
+                        {pdf.description}
                       </Typography>
-                    </CardContent>
+                    )}
                   </CardActionArea>
                 </Card>
               </Grid>
             ))
           ) : (
-            <Grid item xs={12} textAlign="center">
-              <Typography variant="h6" color="textSecondary">
-                No PDFs Found in this Folder
-              </Typography>
+            <Grid item xs={12}>
+              <Card
+                sx={{
+                  textAlign: 'center',
+                  py: 6,
+                  backgroundColor: 'customColors.cytoplasm',
+                  border: '1px dashed',
+                  borderColor: 'primary.main'
+                }}
+              >
+                <CardContent>
+                  <Science sx={{ fontSize: 48, color: 'primary.main', opacity: 0.7, mb: 2 }} />
+                  <Typography variant="h6" color="primary">
+                    No PDFs Found in this Folder
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
           )}
         </Grid>

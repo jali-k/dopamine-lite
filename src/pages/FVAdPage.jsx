@@ -1,5 +1,19 @@
 import React, { useState } from "react";
-import { Container, Grid, Typography, Box, Tabs, Tab } from "@mui/material";
+import {
+  Container,
+  Grid,
+  Typography,
+  Box,
+  Tabs,
+  Tab,
+  Paper,
+  Card,
+  CardContent
+} from "@mui/material";
+import ScienceIcon from '@mui/icons-material/Science';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import VideocamIcon from '@mui/icons-material/Videocam';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import FButton from "../components/FButton";
 import CreateFModal from "../components/CreateFModal";
 import { useCollectionData } from "react-firebase-hooks/firestore";
@@ -9,6 +23,23 @@ import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import { NavLink } from "react-router-dom";
 import { useUser } from "../contexts/UserProvider";
+
+// Custom styled tab component
+const StyledTab = ({ icon, ...props }) => (
+  <Tab
+    {...props}
+    icon={icon}
+    sx={{
+      textTransform: 'none',
+      fontFamily: 'Quicksand, Arial, sans-serif',
+      fontWeight: 500,
+      fontSize: '1rem',
+      '&.Mui-selected': {
+        color: 'primary.main',
+      }
+    }}
+  />
+);
 
 export default function FVAdPage() {
   const [activeTab, setActiveTab] = useState(0);
@@ -51,16 +82,17 @@ export default function FVAdPage() {
     );
   }
 
+
+
   const renderFolderGrid = (folders, type) => (
     <Grid
       container
       spacing={2}
       sx={{
-        px: 2,
-        minHeight: "100vh",
-        backgroundColor: type === "video" ? "#eeeeee" : "#d6eaf8",
-        width: "100%",
+        p: 2,
+        width: '100%',
         margin: 0,
+        minHeight: '80vh'
       }}
     >
       {folders && folders.length > 0 ? (
@@ -72,48 +104,109 @@ export default function FVAdPage() {
             md={3}
             lg={2}
             key={index}
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              width: "100%",
-              height: "100%",
-            }}
           >
-            <FButton fname={file.fname} to={`/admin/${type}/${file.fname}`} />
+            <FButton
+              fname={file.fname}
+              to={isAdmin ? `/admin/${type}/${file.fname}` : `/${type}/${file.fname}`}
+              sx={{
+                height: '100%',
+                minHeight: '150px',
+                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
+                }
+              }}
+            />
           </Grid>
         ))
       ) : (
-        <Grid item xs={12} textAlign="center">
-          <Typography variant="h6" color="textSecondary">
-            No {type === "video" ? "Video" : "PDF"} Folders Found
-          </Typography>
+        <Grid item xs={12}>
+          <Card
+            sx={{
+              textAlign: 'center',
+              py: 6,
+              backgroundColor: 'customColors.cytoplasm',
+              border: '1px dashed',
+              borderColor: 'primary.main'
+            }}
+          >
+            <CardContent>
+              <ScienceIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.7, mb: 2 }} />
+              <Typography variant="h6" color="primary">
+                No {type === 'video' ? 'Video' : 'PDF'} Folders Found
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
       )}
     </Grid>
   );
 
   return (
-    <Container
-      disableGutters
+    <Box
       sx={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        bgcolor: "#f4f4f4",
+        backgroundColor: 'background.default',
+        minHeight: '100vh',
+        width: '100vw',
+        margin: 0,
+        padding: 0,
       }}
     >
-      <CreateFModal activeTab={activeTab} />
-      <Appbar />
-      <Box sx={{ borderBottom: 1, borderColor: "divider", width: "100%" }}>
-        <Tabs value={activeTab} onChange={handleTabChange} centered variant="fullWidth">
-          <Tab label="Video Folders" />
-          <Tab label="PDF Folders" />
-        </Tabs>
-      </Box>
+      <Container
+        maxWidth="lg"
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          width: '100%',
+          padding: 0,
+        }}
+      >
+        <Appbar />
 
-      {activeTab === 0 && renderFolderGrid(videoFolders, "video")}
-      {activeTab === 1 && renderFolderGrid(pdfFolders, "pdf")}
-    </Container>
+        {isAdmin && <CreateFModal activeTab={activeTab} />}
+
+        <Paper
+          elevation={0}
+          sx={{
+            borderBottom: 1,
+            borderColor: 'divider',
+            bgcolor: 'background.paper'
+          }}
+        >
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            centered
+            variant="fullWidth"
+            TabIndicatorProps={{
+              style: {
+                backgroundColor: '#2e7d32'
+              }
+            }}
+          >
+            <StyledTab
+              icon={<VideocamIcon />}
+              label="Video Folders"
+            />
+            <StyledTab
+              icon={<PictureAsPdfIcon />}
+              label="PDF Folders"
+            />
+          </Tabs>
+        </Paper>
+
+        <Box
+          sx={{
+            flexGrow: 1,
+            bgcolor: activeTab === 0 ? 'customColors.cytoplasm' : 'customColors.membrane',
+            transition: 'background-color 0.3s ease'
+          }}
+        >
+          {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
+          {activeTab === 1 && renderFolderGrid(pdfFolders, 'pdf')}
+        </Box>
+      </Container>
+    </Box>
   );
 }

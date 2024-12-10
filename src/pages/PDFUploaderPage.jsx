@@ -4,10 +4,16 @@ import {
   Container,
   TextField,
   Typography,
+  Paper,
+  Stack,
+  Card
 } from "@mui/material";
+import {
+  BiotechOutlined,
+  CloudUpload,
+} from '@mui/icons-material';
 import Appbar from "../components/Appbar";
 import Uploader from "../components/Uploader";
-
 import { useState } from "react";
 import { fireDB, fireStorage } from "../../firebaseconfig";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
@@ -15,13 +21,11 @@ import Loading from "../components/Loading";
 import { collection, doc, setDoc } from "firebase/firestore";
 import { useUser } from "../contexts/UserProvider";
 import { useUploadFile } from "react-firebase-hooks/storage";
-import { ref } from "firebase/storage";
-import { getDownloadURL } from "firebase/storage";
+import { ref, getDownloadURL } from "firebase/storage";
 
 export default function PDFUploaderPage() {
   const params = useParams();
   const navigator = useNavigate();
-
   const { isAdmin } = useUser();
 
   const [upload, setUpload] = useState(false);
@@ -37,7 +41,7 @@ export default function PDFUploaderPage() {
     setValues({ ...values, [e.target.name]: e.target.value });
   };
 
-  const handleUploaddata = async () => {
+  const handleUploadData = async () => {
     const pdfRef = collection(fireDB, "pdfFolders", params.fname, "pdfs");
     alert("Don't close the tab until the upload is complete!");
     try {
@@ -60,7 +64,7 @@ export default function PDFUploaderPage() {
       await setDoc(doc(pdfRef, values.title), {
         title: values.title,
         pdf: values.pdf.name,
-        url: downloadURL, // New field to store download URL
+        url: downloadURL,
         description: values.description,
         date: values.date,
       });
@@ -111,8 +115,8 @@ export default function PDFUploaderPage() {
     <Container
       disableGutters
       sx={{
-        bgcolor: "#f4f4f4",
-        height: "100vh",
+        bgcolor: 'background.default',
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         gap: 2,
@@ -123,73 +127,98 @@ export default function PDFUploaderPage() {
         sx={{
           display: "flex",
           flexDirection: "column",
-          gap: 2,
+          gap: 3,
           px: 2,
           pb: 4,
         }}
         component={"form"}
-        autoFocus
+        autoComplete="off"
         onSubmit={(e) => {
           e.preventDefault();
           console.log("Form Submitted");
           setUpload(true);
-          handleUploaddata();
+          handleUploadData();
         }}
       >
-        <Uploader
-          text="Upload the PDF file"
-          type="pdfs"
-          savetitle={`${params.fname}/${values.title}`}
-          startupload={upload}
-          onChange={(file) => {
-            setValues({ ...values, pdf: file });
-          }}
-          name="pdfup"
-          inerror={values.pdf === null}
-        />
-
-        <TextField
-          label="Title"
-          placeholder="Title"
-          variant="filled"
-          required
-          name="title"
-          onChange={handleInputs}
-        />
-        <TextField
-          label="Description"
-          placeholder="Description"
-          variant="filled"
-          required
-          name="description"
-          onChange={handleInputs}
-        />
-
-        <Box
-          component={"input"}
+        <Paper
+          elevation={0}
           sx={{
-            px: 4,
-            py: 2,
-            borderRadius: "4px",
-            border: "2px solid #bbb",
-            fontSize: "16px",
-            color: "#777",
-          }}
-          type="date"
-          required
-          name="date"
-          onChange={handleInputs}
-        />
-
-        <Button
-          type="submit"
-          variant="contained"
-          onClick={() => {
-            console.log("Vals", values);
+            p: 3,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
           }}
         >
-          Upload
-        </Button>
+          <BiotechOutlined sx={{ fontSize: 32, color: 'primary.main' }} />
+          <Typography variant="h4">
+            Upload New PDF
+          </Typography>
+        </Paper>
+
+        <Card variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
+          <Stack spacing={3}>
+            <Uploader
+              text="Upload the PDF file"
+              type="pdfs"
+              savetitle={`${params.fname}/${values.title}`}
+              startupload={upload}
+              onChange={(file) => setValues({ ...values, pdf: file })}
+              name="pdfup"
+              inerror={values.pdf === null}
+            />
+
+            <TextField
+              label="Title"
+              placeholder="Enter document title"
+              variant="outlined"
+              required
+              name="title"
+              onChange={handleInputs}
+              fullWidth
+            />
+
+            <TextField
+              label="Description"
+              placeholder="Enter document description"
+              variant="outlined"
+              required
+              multiline
+              rows={4}
+              name="description"
+              onChange={handleInputs}
+              fullWidth
+            />
+
+            <TextField
+              type="date"
+              label="Date"
+              required
+              name="date"
+              onChange={handleInputs}
+              fullWidth
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
+
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              size="large"
+              startIcon={<CloudUpload />}
+              sx={{
+                mt: 2,
+                textTransform: 'none',
+                borderRadius: 2
+              }}
+            >
+              Upload Document
+            </Button>
+          </Stack>
+        </Card>
       </Box>
     </Container>
   );

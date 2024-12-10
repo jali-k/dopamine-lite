@@ -14,6 +14,10 @@ import {
   Stack,
   TextField as Tf,
   Typography as T,
+  Paper,
+  Card,
+  CardContent,
+  CardActions
 } from "@mui/material";
 import { collection, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
@@ -29,6 +33,9 @@ import DoneIcon from "@mui/icons-material/Done";
 import { PictureAsPdf, DeleteForever } from "@mui/icons-material";
 import { useState } from "react";
 import { Add } from "@mui/icons-material";
+import ScienceIcon from '@mui/icons-material/Science';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
 
 export default function AdmPDFFileView() {
   const params = useParams();
@@ -148,7 +155,7 @@ export default function AdmPDFFileView() {
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "#f4f4f4",
+        bgcolor: "background.default",
         position: "relative",
       }}
     >
@@ -160,77 +167,133 @@ export default function AdmPDFFileView() {
           gap: 2,
           px: 2,
           overflowY: "auto",
+          pb: 10,
         }}
       >
-        <Grid container columns={12} spacing={1}>
-          {pdfs?.length > 0 ? (
-            pdfs.map((pdf, index) => (
-              <Grid
-                item
-                key={index}
-                justifyContent={"center"}
-                display={"flex"}
-                xs={12}
-                sm={6}
-                md={4}
-              >
-                <Bx
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    border: "1px solid #ccc",
-                    borderRadius: "8px",
-                    p: 2,
-                    width: "100%",
-                  }}
-                >
-                  <PictureAsPdf
-                    sx={{ fontSize: 100, color: "red", mb: 2 }}
-                  />
-                  <T variant="h6">{pdf.title}</T>
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    sx={{ mt: 2, width: '100%', justifyContent: 'center' }}
+        {/* Header */}
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 2,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
+          }}
+        >
+          <BiotechIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <T variant="h4">
+            {params.fname} PDF Documents
+          </T>
+        </Paper>
+
+        {/* PDF Grid */}
+        <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
+          <CardContent>
+            <Grid container spacing={2}>
+              {pdfs?.length > 0 ? (
+                pdfs.map((pdf, index) => (
+                  <Grid
+                    item
+                    key={index}
+                    xs={12}
+                    sm={6}
+                    md={4}
                   >
-                    <B
-                      variant="contained"
-                      color="primary"
-                      href={pdf.url}
-                      target="_blank"
+                    <Card
+                      variant="outlined"
+                      sx={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
+                        }
+                      }}
                     >
-                      View PDF
-                    </B>
-                    <B
-                      variant="contained"
-                      color="error"
-                      startIcon={<DeleteForever />}
-                      onClick={() => deletePDF(pdf)}
-                    >
-                      Delete
-                    </B>
-                  </Stack>
-                </Bx>
-              </Grid>
-            ))
-          ) : (
-            <T
-              variant="h3"
-              sx={{
-                textAlign: "center",
-                my: 4,
-                fontSize: "24px",
-                width: "100%",
-              }}
-            >
-              No PDFs Found
-            </T>
-          )}
-        </Grid>
+                      <CardContent sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2
+                      }}>
+                        <PictureAsPdf
+                          sx={{
+                            fontSize: 64,
+                            color: 'error.main',
+                            opacity: 0.9
+                          }}
+                        />
+                        <T variant="h6" sx={{ textAlign: 'center', wordBreak: 'break-word' }}>
+                          {pdf.title}
+                        </T>
+                      </CardContent>
+                      <CardActions sx={{
+                        justifyContent: 'center',
+                        p: 2,
+                        pt: 0,
+                        gap: 1
+                      }}>
+                        <B
+                          variant="contained"
+                          color="primary"
+                          href={pdf.url}
+                          target="_blank"
+                          startIcon={<PictureAsPdf />}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          View PDF
+                        </B>
+                        <B
+                          variant="contained"
+                          color="error"
+                          startIcon={<DeleteForever />}
+                          onClick={() => deletePDF(pdf)}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          Delete
+                        </B>
+                      </CardActions>
+                    </Card>
+                  </Grid>
+                ))
+              ) : (
+                <Grid item xs={12}>
+                  <Bx
+                    sx={{
+                      textAlign: "center",
+                      py: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}
+                  >
+                    <ScienceIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
+                    <T variant="h6" color="text.secondary">
+                      No PDFs Found in {params.fname}
+                    </T>
+                  </Bx>
+                </Grid>
+              )}
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Authorized Users Accordion */}
         <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <T variant="h6">Authorized Users</T>
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{ bgcolor: 'customColors.membrane' }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <PrecisionManufacturingIcon />
+              <T variant="h6">Authorized Users</T>
+            </Stack>
           </AccordionSummary>
           <AccordionDetails>
             <L>
@@ -254,9 +317,17 @@ export default function AdmPDFFileView() {
             </L>
           </AccordionDetails>
         </Accordion>
+
+        {/* Edit Access Accordion */}
         <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            Edit Access
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{ bgcolor: 'customColors.membrane' }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <EmailIcon />
+              <T variant="h6">Edit Access</T>
+            </Stack>
           </AccordionSummary>
           <AccordionDetails
             sx={{
@@ -279,6 +350,7 @@ export default function AdmPDFFileView() {
                 variant="contained"
                 color="success"
                 onClick={addEmailsToDB}
+                sx={{ textTransform: 'none' }}
               >
                 Add
               </B>
@@ -286,15 +358,19 @@ export default function AdmPDFFileView() {
                 variant="contained"
                 color="error"
                 onClick={deleteEmailsfromDB}
+                sx={{ textTransform: 'none' }}
               >
                 Remove
               </B>
             </Stack>
           </AccordionDetails>
         </Accordion>
+
+        {/* Delete Folder Button */}
         <B
           color="error"
           variant="contained"
+          startIcon={<DeleteForever />}
           onClick={async () => {
             pdfs.forEach(async (pdf) => {
               try {
@@ -313,16 +389,24 @@ export default function AdmPDFFileView() {
             await deleteDoc(doc(fireDB, "pdfFolders", params.fname));
             navigator("/admin");
           }}
+          sx={{
+            textTransform: 'none',
+            py: 1.5
+          }}
         >
           Delete {params.fname} Folder
         </B>
       </Bx>
+
+      {/* Add PDF FAB */}
       <Fab
-        color="success"
+        color="secondary"
         sx={{
-          position: "absolute",
+          position: "fixed",
           bottom: "20px",
           right: "20px",
+          zIndex: 1000,
+          boxShadow: '0 4px 20px rgba(46, 125, 50, 0.2)',
         }}
         onClick={() => {
           navigator("add");

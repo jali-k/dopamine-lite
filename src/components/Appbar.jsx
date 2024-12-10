@@ -1,4 +1,11 @@
-import { Home, NavigateNext } from "@mui/icons-material";
+import {
+  Home,
+  NavigateNext,
+  BiotechOutlined,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Logout as LogoutIcon
+} from "@mui/icons-material";
 import {
   AppBar,
   Avatar,
@@ -6,53 +13,220 @@ import {
   IconButton,
   Toolbar,
   Typography,
+  Stack,
+  Box,
+  Menu,
+  MenuItem,
+  Divider,
+  ListItemIcon,
+  Paper
 } from "@mui/material";
 import { useUser } from "../contexts/UserProvider";
 import { Link, useLocation } from "react-router-dom";
 import { signOut } from "../../af";
+import { useState } from "react";
 
 export default function Appbar() {
   const { user } = useUser();
   const location = useLocation();
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleSignOut = () => {
+    handleClose();
+    signOut();
+  };
 
   return (
     <>
-      <AppBar position="static" sx={{ mb: 1 }} color="primary">
+      <AppBar
+        position="static"
+        sx={{
+          bgcolor: 'primary.main',
+          backgroundImage: 'linear-gradient(45deg, #2e7d32 30%, #43a047 90%)',
+          boxShadow: '0 2px 10px rgba(46, 125, 50, 0.2)',
+        }}
+      >
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Dopamine Lite
-          </Typography>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            sx={{ flexGrow: 1 }}
+          >
+            <BiotechOutlined sx={{ fontSize: 28 }} />
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                fontWeight: 600,
+                letterSpacing: '0.5px',
+                fontFamily: 'Quicksand, Arial, sans-serif'
+              }}
+            >
+              Dopamine Lite
+            </Typography>
+          </Stack>
           <IconButton
-            onClick={() => {
-              signOut();
+            onClick={handleClick}
+            sx={{
+              border: '2px solid rgba(255, 255, 255, 0.2)',
+              padding: '4px',
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                border: '2px solid rgba(255, 255, 255, 0.5)',
+              }
             }}
           >
-            <Avatar src={user.photoURL} />
+            <Avatar
+              src={user.photoURL}
+              sx={{
+                width: 32,
+                height: 32,
+                boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+              }}
+            />
           </IconButton>
         </Toolbar>
       </AppBar>
-      <Breadcrumbs
-        sx={{ ml: 2, mb: 2, position: "sticky", color: " #2279cf " }}
-        separator={<NavigateNext />}
+
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        onClick={handleClose}
+        PaperProps={{
+          elevation: 4,
+          sx: {
+            overflow: 'visible',
+            filter: 'drop-shadow(0px 2px 8px rgba(46, 125, 50, 0.15))',
+            mt: 1.5,
+            minWidth: 250,
+            '& .MuiAvatar-root': {
+              width: 32,
+              height: 32,
+              ml: -0.5,
+              mr: 1,
+            },
+          },
+        }}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <Link to="/" style={{ textDecoration: "none", color: " #2279cf " }}>
-          <Home />
-        </Link>
-        {location.pathname.split("/").map((path, index) => {
-          if (path === "") {
-            return null;
+        {/* User Profile Section */}
+        <Box sx={{
+          p: 2,
+          bgcolor: 'customColors.cytoplasm',
+          borderBottom: '1px solid',
+          borderColor: 'customColors.membrane'
+        }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+            <Avatar
+              src={user.photoURL}
+              sx={{
+                width: 48,
+                height: 48,
+                border: '2px solid',
+                borderColor: 'primary.main'
+              }}
+            />
+            <Box>
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 600,
+                  color: 'primary.main'
+                }}
+              >
+                {user.displayName || 'User'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Biology Student
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        {/* Email */}
+        <MenuItem sx={{ py: 1.5 }}>
+          <ListItemIcon>
+            <EmailIcon fontSize="small" color="primary" />
+          </ListItemIcon>
+          <Typography variant="body2" color="text.secondary">
+            {user.email}
+          </Typography>
+        </MenuItem>
+
+        <Divider />
+
+        {/* Sign Out */}
+        <MenuItem
+          onClick={handleSignOut}
+          sx={{
+            py: 1.5,
+            color: 'error.main',
+            '&:hover': {
+              bgcolor: 'error.light',
+            }
+          }}
+        >
+          <ListItemIcon>
+            <LogoutIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          Sign out
+        </MenuItem>
+      </Menu>
+
+      <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+        <Breadcrumbs
+          separator={
+            <NavigateNext sx={{ color: 'primary.main', opacity: 0.7 }} />
           }
-          return (
-            <Link
-              key={index}
-              to={`/${path}`}
-              style={{ textDecoration: "none", color: " #2279cf " }}
-            >
-              {decodeURI(path)}
-            </Link>
-          );
-        })}
-      </Breadcrumbs>
+        >
+          <Link
+            to="/"
+            style={{
+              textDecoration: "none",
+              color: "inherit",
+              display: "flex",
+              alignItems: "center"
+            }}
+          >
+            <Home sx={{
+              color: 'primary.main',
+              fontSize: 20
+            }} />
+          </Link>
+          {location.pathname.split("/").map((path, index) => {
+            if (path === "") {
+              return null;
+            }
+            return (
+              <Link
+                key={index}
+                to={`/${path}`}
+                style={{
+                  textDecoration: "none",
+                  color: "#2e7d32",
+                  fontFamily: 'Quicksand, Arial, sans-serif',
+                  fontWeight: 500,
+                  fontSize: '0.9rem'
+                }}
+              >
+                {decodeURI(path)}
+              </Link>
+            );
+          })}
+        </Breadcrumbs>
+      </Box>
     </>
   );
 }

@@ -1,4 +1,22 @@
-import { Backdrop, Box, Container, Typography } from "@mui/material";
+import {
+  Backdrop,
+  Box,
+  Container,
+  Typography,
+  Paper,
+  Card,
+  CardContent,
+  Stack,
+  Button,
+  CircularProgress
+} from "@mui/material";
+import {
+  BiotechOutlined as BiotechIcon,
+  CalendarToday as CalendarIcon,
+  Description as DescriptionIcon,
+  Error as ErrorIcon,
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
 import Appbar from "../components/Appbar";
 import { fireDB, fireStorage } from "../../firebaseconfig";
 import { collection, doc, getDoc } from "firebase/firestore";
@@ -35,11 +53,8 @@ export default function VideoPage() {
   );
 
   const [emails, emailLoading] = useCollectionData(emailListref);
-
   const { user, isAdmin } = useUser();
-
   const [tut, loading] = useDocumentData(lessonref);
-
   const [focused, setFocused] = useState(true);
   const [handler, setHandler] = useState("");
   const [securityCheck, setSecurityCheck] = useState(true);
@@ -47,18 +62,15 @@ export default function VideoPage() {
 
   async function getHandler() {
     console.log('====================================');
-    console.log("The tut"+tut);
+    console.log("The tut" + tut);
     console.log('====================================');
-  
-    // Create a reference to the Firestore document
+
     const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
     try {
-      // Fetch the document
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        // Use the document data
-        setHandler(docSnap.data().handler); // Assuming the document has a field named 'url'
-        
+        setHandler(docSnap.data().handler);
+
         console.log('====================================');
         console.log('====================================');
         console.log("Inside the get url");
@@ -72,36 +84,29 @@ export default function VideoPage() {
       }
     } catch (err) {
       console.log(err);
-    
+    }
   }
 
-  
-}
-
-useEffect(() => {
-  console.log('====================================');
-  console.log("Fetching the handler");
-  console.log('====================================');
+  useEffect(() => {
+    console.log('====================================');
+    console.log("Fetching the handler");
+    console.log('====================================');
     getHandler();
-}, []);
-
+  }, []);
 
   useEffect(() => {
-
-  
-  
     console.log('====================================');
     console.log(handler);
     console.log('====================================');
 
-    if (!handler || hasLoadError) return; // Don't start or stop if there's an error
- 
+    if (!handler || hasLoadError) return;
+
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
         const nextProgress = prevProgress + 1;
         if (nextProgress === 100) {
           clearInterval(interval);
-          setSecurityCheck(false);  // Only remove security check at 100% if no error
+          setSecurityCheck(false);
         }
         return nextProgress;
       });
@@ -115,6 +120,9 @@ useEffect(() => {
   }
   if (emailLoading) {
     return <Loading text="Checking Emails" />;
+  }
+  if (!tut) {
+    return <Loading text="Loading Tutorial Data" />;
   }
   if (isAdmin) {
     emails.push({ email: user.email });
@@ -132,16 +140,28 @@ useEffect(() => {
             textDecoration: "none",
           }}
         >
-          <Typography color={"error.main"} textAlign={"center"}>
+          <Typography
+            color="error.main"
+            textAlign="center"
+            variant="h6"
+            sx={{
+              backgroundColor: 'error.light',
+              padding: 3,
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(211, 47, 47, 0.2)'
+            }}
+          >
             You are not authorized to view this page. Click here to go back
           </Typography>
         </NavLink>
       );
     }
   }
+
   if (vurl === null) {
     return <Loading text="Loading Video" />;
   }
+
   return (
     <Container
       disableGutters
@@ -150,7 +170,7 @@ useEffect(() => {
         display: "flex",
         flexDirection: "column",
         position: "relative",
-        bgcolor: "#f4f4f4",
+        bgcolor: "background.default",
       }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -162,54 +182,95 @@ useEffect(() => {
           p: 2,
           display: "flex",
           flexDirection: "column",
-          gap: 2,
-          overflow: "scroll",
+          gap: 3,
         }}
         onContextMenu={(e) => {
           e.preventDefault();
         }}
       >
-        <Typography
-          variant={"h4"}
+        {/* Header */}
+        <Paper
+          elevation={0}
           sx={{
-            fontSize: { xs: "24px", sm: "28px", md: "32px" },
+            p: 3,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
           }}
         >
-          {tut.title} - {tut.lesson}
-        </Typography>
-        {vurl ? (
-          <>
-            <CVPL
-              url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=3600'}
-              watermark={user.email}
-              canPlay={!securityCheck && progress === 100}
-              onError={() => {
-                setShowErrorDialog(true);
-                setHasLoadError(true);
+          <BiotechIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <Typography variant="h4">
+            {tut.title} - {tut.lesson}
+          </Typography>
+        </Paper>
 
-              }}
-            />
-            <VideoErrorDialog
-              open={showErrorDialog}
-              onClose={() => setShowErrorDialog(false)
-              }
-              
-            />
-          </>
-        ) : (
-          <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
-        )}
-       
-        <Typography
-          variant="h5"
+        {/* Video Player Card */}
+        <Card
+          variant="outlined"
           sx={{
-            fontSize: { xs: "16px", sm: "18px", md: "20px" },
+            borderRadius: 2,
+            overflow: 'hidden',
+            bgcolor: 'background.paper'
           }}
         >
-          {tut.date.replaceAll("-", "/")}
-        </Typography>
-        <Typography variant="body1">{tut.description}</Typography>
+          <CardContent sx={{ p: 0 }}>
+            {vurl ? (
+              <>
+                <CVPL
+                  url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=3600'}
+                  watermark={user.email}
+                  canPlay={!securityCheck && progress === 100}
+                  onError={() => {
+                    setShowErrorDialog(true);
+                    setHasLoadError(true);
+                  }}
+                />
+                <VideoErrorDialog
+                  open={showErrorDialog}
+                  onClose={() => setShowErrorDialog(false)}
+                />
+              </>
+            ) : (
+              <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Info Card */}
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent>
+            <Stack spacing={2}>
+              {/* Date */}
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <CalendarIcon color="primary" />
+                <Typography variant="h6">
+                  {tut.date.replaceAll("-", "/")}
+                </Typography>
+              </Stack>
+
+              {/* Description */}
+              <Stack spacing={1}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <DescriptionIcon color="primary" />
+                  <Typography variant="h6">Description</Typography>
+                </Stack>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    pl: 4,
+                    color: 'text.secondary'
+                  }}
+                >
+                  {tut.description}
+                </Typography>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
       </Box>
+
       <Backdrop
         sx={{
           color: '#fff',
@@ -218,8 +279,9 @@ useEffect(() => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          backgroundColor: 'rgba(46, 125, 50, 0.4)',
         }}
-        open={securityCheck || hasLoadError}  // Keep backdrop open if there's an error
+        open={securityCheck || hasLoadError}
       >
         <SecurityCheckUI progress={progress} />
       </Backdrop>

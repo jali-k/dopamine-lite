@@ -20,8 +20,12 @@ import {
   DialogActions,
   Card,
   CardContent,
-  CardActions
+  CardActions,
+  Paper
 } from "@mui/material";
+import ScienceIcon from '@mui/icons-material/Science';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
 import { collection, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
@@ -212,35 +216,51 @@ export default function AdmFileView() {
           pb: 10,
         }}
       >
+        {/* Header with DNA animation */}
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 2,
+            borderRadius: 2,
+            bgcolor: 'customColors.cytoplasm',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
+          }}
+        >
+          <ScienceIcon
+            sx={{
+              fontSize: 32,
+              color: 'primary.main'
+            }}
+            className="rotating-dna"
+          />
+          <T variant="h4">
+            {params.fname} Tutorials
+          </T>
+        </Paper>
         {/* Tutorials Grid */}
-        <Card variant="outlined" sx={{ mb: 2 }}>
+        <Card variant="outlined" sx={{ mb: 2, bgcolor: 'background.paper' }}>
           <CardContent>
-            <T variant="h5" sx={{ mb: 2 }}>
-              {params.fname} Tutorials
-            </T>
             <Grid container spacing={2} columns={12}>
               {tuts.length > 0 ? (
                 tuts.map((tut, index) => (
-                  <Grid
-                    item
-                    key={index}
-                    xs={12}
-                    sm={6}
-                    md={4}
-                  >
+                  <Grid item key={index} xs={12} sm={6} md={4}>
                     <Card
                       variant="outlined"
                       sx={{
                         height: '100%',
                         display: 'flex',
-                        flexDirection: 'column'
+                        flexDirection: 'column',
+                        bgcolor: 'background.paper',
                       }}
                     >
                       <VCad tut={{ ...tut, fpath: params.fname }} />
-                      <CardActions sx={{ flexDirection: 'column', gap: 1 }}>
+                      <CardActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
                         <B
                           fullWidth
-                          startIcon={<EditIcon />}
+                          startIcon={<BiotechIcon />}
                           variant="contained"
                           color="primary"
                           onClick={() => handleEditTutorial(tut)}
@@ -262,16 +282,21 @@ export default function AdmFileView() {
                 ))
               ) : (
                 <Grid item xs={12}>
-                  <T
-                    variant="body1"
-                    color="text.secondary"
+                  <Bx
                     sx={{
                       textAlign: "center",
                       py: 4,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
                     }}
                   >
-                    No Tutorials Found in {params.fname}
-                  </T>
+                    <ScienceIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
+                    <T color="text.secondary">
+                      No Tutorials Found in {params.fname}
+                    </T>
+                  </Bx>
                 </Grid>
               )}
             </Grid>
@@ -280,8 +305,12 @@ export default function AdmFileView() {
 
         {/* Authorized Users Accordion */}
         <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <T variant="h6">Authorized Users</T>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}
+            sx={{ bgcolor: 'customColors.membrane' }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <PrecisionManufacturingIcon />
+              <T variant="h6">Authorized Users</T>
+            </Stack>
           </AccordionSummary>
           <AccordionDetails>
             <L>
@@ -360,7 +389,7 @@ export default function AdmFileView() {
 
       {/* Add Tutorial FAB */}
       <Fab
-        color="success"
+        color="secondary"
         sx={{
           position: "fixed",
           bottom: "20px",

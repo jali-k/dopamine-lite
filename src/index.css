@@ -35,6 +35,10 @@ video::-webkit-media-controls-fullscreen-button {
   z-index: 10;
 }
 
+.rotating-dna {
+  animation: rotate 20s linear infinite;
+}
+
 .watermark {
   position: absolute;
   pointer-events: none;
@@ -61,4 +65,14 @@ video::-webkit-media-controls-fullscreen-button {
     top: calc(100vh + 100px); /* Moves the watermark to bottom */
   }
 }
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 
