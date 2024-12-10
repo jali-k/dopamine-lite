@@ -9,49 +9,79 @@ import {
 } from "@mui/material";
 import { swggle, emailLogin, emailRegister } from "../../af";
 import GoogleIcon from "@mui/icons-material/Google";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getAuth } from 'firebase/auth';
 
 export default function Auth({ open = true }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
-  const [error, setError] = useState(""); 
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [lastGoogleUser, setLastGoogleUser] = useState(null);
   const navigator = useNavigate();
 
-  // Reset error when switching between login and register
+  useEffect(() => {
+    // Check if user is already logged in with Google
+    const auth = getAuth();
+    const savedUser = localStorage.getItem('lastGoogleUser');
+
+    if (savedUser) {
+      setLastGoogleUser(JSON.parse(savedUser));
+    }
+
+    // Listen for auth state changes
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user && user.providerData[0].providerId === 'google.com') {
+        const userData = {
+          email: user.email,
+          photoURL: user.photoURL,
+          displayName: user.displayName
+        };
+        setLastGoogleUser(userData);
+        localStorage.setItem('lastGoogleUser', JSON.stringify(userData));
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const handleToggleMode = () => {
     setIsRegistering(!isRegistering);
     setError("");
   };
 
-  // Function to handle Google Login
   const handleGoogleLogin = async () => {
     setError("");
     setIsLoading(true);
     try {
-      const user = await swggle();
+      const user = await swggle(!!lastGoogleUser);
       if (user) {
-        // Add a small delay before navigation
-        setTimeout(() => {
-          navigator("/");
-        }, 500);
+        navigator("/");
       }
     } catch (err) {
       setError(err.message);
+      setLastGoogleUser(null);
+      localStorage.removeItem('lastGoogleUser');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Function to handle Email login
+  const handleUseDifferentAccount = async () => {
+    setLastGoogleUser(null);
+    localStorage.removeItem('lastGoogleUser');
+    const auth = getAuth();
+    await auth.signOut();
+  };
+
   const handleEmailLogin = async () => {
     setError("");
     setIsLoading(true);
     try {
       const user = await emailLogin(email, password);
-      navigator("/"); // Redirect on success
+      navigator("/");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -59,13 +89,12 @@ export default function Auth({ open = true }) {
     }
   };
 
-  // Function to handle Email register
   const handleEmailRegister = async () => {
     setError("");
     setIsLoading(true);
     try {
       const user = await emailRegister(email, password);
-      navigator("/"); // Redirect on success
+      navigator("/");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -94,34 +123,77 @@ export default function Auth({ open = true }) {
           {isRegistering ? "Create Account" : "Sign In"}
         </T>
 
-        {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
             {error}
           </Alert>
         )}
 
-        {/* Google Login Button */}
-        <BT
-          startIcon={<GoogleIcon />}
-          variant="contained"
-          color="success"
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-        >
-          Sign In With Google
-        </BT>
+        {lastGoogleUser ? (
+          <>
+            <BT
+              variant="contained"
+              color="success"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              sx={{
+                display: 'flex',
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+                gap: 2,
+                padding: '10px 15px',
+                textTransform: 'none'
+              }}
+            >
+              {lastGoogleUser.photoURL && (
+                <img
+                  src={lastGoogleUser.photoURL}
+                  alt="Profile"
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%'
+                  }}
+                />
+              )}
+              Continue as {lastGoogleUser.displayName || lastGoogleUser.email}
+            </BT>
+            <T
+              variant="body2"
+              sx={{
+                textAlign: 'center',
+                cursor: 'pointer',
+                color: 'primary.main',
+                '&:hover': { textDecoration: 'underline' }
+              }}
+              onClick={handleUseDifferentAccount}
+            >
+              Use a different account
+            </T>
+          </>
+        ) : (
+          <BT
+            startIcon={<GoogleIcon />}
+            variant="contained"
+            color="success"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            fullWidth
+          >
+            Sign In With Google
+          </BT>
+        )}
 
-        {/* Or Email Login Section */}
-        <T variant="body1" sx={{ textAlign: "center" }}>
+        <T variant="body1" sx={{ textAlign: "center", color: 'text.secondary' }}>
           Or sign in with email
         </T>
+
         <TF
           label="Email"
           variant="outlined"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          sx={{ width: "100%" }}
+          fullWidth
           disabled={isLoading}
         />
         <TF
@@ -130,37 +202,40 @@ export default function Auth({ open = true }) {
           variant="outlined"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          sx={{ width: "100%" }}
+          fullWidth
           disabled={isLoading}
         />
 
-        {/* Email Login/Registration Button */}
         <BT
           variant="contained"
           color="primary"
           onClick={isRegistering ? handleEmailRegister : handleEmailLogin}
           disabled={isLoading}
+          fullWidth
         >
-          {isLoading 
-            ? "Processing..." 
+          {isLoading
+            ? "Processing..."
             : (isRegistering ? "Register" : "Sign In") + " with Email"
           }
         </BT>
 
-        {/* Toggle between Register/Login */}
         <T
           variant="body2"
-          sx={{ textAlign: "center", cursor: "pointer" }}
+          sx={{
+            textAlign: "center",
+            cursor: "pointer",
+            color: 'primary.main',
+            '&:hover': { textDecoration: 'underline' }
+          }}
           onClick={handleToggleMode}
         >
-          {isRegistering 
-            ? "Already have an account? Sign In" 
+          {isRegistering
+            ? "Already have an account? Sign In"
             : "Create an Account"
           }
         </T>
 
-        {/* Message */}
-        <T variant="body2" sx={{ textAlign: "center" }}>
+        <T variant="body2" sx={{ textAlign: "center", color: 'text.secondary' }}>
           Please sign in to continue
         </T>
       </P>
