@@ -1,7 +1,6 @@
 import {
   Home,
   NavigateNext,
-  BiotechOutlined,
   Person as PersonIcon,
   Email as EmailIcon,
   Logout as LogoutIcon
@@ -25,6 +24,7 @@ import { useUser } from "../contexts/UserProvider";
 import { Link, useLocation } from "react-router-dom";
 import { signOut } from "../../af";
 import { useState } from "react";
+import appIcon from '../assets/icon.jpg';
 
 export default function Appbar() {
   const { user } = useUser();
@@ -62,14 +62,27 @@ export default function Appbar() {
             spacing={1}
             sx={{ flexGrow: 1 }}
           >
-            <BiotechOutlined sx={{ fontSize: 28 }} />
+            <Box
+              component="img"
+              src={appIcon}
+              alt="App Icon"
+              sx={{
+                width: 32,
+                height: 32,
+                // filter: 'brightness(0) invert(1)', // Makes the icon white
+                opacity: 0.9
+              }}
+            />
             <Typography
               variant="h6"
               component="div"
               sx={{
                 fontWeight: 600,
                 letterSpacing: '0.5px',
-                fontFamily: 'Quicksand, Arial, sans-serif'
+                fontFamily: 'Quicksand, Arial, sans-serif',
+                color: '#ffffff', // Ensuring text is white
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)', // Adding subtle shadow for better visibility
+                opacity: 0.95
               }}
             >
               Dopamine Lite
@@ -98,6 +111,7 @@ export default function Appbar() {
         </Toolbar>
       </AppBar>
 
+      {/* Rest of the component remains the same */}
       <Menu
         anchorEl={anchorEl}
         open={open}
@@ -121,7 +135,6 @@ export default function Appbar() {
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        {/* User Profile Section */}
         <Box sx={{
           p: 2,
           bgcolor: 'customColors.cytoplasm',
@@ -155,7 +168,6 @@ export default function Appbar() {
           </Stack>
         </Box>
 
-        {/* Email */}
         <MenuItem sx={{ py: 1.5 }}>
           <ListItemIcon>
             <EmailIcon fontSize="small" color="primary" />
@@ -167,7 +179,6 @@ export default function Appbar() {
 
         <Divider />
 
-        {/* Sign Out */}
         <MenuItem
           onClick={handleSignOut}
           sx={{
