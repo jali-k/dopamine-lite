@@ -7,35 +7,29 @@ import {
   Card,
   CardContent,
   Stack,
-  Button,
-  CircularProgress
+  CircularProgress,
+  Alert,
+  AlertTitle
 } from "@mui/material";
 import {
   BiotechOutlined as BiotechIcon,
   CalendarToday as CalendarIcon,
   Description as DescriptionIcon,
-  Error as ErrorIcon,
-  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import Appbar from "../components/Appbar";
-import { fireDB, fireStorage } from "../../firebaseconfig";
+import { fireDB } from "../../firebaseconfig";
 import { collection, doc, getDoc } from "firebase/firestore";
 import {
   useCollectionData,
   useDocumentData,
 } from "react-firebase-hooks/firestore";
 import { NavLink, useParams } from "react-router-dom";
-import { getDownloadURL, ref } from "firebase/storage";
 import Loading from "../components/Loading";
 import { useEffect, useState } from "react";
-import NotFocus from "./NotFocus";
 import { useUser } from "../contexts/UserProvider";
 import CVPL from "../components/cvp";
-import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
-import "react-circular-progressbar/dist/styles.css";
 import VideoErrorDialog from "../components/VideoErrorDialog";
 import SecurityCheckUI from "../components/SecurityCheck";
-import BaseHlsPlayer from "../components/BaseHlsPlayer";
 
 export default function VideoPage() {
   const params = useParams();
@@ -44,6 +38,9 @@ export default function VideoPage() {
   const [vurl, setvurl] = useState("http://localhost:3000/uploads/myVideo-1715438432526/output.m3u8");
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
+  const [initialLoadAttempted, setInitialLoadAttempted] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [showRetryWarning, setShowRetryWarning] = useState(false);
 
   const emailListref = collection(
     fireDB,
@@ -55,51 +52,37 @@ export default function VideoPage() {
   const [emails, emailLoading] = useCollectionData(emailListref);
   const { user, isAdmin } = useUser();
   const [tut, loading] = useDocumentData(lessonref);
-  const [focused, setFocused] = useState(true);
   const [handler, setHandler] = useState("");
   const [securityCheck, setSecurityCheck] = useState(true);
   const [progress, setProgress] = useState(0);
 
   async function getHandler() {
-    console.log('====================================');
-    console.log("The tut" + tut);
-    console.log('====================================');
-
     const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
     try {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setHandler(docSnap.data().handler);
-
-        console.log('====================================');
-        console.log('====================================');
-        console.log("Inside the get url");
-        console.log('====================================');
-        console.log(docSnap.data().handler);
-        console.log('====================================');
-
-        setHandler(docSnap.data().handler);
+        setInitialLoadAttempted(true);
       } else {
         console.log("No such document!");
+        setHasLoadError(true);
+        setShowErrorDialog(true);
+        setInitialLoadAttempted(true);
       }
     } catch (err) {
       console.log(err);
+      setHasLoadError(true);
+      setShowErrorDialog(true);
+      setInitialLoadAttempted(true);
     }
   }
 
   useEffect(() => {
-    console.log('====================================');
-    console.log("Fetching the handler");
-    console.log('====================================');
     getHandler();
   }, []);
 
-  useEffect(() => {
-    console.log('====================================');
-    console.log(handler);
-    console.log('====================================');
-
-    if (!handler || hasLoadError) return;
+ useEffect(() => {
+    if (!handler || hasLoadError || showRetryWarning) return; // Add showRetryWarning check
 
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
@@ -113,7 +96,46 @@ export default function VideoPage() {
     }, 300);
 
     return () => clearInterval(interval);
-  }, [handler, hasLoadError]);
+  }, [handler, hasLoadError, showRetryWarning]); // Add showRetryWarning dependency
+
+  const handleVideoError = (error) => {
+    if (error?.type === 'retry') {
+      setRetryAttempt(error.attempt);
+      setShowRetryWarning(true);
+      // Reset progress when showing retry warning
+      setProgress(0); // Add this line
+    } else if (error?.type === 'manifest') {
+      setShowErrorDialog(true);
+      setHasLoadError(true);
+      setShowRetryWarning(false);
+    }
+  };
+
+  const renderBackdropContent = () => {
+    if (showRetryWarning) {
+      return (
+        <Box sx={{ textAlign: 'center', maxWidth: '400px', px: 2 }}>
+          <Alert
+            severity="warning"
+            sx={{
+              backgroundColor: 'rgba(251, 140, 0, 0.1)',
+              border: '1px solid rgba(251, 140, 0, 0.3)',
+              mb: 2,
+              '& .MuiAlert-icon': {
+                color: '#fb8c00'
+              }
+            }}
+          >
+            <AlertTitle>Connection Failed</AlertTitle>
+            Attempt {retryAttempt} failed. Trying again...
+          </Alert>
+         
+        </Box>
+      );
+    }
+
+    return <SecurityCheckUI progress={progress} hasError={hasLoadError} />;
+  };
 
   if (loading) {
     return <Loading text="Loading Document" />;
@@ -217,21 +239,12 @@ export default function VideoPage() {
         >
           <CardContent sx={{ p: 0 }}>
             {vurl ? (
-              <>
-                <CVPL
-                  url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=3600'}
-                  watermark={user.email}
-                  canPlay={!securityCheck && progress === 100}
-                  onError={() => {
-                    setShowErrorDialog(true);
-                    setHasLoadError(true);
-                  }}
-                />
-                <VideoErrorDialog
-                  open={showErrorDialog}
-                  onClose={() => setShowErrorDialog(false)}
-                />
-              </>
+              <CVPL
+                url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=3600'}
+                watermark={user.email}
+                canPlay={!securityCheck && progress === 100}
+                onError={handleVideoError}
+              />
             ) : (
               <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
             )}
@@ -242,15 +255,12 @@ export default function VideoPage() {
         <Card variant="outlined" sx={{ borderRadius: 2 }}>
           <CardContent>
             <Stack spacing={2}>
-              {/* Date */}
               <Stack direction="row" alignItems="center" spacing={1}>
                 <CalendarIcon color="primary" />
                 <Typography variant="h6">
                   {tut.date.replaceAll("-", "/")}
                 </Typography>
               </Stack>
-
-              {/* Description */}
               <Stack spacing={1}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <DescriptionIcon color="primary" />
@@ -271,6 +281,11 @@ export default function VideoPage() {
         </Card>
       </Box>
 
+      <VideoErrorDialog
+        open={showErrorDialog}
+        onClose={() => setShowErrorDialog(false)}
+      />
+
       <Backdrop
         sx={{
           color: '#fff',
@@ -280,10 +295,11 @@ export default function VideoPage() {
           flexDirection: 'column',
           alignItems: 'center',
           backgroundColor: 'rgba(46, 125, 50, 0.4)',
+          p: 3
         }}
-        open={securityCheck || hasLoadError}
+        open={securityCheck || hasLoadError || showRetryWarning}
       >
-        <SecurityCheckUI progress={progress} />
+        {renderBackdropContent()}
       </Backdrop>
     </Container>
   );

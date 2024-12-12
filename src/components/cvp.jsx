@@ -59,7 +59,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     }
   };
 
-  const fetchWithRetry = async (url, maxRetries, delay = 1000) => {
+  const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
     while (retries < maxRetries) {
       try {
@@ -68,11 +68,17 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
           return response;
         } else {
           retries++;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          if (retries < maxRetries) {
+            onRetryError?.({ type: 'retry', attempt: retries });
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
       } catch (error) {
         retries++;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        if (retries < maxRetries) {
+          onRetryError?.({ type: 'retry', attempt: retries });
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
     }
     throw new Error('Failed to fetch manifest after several retries.');
@@ -80,7 +86,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   const fetchManifest = async () => {
     try {
-      const response = await fetchWithRetry(url, 3);
+      const response = await fetchWithRetry(url, 3, 1000, onError);
       const data = await response.json();
       const modifiedManifest = data.modified_m3u8_content;
 
@@ -100,7 +106,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
         hls.on(Hls.Events.ERROR, () => {
           setLoading(false);
-          onError?.();
+          onError?.({ type: 'manifest' });
         });
       } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
         vdrf.current.src = data.manifest_url;
@@ -113,13 +119,13 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
         vdrf.current.addEventListener('error', () => {
           setLoading(false);
-          onError?.();
+          onError?.({ type: 'manifest' });
         });
       }
     } catch (error) {
       console.error('Error fetching manifest:', error);
       setLoading(false);
-      onError?.();
+      onError?.({ type: 'manifest' });
     }
   };
 
