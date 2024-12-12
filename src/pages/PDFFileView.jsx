@@ -95,7 +95,7 @@ export default function PDFFileView() {
                 >
                   <CardActionArea
                     component={Link}
-                    to={pdf.url}
+                    to={`/pdf/${params.fname}/${pdf.title}`}
                     target="_blank"
                     sx={{
                       height: '100%',
