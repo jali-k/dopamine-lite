@@ -1,5 +1,7 @@
 import React from 'react';
 import { Container, Grid, Typography, Box, Tabs, Tab } from '@mui/material';
+import VideocamIcon from '@mui/icons-material/Videocam';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import FButton from "../components/FButton";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { collection } from "firebase/firestore";
@@ -59,7 +61,7 @@ export default function FVStuPage() {
               sx={{
                 width: '100%',
                 height: '100%',
-                minHeight: '150px', // Or a fixed height
+                minHeight: '150px',
               }}
             />
           </Grid>
@@ -77,11 +79,11 @@ export default function FVStuPage() {
   return (
     <Box
       sx={{
-        backgroundColor: '#f0f0f0', // Full page background color
+        backgroundColor: '#f0f0f0',
         width: '100vw',
         margin: 0,
         padding: 0,
-        overflow: 'hidden', // Prevent scroll bars
+        overflow: 'hidden',
       }}
     >
       <Container
@@ -95,26 +97,80 @@ export default function FVStuPage() {
       >
         <Appbar />
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', width: '100%' }}>
+        <Box
+          sx={{
+            borderBottom: 1,
+            borderColor: 'divider',
+            width: '100%',
+            bgcolor: 'white',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+          }}
+        >
           <Tabs
             value={activeTab}
             onChange={handleTabChange}
             centered
             variant="fullWidth"
+            TabIndicatorProps={{
+              style: {
+                backgroundColor: '#2e7d32' // Green indicator
+              }
+            }}
+            sx={{
+              '& .MuiTab-root': {
+                minHeight: '64px',
+                fontSize: '1rem',
+                fontWeight: 500,
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
+                },
+              },
+              '& .Mui-selected': {
+                color: '#2e7d32 !important', // Green text for selected tab
+                '& .MuiSvgIcon-root': {
+                  color: '#2e7d32 !important', // Green icon for selected tab
+                },
+              },
+              '& .MuiTabs-indicator': {
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+              },
+            }}
           >
-            <Tab label="Video Folders" />
-            <Tab label="PDF Folders" />
+            <Tab
+              icon={<VideocamIcon sx={{ mr: 1 }} />}
+              label="Video Folders"
+              iconPosition="start"
+              sx={{
+                borderRight: 1,
+                borderColor: 'divider',
+                '& .MuiSvgIcon-root': {
+                  fontSize: '1.3rem',
+                },
+              }}
+            />
+            <Tab
+              icon={<PictureAsPdfIcon sx={{ mr: 1 }} />}
+              label="PDF Folders"
+              iconPosition="start"
+              sx={{
+                '& .MuiSvgIcon-root': {
+                  fontSize: '1.3rem',
+                },
+              }}
+            />
           </Tabs>
         </Box>
 
-        {/* Full height wrapper for each tab */}
         <Box
           sx={{
-            height: '100vh', // Ensure the content fills the viewport height
-            overflowY: 'auto', // Enable scrolling for content if needed
-            backgroundColor: activeTab === 0 ? '#eeeeee' : '#d6eaf8', // Different background for each tab
+            height: 'calc(100vh - 112px)',
+            overflowY: 'auto',
+            backgroundColor: '#eeeeee',
             display: 'flex',
             flexDirection: 'column',
+            position: 'relative',
           }}
         >
           {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
