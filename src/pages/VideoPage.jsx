@@ -41,6 +41,7 @@ export default function VideoPage() {
   const [initialLoadAttempted, setInitialLoadAttempted] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [showRetryWarning, setShowRetryWarning] = useState(false);
+  const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
 
   const emailListref = collection(
     fireDB,
@@ -58,6 +59,10 @@ export default function VideoPage() {
 
   async function getHandler() {
     const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
+    if (securityCheckComplete) {
+      console.log("Inside get handler");
+      console.log("Security check already complete");
+    }
     try {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
@@ -90,6 +95,12 @@ export default function VideoPage() {
         if (nextProgress === 100) {
           clearInterval(interval);
           setSecurityCheck(false);
+          setSecurityCheckComplete(true);
+
+          // Cleanup state
+          setShowErrorDialog(false);
+          setHasLoadError(false);
+          setShowRetryWarning(false);
         }
         return nextProgress;
       });
@@ -99,15 +110,19 @@ export default function VideoPage() {
   }, [handler, hasLoadError, showRetryWarning]); // Add showRetryWarning dependency
 
   const handleVideoError = (error) => {
-    if (error?.type === 'retry') {
-      setRetryAttempt(error.attempt);
-      setShowRetryWarning(true);
-      // Reset progress when showing retry warning
-      setProgress(0); // Add this line
-    } else if (error?.type === 'manifest') {
-      setShowErrorDialog(true);
-      setHasLoadError(true);
-      setShowRetryWarning(false);
+    if (!securityCheckComplete) {
+      if (error?.type === 'retry') {
+        setRetryAttempt(error.attempt);
+        setShowRetryWarning(true);
+        // Reset progress when showing retry warning
+        setProgress(0); // Add this line
+      } else if (error?.type === 'manifest') {
+        setShowErrorDialog(true);
+        setHasLoadError(true);
+        setShowRetryWarning(false);
+      }
+    } else {
+      console.log('Video error after security check:', error);
     }
   };
 
@@ -134,7 +149,7 @@ export default function VideoPage() {
       );
     }
 
-    return <SecurityCheckUI progress={progress} hasError={hasLoadError} />;
+    return securityCheckComplete ? null : <SecurityCheckUI progress={progress} hasError={hasLoadError} />;
   };
 
   if (loading) {
@@ -281,10 +296,12 @@ export default function VideoPage() {
         </Card>
       </Box>
 
-      <VideoErrorDialog
-        open={showErrorDialog}
-        onClose={() => setShowErrorDialog(false)}
-      />
+      {!securityCheckComplete && (
+        <VideoErrorDialog
+          open={showErrorDialog}
+          onClose={() => setShowErrorDialog(false)}
+        />
+      )}
 
       <Backdrop
         sx={{
@@ -297,7 +314,7 @@ export default function VideoPage() {
           backgroundColor: 'rgba(46, 125, 50, 0.4)',
           p: 3
         }}
-        open={securityCheck || hasLoadError || showRetryWarning}
+        open={!securityCheckComplete && (securityCheck || hasLoadError || showRetryWarning)}
       >
         {renderBackdropContent()}
       </Backdrop>
