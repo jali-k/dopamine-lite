@@ -28,13 +28,13 @@ const gprovider = new GoogleAuthProvider();
 gprovider.addScope('email');
 gprovider.addScope('profile');
 
-auth.onAuthStateChanged((user) => {
-  console.log('Auth state changed:', user);
-});
+// auth.onAuthStateChanged((user) => {
+//   console.log('Auth state changed:', user);
+// });
 
-auth.onIdTokenChanged((user) => {
-  console.log('ID token changed:', user);
-});
+// auth.onIdTokenChanged((user) => {
+//   console.log('ID token changed:', user);
+// });
 
 export {
   auth as fireauth,
