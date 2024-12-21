@@ -16,7 +16,7 @@ import {
   Google as GoogleIcon,
   Email as EmailIcon
 } from '@mui/icons-material';
-import { swggle, emailLogin, emailRegister } from "../../af";
+import { swggle, emailLogin, emailRegister, sendVerificationEmail } from "../../af";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from 'firebase/auth';
@@ -58,8 +58,10 @@ export default function Auth({ open = true }) {
   const [password, setPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [lastGoogleUser, setLastGoogleUser] = useState(null);
+  const [showResendVerification, setShowResendVerification] = useState(false);
   const navigator = useNavigate();
 
   useEffect(() => {
@@ -73,14 +75,20 @@ export default function Auth({ open = true }) {
 
     // Listen for auth state changes
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user && user.providerData[0].providerId === 'google.com') {
-        const userData = {
-          email: user.email,
-          photoURL: user.photoURL,
-          displayName: user.displayName
-        };
-        setLastGoogleUser(userData);
-        localStorage.setItem('lastGoogleUser', JSON.stringify(userData));
+      if (user) {
+        if (user.providerData[0].providerId === 'google.com') {
+          const userData = {
+            email: user.email,
+            photoURL: user.photoURL,
+            displayName: user.displayName
+          };
+          setLastGoogleUser(userData);
+          localStorage.setItem('lastGoogleUser', JSON.stringify(userData));
+        } else if (!user.emailVerified) {
+          setError("Please verify your email before continuing.");
+          setShowResendVerification(true);
+          auth.signOut();
+        }
       }
     });
 
@@ -90,10 +98,13 @@ export default function Auth({ open = true }) {
   const handleToggleMode = () => {
     setIsRegistering(!isRegistering);
     setError("");
+    setSuccess("");
+    setShowResendVerification(false);
   };
 
   const handleGoogleLogin = async () => {
     setError("");
+    setSuccess("");
     setIsLoading(true);
     try {
       const user = await swggle(!!lastGoogleUser);
@@ -118,9 +129,16 @@ export default function Auth({ open = true }) {
 
   const handleEmailLogin = async () => {
     setError("");
+    setSuccess("");
     setIsLoading(true);
     try {
       const user = await emailLogin(email, password);
+      if (!user.emailVerified) {
+        setError("Please verify your email before logging in.");
+        setShowResendVerification(true);
+        await getAuth().signOut();
+        return;
+      }
       navigator("/");
     } catch (err) {
       setError(err.message);
@@ -131,10 +149,27 @@ export default function Auth({ open = true }) {
 
   const handleEmailRegister = async () => {
     setError("");
+    setSuccess("");
     setIsLoading(true);
     try {
       const user = await emailRegister(email, password);
-      navigator("/");
+      await sendVerificationEmail();
+      setSuccess("Registration successful! Please check your email to verify your account.");
+      setShowResendVerification(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+    try {
+      await sendVerificationEmail();
+      setSuccess("Verification email has been resent. Please check your inbox.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -158,7 +193,6 @@ export default function Auth({ open = true }) {
           boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
         }}
       >
-        {/* Header with DNA-like design */}
         <Box
           sx={{
             bgcolor: 'customColors.cytoplasm',
@@ -199,6 +233,14 @@ export default function Auth({ open = true }) {
             </Alert>
           )}
 
+          {success && (
+            <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
+              {success}
+            </Alert>
+          )}
+
+          
+
           {lastGoogleUser ? (
             <Stack spacing={2}>
               <GoogleButton
@@ -234,6 +276,29 @@ export default function Auth({ open = true }) {
               or continue with email
             </T>
           </Divider>
+          {isRegistering && (
+            <Alert
+              severity="info"
+              // icon={<InfoOutlinedIcon fontSize="large" sx={{ color: '#0288D1' }} />}
+              sx={{
+                mb: 2,
+                borderRadius: 2,
+                backgroundColor: '#E3F2FD', // Light blue background for "info"
+                border: '1px solid #0288D1', // Info color border
+                color: '#01579B', // Darker blue text for emphasis
+                fontWeight: 'bold', // Bold text
+                padding: 2,
+                fontSize: '1rem',
+              }}
+            >
+              <span>
+                <strong>IMPORTANT:</strong> After creating your account, you will receive a verification link via email.
+                You must click this link to <strong>verify your email</strong> before you can log in to the system.
+              </span>
+            </Alert>
+          )}
+
+
 
           <Stack spacing={2}>
             <TF
@@ -273,10 +338,25 @@ export default function Auth({ open = true }) {
               ) : (
                 <>
                   <EmailIcon sx={{ mr: 1 }} />
-                  {isRegistering ? "Sign up with Email" : "Sign in with Email"}
+                  {isRegistering ? "Create account with Email" : "Log in with Email"}
                 </>
               )}
             </BT>
+
+            {showResendVerification && (
+              <BT
+                variant="outlined"
+                onClick={handleResendVerification}
+                disabled={isLoading}
+                fullWidth
+                sx={{
+                  py: 1.5,
+                  textTransform: 'none'
+                }}
+              >
+                Resend Verification Email
+              </BT>
+            )}
 
             <T
               variant="body2"
@@ -289,8 +369,8 @@ export default function Auth({ open = true }) {
               onClick={handleToggleMode}
             >
               {isRegistering
-                ? "Already have an account? Sign in"
-                : "Don't have an account? Sign up"}
+                ? "Already have an account? Log in"
+                : "Don't have an account? Create one"}
             </T>
 
             <T
