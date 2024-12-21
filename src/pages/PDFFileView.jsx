@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import {
   Container,
   Grid,
@@ -21,9 +21,10 @@ import { collection, query, where } from "firebase/firestore";
 import { fireDB } from "../../firebaseconfig";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
+import { useUser } from "../contexts/UserProvider";
 
 export default function PDFFileView() {
- const params = useParams();
+  const params = useParams();
   const pdfRef = collection(fireDB, "pdfFolders", params.fname, "pdfs");
   const emailListref = collection(
     fireDB,
@@ -32,14 +33,53 @@ export default function PDFFileView() {
     "emailslist"
   );
 
+  const { user, isAdmin } = useUser();
+
   const [pdfs, loading] = useCollectionData(pdfRef);
-
-
+  const [emails, emailLoading] = useCollectionData(emailListref);
 
   if (loading) {
     return <Loading text="Loading PDFs" />;
   }
-  console.log(pdfs);
+  if (emailLoading) {
+    return <Loading text="Checking Emails" />;
+  }
+
+  if (isAdmin) {
+    emails.push({ email: user.email });
+    console.log("giving access to admin: ", user.email);
+  }
+
+  if (emails && emails.length > 0) {
+    if (!emails.find((email) => email.email === user.email)) {
+      return (
+        <NavLink
+          to="/"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%,-50%)",
+            textDecoration: "none",
+          }}
+        >
+          <Typography
+            color="error.main"
+            textAlign="center"
+            variant="h6"
+            sx={{
+              backgroundColor: 'error.light',
+              padding: 3,
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(211, 47, 47, 0.2)'
+            }}
+          >
+            You are not authorized to view this page. Click here to go back
+          </Typography>
+        </NavLink>
+      );
+    }
+  }
 
   return (
     <Box
