@@ -26,6 +26,7 @@ import { signOut } from "../../af";
 import { useState } from "react";
 import appIcon from '../assets/icon.jpg';
 
+
 export default function Appbar() {
   const { user } = useUser();
   const location = useLocation();
@@ -174,6 +175,24 @@ export default function Appbar() {
           </ListItemIcon>
           <Typography variant="body2" color="text.secondary">
             {user.email}
+          </Typography>
+        </MenuItem>
+        
+        <MenuItem
+          component={Link}
+          to="/admin"
+          sx={{
+            py: 1.5,
+            '&:hover': {
+              bgcolor: 'primary.light',
+            }
+          }}
+        >
+          <ListItemIcon>
+            <PersonIcon fontSize="small" color="primary" />
+          </ListItemIcon>
+          <Typography variant="body2" color="text.secondary">
+            Admin Panel
           </Typography>
         </MenuItem>
 
