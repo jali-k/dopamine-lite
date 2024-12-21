@@ -1,4 +1,4 @@
-import { getAuth, signInWithPopup as sgnp, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, signInWithPopup as sgnp, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, sendEmailVerification } from "firebase/auth";
 import { fireauth, gprovider } from "./firebaseconfig";
 
 const mapAuthError = (error) => {
@@ -15,6 +15,8 @@ const mapAuthError = (error) => {
     'auth/too-many-requests': 'Too many login attempts. Please try again later.',
     'auth/popup-blocked': 'Pop-up blocked. Please allow pop-ups for this site.',
     'auth/popup-closed-by-user': 'Sign-in popup was closed before completion.',
+    'auth/requires-recent-login': 'Please log in again before retrying this request.',
+    'auth/email-already-verified': 'This email is already verified.',
   };
   return errorMap[error.code] || 'An unexpected error occurred. Please try again.';
 };
@@ -65,6 +67,9 @@ export const emailLogin = async (email, password) => {
 
   try {
     const userCredential = await signInWithEmailAndPassword(fireauth, email, password);
+    if (!userCredential.user.emailVerified) {
+      throw { code: 'auth/email-not-verified', message: 'Please verify your email before logging in.' };
+    }
     return userCredential.user;
   } catch (error) {
     console.error("Email login error:", error);
@@ -82,9 +87,26 @@ export const emailRegister = async (email, password) => {
 
   try {
     const userCredential = await createUserWithEmailAndPassword(fireauth, email, password);
+    await sendVerificationEmail();
     return userCredential.user;
   } catch (error) {
     console.error("Registration error:", error);
+    throw new Error(mapAuthError(error));
+  }
+};
+
+export const sendVerificationEmail = async () => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error('No user is currently signed in.');
+  }
+
+  try {
+    await sendEmailVerification(user);
+  } catch (error) {
+    console.error("Email verification error:", error);
     throw new Error(mapAuthError(error));
   }
 };
