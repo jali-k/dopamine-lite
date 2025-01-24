@@ -1,4 +1,5 @@
 import Hls from 'hls.js';
+import axios from 'axios';
 import {
   FastForward,
   Fullscreen,
@@ -61,18 +62,39 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
+    const email = watermark;
+    // Headers to send with the request
+    const headers = {
+      'Content-Type': 'application/json',
+      email: watermark, // Custom header
+      theensemble: '#RTDFGhrt^756HG^#*756GDF', // Another custom header
+    };
+    const body = {
+      email: watermark,
+      theensemble: '#RTDFGhrt^756HG^#*756GDF',
+    }
     while (retries < maxRetries) {
       try {
-        const response = await fetch(url);
-        if (response.ok) {
-          return response;
-        } else {
-          retries++;
-          if (retries < maxRetries) {
-            onRetryError?.({ type: 'retry', attempt: retries });
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-        }
+        const response = await axios.get(url, { headers });
+        // const response = await fetch(url, {
+        //   method: 'GET',
+        //   headers: {
+        //     'Content-Type' : 'application/json'
+        //   // //  `${watermark}`: 'email',
+        //   //   '#RTDFGhrt^756HG^#*756GDF': 'theensemble',
+        //   },
+        //   body: JSON.stringify(body),
+        // });
+        return response;
+        // if (response.ok) {
+        //   return response;
+        // } else {
+        //   retries++;
+        //   if (retries < maxRetries) {
+        //     onRetryError?.({ type: 'retry', attempt: retries });
+        //     await new Promise(resolve => setTimeout(resolve, delay));
+        //   }
+        // }
       } catch (error) {
         retries++;
         if (retries < maxRetries) {
@@ -86,14 +108,21 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   const fetchManifest = async () => {
     try {
+      // Call the fetchWithRetry function
       const response = await fetchWithRetry(url, 3, 1000, onError);
-      const data = await response.json();
+
+      // Axios automatically parses JSON; no need for `response.json()`
+      const data = response.data;
       const modifiedManifest = data.modified_m3u8_content;
 
       if (Hls.isSupported()) {
         const hls = new Hls();
+
+        // Create a Blob URL for the modified manifest
         const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
         const blobUrl = URL.createObjectURL(blob);
+
+        // Load the blob URL into Hls.js
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
 
@@ -109,6 +138,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
           onError?.({ type: 'manifest' });
         });
       } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Fallback for native HLS support
         vdrf.current.src = data.manifest_url;
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
@@ -128,6 +158,52 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       onError?.({ type: 'manifest' });
     }
   };
+
+
+  // const fetchManifest = async () => {
+  //   try {
+  //     const response = await fetchWithRetry(url, 3, 1000, onError);
+  //     const data = await response.json();
+  //     const modifiedManifest = data.modified_m3u8_content;
+
+  //     if (Hls.isSupported()) {
+  //       const hls = new Hls();
+  //       const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
+  //       const blobUrl = URL.createObjectURL(blob);
+  //       hls.loadSource(blobUrl);
+  //       hls.attachMedia(vdrf.current);
+
+  //       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+  //         setLoading(false);
+  //         if (canPlay) {
+  //           vdrf.current.play();
+  //         }
+  //       });
+
+  //       hls.on(Hls.Events.ERROR, () => {
+  //         setLoading(false);
+  //         onError?.({ type: 'manifest' });
+  //       });
+  //     } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
+  //       vdrf.current.src = data.manifest_url;
+  //       vdrf.current.addEventListener('loadedmetadata', () => {
+  //         setLoading(false);
+  //         if (canPlay) {
+  //           vdrf.current.play();
+  //         }
+  //       });
+
+  //       vdrf.current.addEventListener('error', () => {
+  //         setLoading(false);
+  //         onError?.({ type: 'manifest' });
+  //       });
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching manifest:', error);
+  //     setLoading(false);
+  //     onError?.({ type: 'manifest' });
+  //   }
+  // };
 
   // Add this effect to handle playback when security check completes
   uE(() => {
