@@ -39,8 +39,8 @@ export const UserProvider = ({ children }) => {
     setAdmin(false);
 
     if (admins && user) {
-      console.log(admins);
-      console.log(user);
+      // console.log(admins);
+      // console.log(user);
       const admin = admins.find((admin) => admin.email === user.email);
       if (admin) {
         setAdmin(true);
