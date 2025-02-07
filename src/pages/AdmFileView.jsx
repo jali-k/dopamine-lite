@@ -43,6 +43,7 @@ import { useState } from "react";
 import { deleteTutorial, isValidEmail } from "../../funcs";
 import { Add } from "@mui/icons-material";
 import { jhsfg } from "../../af";
+import AuthorizedUsersAccordion from "../components/AuthorizedUsersAccordion ";
 
 export default function AdmFileView() {
   const params = useParams();
@@ -71,7 +72,7 @@ export default function AdmFileView() {
         .replaceAll(",", "\n")
         .split("\n")
         .filter((email) => email !== "")
-        .map((email) => email.trim().toLowerCase())
+        .map((email) => email.trim().toLowerCase().replace(/\s+/g, ""))
     ),
   ];
 
@@ -303,8 +304,10 @@ export default function AdmFileView() {
           </CardContent>
         </Card>
 
+
         {/* Authorized Users Accordion */}
-        <Accordion>
+        <AuthorizedUsersAccordion emails={emails} />
+        {/* <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}
             sx={{ bgcolor: 'customColors.membrane' }}>
             <Stack direction="row" alignItems="center" spacing={1}>
@@ -333,7 +336,7 @@ export default function AdmFileView() {
               )}
             </L>
           </AccordionDetails>
-        </Accordion>
+        </Accordion> */}
 
         {/* Edit Access Accordion */}
         <Accordion>
