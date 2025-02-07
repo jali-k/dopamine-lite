@@ -20,6 +20,7 @@ import {
   useFullScreenHandle as uFSC,
 } from "react-full-screen";
 import { jhsfg } from "../../af";
+import { Buffer } from 'buffer';
 
 export default function CVPL({ watermark, url, canPlay, onError }) {
   const fhandle = uFSC();
@@ -60,14 +61,45 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     }
   };
 
+
+  const generateTheEssence = (secretCode, email) => {
+    const timestamp = Date.now().toString(); // Current timestamp as a string
+
+    // Base64 encode the email
+    const base64Email = Buffer.from(email).toString('base64');
+
+    // Combine timestamp, secret code, and Base64-encoded email
+    const combined = timestamp + secretCode + base64Email;
+    const shift = 3; 
+    let encoded = '';
+
+    // Encode by shifting each character
+    for (let i = 0; i < combined.length; i++) {
+      const char = combined[i];
+      if (/[a-zA-Z]/.test(char)) {
+        const base = char >= 'a' ? 'a'.charCodeAt(0) : 'A'.charCodeAt(0);
+        encoded += String.fromCharCode(((char.charCodeAt(0) - base + shift) % 26) + base);
+      } else if (/\d/.test(char)) {
+        encoded += (parseInt(char, 10) + shift) % 10; // Shift digits
+      } else {
+        encoded += char; // Leave non-alphanumeric characters unchanged
+      }
+    }
+
+    return encoded;
+  };
+
+
   const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
     const email = watermark;
+    const theessence = generateTheEssence("HET349DGHFRT#5$hY^GFS6*tH4*HW&", email);
     // Headers to send with the request
     const headers = {
       'Content-Type': 'application/json',
       email: watermark, // Custom header
-      theensemble: '#RTDFGhrt^756HG^#*756GDF', // Another custom header
+      theensemble: theessence, // Another custom header
+
     };
     const body = {
       email: watermark,
@@ -96,11 +128,12 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         //   }
         // }
       } catch (error) {
-        retries++;
-        if (retries < maxRetries) {
-          onRetryError?.({ type: 'retry', attempt: retries });
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+        console.error('Error fetching manifest:', error);
+        // retries++;
+        // if (retries < maxRetries) {
+        //   onRetryError?.({ type: 'retry', attempt: retries });
+        //   await new Promise(resolve => setTimeout(resolve, delay));
+        // }
       }
     }
     throw new Error('Failed to fetch manifest after several retries.');
