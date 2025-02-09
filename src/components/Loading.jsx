@@ -50,7 +50,7 @@ export default function Loading({
           {progressbar && `(${Math.round(progress)}%) `}
           {text + dots}
         </T>
-        {progressbar ? <LP variant="determinate" value={progress} /> : <LP />}
+        {progressbar ? <LP variant="determinate" value={progress} sx={{ bgcolor: "lightgray", "& .MuiLinearProgress-bar": { backgroundColor: "green" } }}/> : <LP sx={{ bgcolor: "lightgray", "& .MuiLinearProgress-bar": { backgroundColor: "green" } }}/>}
       </P>
     </M>
   );

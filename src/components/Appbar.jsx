@@ -157,7 +157,7 @@ export default function Appbar() {
                 variant="subtitle1"
                 sx={{
                   fontWeight: 600,
-                  color: 'primary.main'
+                  color: '#2e7d32'
                 }}
               >
                 {user.displayName || 'User'}
@@ -171,7 +171,7 @@ export default function Appbar() {
 
         <MenuItem sx={{ py: 1.5 }}>
           <ListItemIcon>
-            <EmailIcon fontSize="small" color="primary" />
+            <EmailIcon fontSize="small" sx={{ color: "#2e7d32" }} />
           </ListItemIcon>
           <Typography variant="body2" color="text.secondary">
             {user.email}
@@ -189,7 +189,7 @@ export default function Appbar() {
           }}
         >
           <ListItemIcon>
-            <PersonIcon fontSize="small" color="primary" />
+            <PersonIcon fontSize="small" sx={{ color: "#2e7d32" }} />
           </ListItemIcon>
           <Typography variant="body2" color="text.secondary">
             Admin Panel
@@ -218,7 +218,7 @@ export default function Appbar() {
       <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
         <Breadcrumbs
           separator={
-            <NavigateNext sx={{ color: 'primary.main', opacity: 0.7 }} />
+            <NavigateNext sx={{ color: '#2e7d32', opacity: 0.7 }} />
           }
         >
           <Link
@@ -231,7 +231,7 @@ export default function Appbar() {
             }}
           >
             <Home sx={{
-              color: 'primary.main',
+              color: '#2e7d32',
               fontSize: 20
             }} />
           </Link>
