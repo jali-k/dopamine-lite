@@ -45,12 +45,25 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     stDV(vdrf.current.duration);
   };
 
+  
   const hSCF = (e) => {
-    cancelAnimationFrame(animationRef.current);
+    if (!vdrf.current) return;
+  
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+  
+    setLoading(true);
+  
     const newTime = parseFloat(e.target.value);
-    vdrf.current.currentTime = newTime;
-    stCTV(newTime);
+    if (!isNaN(newTime) && newTime >= 0 && newTime <= vdrf.current.duration) {
+      vdrf.current.currentTime = newTime;
+      stCTV(newTime);
+    }
+  
+    vdrf.current.onseeked = () => setLoading(false);
   };
+  
 
   const aSF = () => {
     const newTime = vdrf.current.currentTime + 0.1;
@@ -364,6 +377,8 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       }}
       component={"div"}
     >
+
+      {/* Backward 10s Button */}
       <IBT
         color="inherit"
         size="small"
@@ -375,6 +390,8 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       >
         <FastRewind />
       </IBT>
+
+
       <IBT
         color="inherit"
         size="small"
@@ -401,8 +418,6 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       >
         <FastForward />
       </IBT>
-
-      {/* Backward 10s Button */}
 
       <Sl
         color="error"
