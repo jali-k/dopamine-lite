@@ -30,6 +30,8 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   const slrf = uR(null);
   const animationRef = uR(null);
 
+  const debounceTimeout = uR(null);
+
   const [speed, setSpeed] = uS(1);
   const speeds = [0.5, 1, 1.5, 2];
 
@@ -64,7 +66,62 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   
     vdrf.current.onseeked = () => setLoading(false);
   };
+
+
+  const handleForward10 = () => {
+    if (!vdrf.current) return;
   
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+  
+    setLoading(true);
+  
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+  
+    debounceTimeout.current = setTimeout(() => {
+      const newTime = vdrf.current.currentTime + 10;
+      if (newTime <= vdrf.current.duration) {
+        vdrf.current.currentTime = newTime;
+        stCTV(newTime);
+      } else {
+        vdrf.current.currentTime = vdrf.current.duration;
+        stCTV(vdrf.current.duration);
+      }
+  
+      vdrf.current.onseeked = () => setLoading(false);
+    }, 600); 
+  };  
+
+
+  const handleBackward10 = () => {
+    if (!vdrf.current) return;
+  
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+  
+    setLoading(true);
+  
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+  
+    debounceTimeout.current = setTimeout(() => {
+      const newTime = vdrf.current.currentTime - 10;
+      if (newTime >= 0) {
+        vdrf.current.currentTime = newTime;
+        stCTV(newTime);
+      } else {
+        vdrf.current.currentTime = 0;
+        stCTV(vdrf.current.duration);
+      }
+  
+      vdrf.current.onseeked = () => setLoading(false);
+    }, 600); 
+  }; 
 
   const aSF = () => {
     const newTime = vdrf.current.currentTime + 0.1;
@@ -383,11 +440,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       <IBT
         color="inherit"
         size="small"
-        onClick={() => {
-          if (vdrf.current) {
-            vdrf.current.currentTime -= 10;
-          }
-        }}
+        onClick={handleBackward10}
       >
         <Replay10Icon />
       </IBT>
@@ -411,11 +464,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       <IBT
         color="inherit"
         size="small"
-        onClick={() => {
-          if (vdrf.current) {
-            vdrf.current.currentTime += 10;
-          }
-        }}
+        onClick={handleForward10}
       >
         <Forward10Icon />
       </IBT>
