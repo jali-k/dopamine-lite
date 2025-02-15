@@ -6,8 +6,9 @@ import {
   FullscreenExit,
   Pause,
   PlayArrow,
-  FastRewind, 
 } from "@mui/icons-material";
+import Replay10Icon from '@mui/icons-material/Replay10';
+import Forward10Icon from '@mui/icons-material/Forward10';
 import {
   Box as B,
   IconButton as IBT,
@@ -388,7 +389,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
           }
         }}
       >
-        <FastRewind />
+        <Replay10Icon />
       </IBT>
 
 
@@ -416,7 +417,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
           }
         }}
       >
-        <FastForward />
+        <Forward10Icon />
       </IBT>
 
       <Sl
