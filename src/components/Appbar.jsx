@@ -150,7 +150,7 @@ export default function Appbar() {
                 width: 48,
                 height: 48,
                 border: '2px solid',
-                borderColor: 'primary.main'
+                borderColor: Colors.green
               }}
             />
             <Box>

@@ -19,6 +19,7 @@ import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import VCad from "../components/VCad";
 import { useUser } from "../contexts/UserProvider";
+import { Colors } from "../themes/colours";
 
 export default function StuFileView() {
   const params = useParams();
@@ -110,7 +111,7 @@ export default function StuFileView() {
             gap: 2
           }}
         >
-          <BiotechIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <BiotechIcon sx={{ fontSize: 32, color: Colors.green }} />
           <Typography variant="h4">
             {params.fname} Tutorials
           </Typography>
