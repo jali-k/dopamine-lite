@@ -6,6 +6,7 @@ import {
   FullscreenExit,
   Pause,
   PlayArrow,
+  FastRewind, 
 } from "@mui/icons-material";
 import {
   Box as B,
@@ -44,12 +45,25 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     stDV(vdrf.current.duration);
   };
 
+  
   const hSCF = (e) => {
-    cancelAnimationFrame(animationRef.current);
+    if (!vdrf.current) return;
+  
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+  
+    setLoading(true);
+  
     const newTime = parseFloat(e.target.value);
-    vdrf.current.currentTime = newTime;
-    stCTV(newTime);
+    if (!isNaN(newTime) && newTime >= 0 && newTime <= vdrf.current.duration) {
+      vdrf.current.currentTime = newTime;
+      stCTV(newTime);
+    }
+  
+    vdrf.current.onseeked = () => setLoading(false);
   };
+  
 
   const aSF = () => {
     const newTime = vdrf.current.currentTime + 0.1;
@@ -272,15 +286,183 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   return (
     <FSC handle={fhandle}>
+  <B
+    sx={{
+      position: "relative",
+      overflow: "hidden",
+      width: fhandle.active ? "100vw" : "100%",
+      height: fhandle.active ? "100vh" : "fit-content",
+      display: "flex",
+    }}
+    onDoubleClick={() => {
+      if (fhandle.active) {
+        fhandle.exit();
+      } else {
+        fhandle.enter();
+      }
+    }}
+  >
+    <video
+      width="100%"
+      controls={false}
+      preload="metadata"
+      controlsList="nodownload"
+      ref={vdrf}
+      style={{
+        backgroundColor: "black",
+        borderRadius: fhandle.active ? "0px" : "6px",
+      }}
+      disablePictureInPicture
+      disableRemotePlayback
+      onContextMenu={(e) => {
+        e.preventDefault();
+      }}
+      onClick={() => {
+        if (isPlyV) {
+          vdrf.current.pause();
+        } else {
+          vdrf.current.play();
+        }
+      }}
+      className="video-player"
+    >
+      <T
+        sx={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          color: "white",
+          fontSize: "30px",
+          fontWeight: "bold",
+          zIndex: 10000,
+        }}
+      >
+        Your browser does not support this video.
+      </T>
+    </video>
+    {loading && (
       <B
         sx={{
-          position: "relative",
-          overflow: "hidden",
-          width: fhandle.active ? "100vw" : "100%",
-          height: fhandle.active ? "100vh" : "fit-content",
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          color: "white",
+          fontSize: "30px",
+          fontWeight: "bold",
+          zIndex: 10000,
           display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
-        onDoubleClick={() => {
+      >
+        <CP color="inherit" />
+      </B>
+    )}
+    <i className="watermark">{watermark}</i>
+    <B
+      sx={{
+        position: "absolute",
+        bottom: "0",
+        width: "100%",
+        background: "linear-gradient(rgba(0,0,0,0.5),black)",
+        px: 2,
+        py: 1,
+        display: "flex",
+        gap: 2,
+        color: "white",
+        zIndex: 1000,
+        alignItems: "center",
+      }}
+      component={"div"}
+    >
+
+      {/* Backward 10s Button */}
+      <IBT
+        color="inherit"
+        size="small"
+        onClick={() => {
+          if (vdrf.current) {
+            vdrf.current.currentTime -= 10;
+          }
+        }}
+      >
+        <FastRewind />
+      </IBT>
+
+
+      <IBT
+        color="inherit"
+        size="small"
+        onClick={() => {
+          if (isPlyV) {
+            vdrf.current.pause();
+          } else {
+            vdrf.current.play();
+          }
+        }}
+      >
+        {isPlyV ? <Pause /> : <PlayArrow />}
+      </IBT>
+
+      {/* Forward 10s Button */}
+      <IBT
+        color="inherit"
+        size="small"
+        onClick={() => {
+          if (vdrf.current) {
+            vdrf.current.currentTime += 10;
+          }
+        }}
+      >
+        <FastForward />
+      </IBT>
+
+      <Sl
+        color="error"
+        className="vdslider"
+        min={0}
+        max={duration}
+        step={0.1}
+        value={cTV}
+        onChange={hSCF}
+        size="small"
+        ref={slrf}
+      />
+      <T>{new Date(cTV * 1000).toISOString().substr(11, 8)}</T>
+
+      <IBT
+        color="inherit"
+        size="small"
+        sx={{
+          position: "relative",
+        }}
+        onClick={() => {
+          setSpeed((prevSpeed) => {
+            const newSpeed =
+              speeds[(speeds.indexOf(prevSpeed) + 1) % speeds.length];
+            vdrf.current.playbackRate = newSpeed;
+            return newSpeed;
+          });
+        }}
+      >
+        <T
+          variant="body"
+          sx={{
+            fontSize: "12px",
+            position: "absolute",
+            bottom: "-5px",
+          }}
+        >
+          {speed}x
+        </T>
+        <FastForward />
+      </IBT>
+      <IBT
+        color="inherit"
+        size="small"
+        onClick={() => {
           if (fhandle.active) {
             fhandle.exit();
           } else {
@@ -288,163 +470,26 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
           }
         }}
       >
-        <video
-          width="100%"
-          controls={false}
-          preload="metadata"
-          controlsList="nodownload"
-          ref={vdrf}
-          style={{
-            backgroundColor: "black",
-            borderRadius: fhandle.active ? "0px" : "6px",
-          }}
-          disablePictureInPicture
-          disableRemotePlayback
-          onContextMenu={(e) => {
-            e.preventDefault();
-          }}
-          onClick={() => {
-            if (isPlyV) {
-              vdrf.current.pause();
-            } else {
-              vdrf.current.play();
-            }
-          }}
-          className="video-player"
-        >
-          <T
-            sx={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              color: "white",
-              fontSize: "30px",
-              fontWeight: "bold",
-              zIndex: 10000,
-            }}
-          >
-            Your browser does not support this video.
-          </T>
-        </video>
-        {loading && (
-          <B
-            sx={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              color: "white",
-              fontSize: "30px",
-              fontWeight: "bold",
-              zIndex: 10000,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <CP color="inherit" />
-          </B>
-        )}
-        <i className="watermark">{watermark}</i>
-        <B
-          sx={{
-            position: "absolute",
-            bottom: "0",
-            width: "100%",
-            background: "linear-gradient(rgba(0,0,0,0.5),black)",
-            px: 2,
-            py: 1,
-            display: "flex",
-            gap: 2,
-            color: "white",
-            zIndex: 1000,
-            alignItems: "center",
-          }}
-          component={"div"}
-        >
-          <IBT
-            color="inherit"
-            size="small"
-            onClick={() => {
-              if (isPlyV) {
-                vdrf.current.pause();
-              } else {
-                vdrf.current.play();
-              }
-            }}
-          >
-            {isPlyV ? <Pause /> : <PlayArrow />}
-          </IBT>
-          <Sl
-            color="error"
-            className="vdslider"
-            min={0}
-            max={duration}
-            step={0.1}
-            value={cTV}
-            onChange={hSCF}
-            size="small"
-            ref={slrf}
-          />
-          <T>{new Date(cTV * 1000).toISOString().substr(11, 8)}</T>
-          <IBT
-            color="inherit"
-            size="small"
-            sx={{
-              position: "relative",
-            }}
-            onClick={() => {
-              setSpeed((prevSpeed) => {
-                const newSpeed =
-                  speeds[(speeds.indexOf(prevSpeed) + 1) % speeds.length];
-                vdrf.current.playbackRate = newSpeed;
-                return newSpeed;
-              });
-            }}
-          >
-            <T
-              variant="body"
-              sx={{
-                fontSize: "12px",
-                position: "absolute",
-                bottom: "-5px",
-              }}
-            >
-              {speed}x
-            </T>
-            <FastForward />
-          </IBT>
-          <IBT
-            color="inherit"
-            size="small"
-            onClick={() => {
-              if (fhandle.active) {
-                fhandle.exit();
-              } else {
-                fhandle.enter();
-              }
-            }}
-          >
-            {fhandle.active ? <FullscreenExit /> : <Fullscreen />}
-          </IBT>
-        </B>
-        <T
-          sx={{
-            position: "absolute",
-            top: "4px",
-            left: "8px",
-            color: "#f4f4f4",
-            backdropFilter: "blur(5px)",
-            cursor: "pointer",
-          }}
-        >
-          {jhsfg([
-            80, 111, 119, 101, 114, 101, 100, 32, 98, 121, 32, 79, 110, 101, 67, 111, 100, 101
-          ])}
+        {fhandle.active ? <FullscreenExit /> : <Fullscreen />}
+      </IBT>
+    </B>
+    <T
+      sx={{
+        position: "absolute",
+        top: "4px",
+        left: "8px",
+        color: "#f4f4f4",
+        backdropFilter: "blur(5px)",
+        cursor: "pointer",
+      }}
+    >
+      {jhsfg([
+        80, 111, 119, 101, 114, 101, 100, 32, 98, 121, 32, 79, 110, 101, 67, 111,
+        100, 101,
+      ])}
+    </T>
+  </B>
+</FSC>
 
-        </T>
-      </B>
-    </FSC>
   );
 }

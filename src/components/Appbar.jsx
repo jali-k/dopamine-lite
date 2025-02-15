@@ -25,6 +25,7 @@ import { Link, useLocation } from "react-router-dom";
 import { signOut } from "../../af";
 import { useState } from "react";
 import appIcon from '../assets/icon.jpg';
+import { Colors } from "../themes/colours";
 
 
 export default function Appbar() {
@@ -53,7 +54,7 @@ export default function Appbar() {
         sx={{
           bgcolor: 'primary.main',
           backgroundImage: 'linear-gradient(45deg, #2e7d32 30%, #43a047 90%)',
-          boxShadow: '0 2px 10px rgba(46, 125, 50, 0.2)',
+          boxShadow: Colors.AppbarBoxShadow,
         }}
       >
         <Toolbar>
@@ -81,7 +82,7 @@ export default function Appbar() {
                 fontWeight: 600,
                 letterSpacing: '0.5px',
                 fontFamily: 'Quicksand, Arial, sans-serif',
-                color: '#ffffff', // Ensuring text is white
+                color: Colors.white100, // Ensuring text is white
                 textShadow: '0 1px 2px rgba(0,0,0,0.1)', // Adding subtle shadow for better visibility
                 opacity: 0.95
               }}
@@ -157,7 +158,7 @@ export default function Appbar() {
                 variant="subtitle1"
                 sx={{
                   fontWeight: 600,
-                  color: 'primary.main'
+                  color: Colors.green
                 }}
               >
                 {user.displayName || 'User'}
@@ -171,7 +172,7 @@ export default function Appbar() {
 
         <MenuItem sx={{ py: 1.5 }}>
           <ListItemIcon>
-            <EmailIcon fontSize="small" color="primary" />
+            <EmailIcon fontSize="small" sx={{ color: Colors.green }} />
           </ListItemIcon>
           <Typography variant="body2" color="text.secondary">
             {user.email}
@@ -189,7 +190,7 @@ export default function Appbar() {
           }}
         >
           <ListItemIcon>
-            <PersonIcon fontSize="small" color="primary" />
+            <PersonIcon fontSize="small" sx={{ color: Colors.green }} />
           </ListItemIcon>
           <Typography variant="body2" color="text.secondary">
             Admin Panel
@@ -218,7 +219,7 @@ export default function Appbar() {
       <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
         <Breadcrumbs
           separator={
-            <NavigateNext sx={{ color: 'primary.main', opacity: 0.7 }} />
+            <NavigateNext sx={{ color: Colors.green, opacity: 0.7 }} />
           }
         >
           <Link
@@ -231,7 +232,7 @@ export default function Appbar() {
             }}
           >
             <Home sx={{
-              color: 'primary.main',
+              color: Colors.green,
               fontSize: 20
             }} />
           </Link>
@@ -245,7 +246,7 @@ export default function Appbar() {
                 to={`/${path}`}
                 style={{
                   textDecoration: "none",
-                  color: "#2e7d32",
+                  color: Colors.green,
                   fontFamily: 'Quicksand, Arial, sans-serif',
                   fontWeight: 500,
                   fontSize: '0.9rem'
