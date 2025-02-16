@@ -38,6 +38,55 @@ export default function PDFFileView() {
   const [pdfs, loading] = useCollectionData(pdfRef);
   const [emails, emailLoading] = useCollectionData(emailListref);
 
+  // ============================================================
+  const handleDownloadPdf = async (pdf) => {
+    try {
+      if (!pdf.url) {
+        alert("PDF file URL is missing.");
+        return;
+      }
+  
+      const formData = new FormData();
+      formData.append("email", encodeURIComponent(user.email));
+  
+      // Fetch the original PDF file from Firebase
+      const response = await fetch(pdf.url);
+      if (!response.ok) throw new Error("Failed to fetch original PDF");
+  
+      const blob = await response.blob();
+      const file = new File([blob], pdf.title, { type: "application/pdf" });
+      formData.append("pdf", file);
+  
+      // Send file and email to Django service
+      const uploadResponse = await fetch("http://54.172.123.83/api/edit-pdf/", {
+        method: "POST",
+        body: formData,
+      });
+  
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to generate watermarked PDF");
+      }
+  
+      // Receive and download the modified PDF
+      const pdfBlob = await uploadResponse.blob();
+      const pdfUrl = window.URL.createObjectURL(pdfBlob);
+  
+      // Create a download link
+      const link = document.createElement("a");
+      link.href = pdfUrl;
+      link.setAttribute("download", `${pdf.title}-watermarked.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  
+    } catch (error) {
+      console.error("Error processing PDF:", error);
+      alert("Failed to load the PDF. Please try again.");
+    }
+  };
+  
+  // =============================================================  
+
   if (loading) {
     return <Loading text="Loading PDFs" />;
   }
@@ -134,9 +183,7 @@ export default function PDFFileView() {
                   }}
                 >
                   <CardActionArea
-                    component={Link}
-                    to={`/pdf/${params.fname}/${pdf.title}`}
-                    target="_blank"
+                    onClick={() => handleDownloadPdf(pdf)}
                     sx={{
                       height: '100%',
                       display: 'flex',
