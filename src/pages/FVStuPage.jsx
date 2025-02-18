@@ -31,10 +31,17 @@ export default function FVStuPage() {
     return <Loading text="Loading Files" />;
   }
 
+  const truncateText = (text, maxLength = 30) => {
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength - 3) + "..."; // Truncate and add ellipsis
+    }
+    return text;
+  };
+
   const renderFolderGrid = (folders, type) => (
     <Grid
       container
-      spacing={2}
+      spacing={7}
       sx={{
         px: 2,
         width: '100%',
@@ -56,7 +63,7 @@ export default function FVStuPage() {
             }}
           >
             <FButton
-              fname={file.fname}
+              fname={truncateText(file.fname)} // Truncate before passing
               to={`/${type}/${file.fname}`}
               sx={{
                 width: '100%',

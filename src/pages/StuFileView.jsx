@@ -83,7 +83,7 @@ export default function StuFileView() {
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "background.default",
+        bgcolor: "#f0f0f0",
         position: "relative",
       }}
     >
