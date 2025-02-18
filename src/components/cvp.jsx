@@ -39,6 +39,8 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   const [cTV, stCTV] = uS(0);
   const [duration, stDV] = uS(0);
   const [loading, setLoading] = uS(true);
+  const [showControls, setShowControls] = uS(true);
+  let timeoutId;
 
   const hTUF = () => {
     stCTV(vdrf.current.currentTime);
@@ -342,6 +344,21 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     };
   }, []);
 
+  uE(() => {
+    const handleMouseMove = () => {
+      setShowControls(true);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setShowControls(false), 6000);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
   return (
     <FSC handle={fhandle}>
   <B
@@ -419,7 +436,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       </B>
     )}
     <i className="watermark">{watermark}</i>
-    <B
+    {showControls && (    <B
       sx={{
         position: "absolute",
         bottom: "0",
@@ -434,6 +451,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         alignItems: "center",
       }}
       component={"div"}
+      onDoubleClick={(e) => e.stopPropagation()}
     >
 
       {/* Backward 10s Button */}
@@ -522,7 +540,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       >
         {fhandle.active ? <FullscreenExit /> : <Fullscreen />}
       </IBT>
-    </B>
+    </B>)}
     <T
       sx={{
         position: "absolute",
