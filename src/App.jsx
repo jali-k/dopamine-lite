@@ -16,7 +16,7 @@ import EditTutorialPage from "./pages/EditTutorialPage"; // New import
 import BrowserDetection from "./components/BrowserDetectionComponent";
 import { ThemeProvider, createTheme } from '@mui/material';
 import KeyPressTracker from "./components/KeyPressTracker";
-
+import NetworkStatus from "./components/NetworkStatus"; // Import NetworkStatus
 const theme = createTheme();
 
 export default function App() {
@@ -24,6 +24,7 @@ export default function App() {
     <ThemeProvider theme={theme}>
     <BrowserDetection>
     <KeyPressTracker />
+    <NetworkStatus>
       <Routes>
         <Route
           element={
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="*" element={<Error404 />} />
         </Route>
       </Routes>
+      </NetworkStatus>
     </BrowserDetection>
     </ThemeProvider>
   );

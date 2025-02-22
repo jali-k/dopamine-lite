@@ -180,10 +180,12 @@ export default function FVStuPage() {
             position: 'relative',
           }}
         >
+  
           {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
           {activeTab === 1 && renderFolderGrid(pdfFolders, 'pdf')}
         </Box>
       </Container>
     </Box>
+
   );
 }

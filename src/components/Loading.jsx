@@ -6,6 +6,8 @@ import {
   Typography as T,
 } from "@mui/material";
 import React, { useEffect as uE } from "react";
+import NetworkStatus from "../components/NetworkStatus";
+
 
 export default function Loading({
   text = "Loading",
@@ -27,6 +29,7 @@ export default function Loading({
     return () => clearInterval(interval);
   }, []);
   return (
+    <NetworkStatus loading={true}>
     <M open={true}>
       <P
         sx={{
@@ -53,5 +56,6 @@ export default function Loading({
         {progressbar ? <LP variant="determinate" value={progress} /> : <LP />}
       </P>
     </M>
+    </NetworkStatus>
   );
 }
