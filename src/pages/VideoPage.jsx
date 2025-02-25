@@ -30,6 +30,7 @@ import { useUser } from "../contexts/UserProvider";
 import CVPL from "../components/cvp";
 import VideoErrorDialog from "../components/VideoErrorDialog";
 import SecurityCheckUI from "../components/SecurityCheck";
+import { Colors } from "../themes/colours";
 
 export default function VideoPage() {
   const params = useParams();
@@ -237,7 +238,7 @@ export default function VideoPage() {
             gap: 2
           }}
         >
-          <BiotechIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <BiotechIcon sx={{ fontSize: 32, color: Colors.green }} />
           <Typography variant="h4">
             {tut.title} - {tut.lesson}
           </Typography>
@@ -271,14 +272,14 @@ export default function VideoPage() {
           <CardContent>
             <Stack spacing={2}>
               <Stack direction="row" alignItems="center" spacing={1}>
-                <CalendarIcon color="primary" />
+                <CalendarIcon sx={{ color: Colors.green }}/>
                 <Typography variant="h6">
                   {tut.date.replaceAll("-", "/")}
                 </Typography>
               </Stack>
               <Stack spacing={1}>
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  <DescriptionIcon color="primary" />
+                  <DescriptionIcon sx={{ color: Colors.green }} />
                   <Typography variant="h6">Description</Typography>
                 </Stack>
                 <Typography
