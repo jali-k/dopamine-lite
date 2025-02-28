@@ -321,7 +321,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   uE(() => {
     fetchManifest();
-    const intervalId = setInterval(fetchManifest, 55 * 60 * 1000); // Refresh manifest every 55 minutes
+    const intervalId = setInterval(fetchManifest, 3* 60 * 60 * 1000); // Refresh manifest every 55 minutes
 
     return () => clearInterval(intervalId); // Cleanup interval on component unmount
   }, []);
