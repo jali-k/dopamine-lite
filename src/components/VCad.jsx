@@ -19,6 +19,7 @@ import { useDownloadURL } from "react-firebase-hooks/storage";
 import { fireStorage } from "../../firebaseconfig";
 import { ref } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
+import { Colors } from "../themes/colours";
 
 export default function VCad({ tut }) {
   const [url, loading, error] = useDownloadURL(
@@ -148,7 +149,7 @@ export default function VCad({ tut }) {
                 <VideoIcon
                   sx={{
                     fontSize: 20,
-                    color: 'primary.main',
+                    color: Colors.green,
                     opacity: 0.8
                   }}
                 />

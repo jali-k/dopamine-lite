@@ -7,7 +7,7 @@ import {
 } from "@mui/material";
 import React, { useEffect as uE } from "react";
 import NetworkStatus from "../components/NetworkStatus";
-
+import { Colors } from "../themes/colours";
 
 export default function Loading({
   text = "Loading",
@@ -33,7 +33,7 @@ export default function Loading({
     <M open={true}>
       <P
         sx={{
-          bgcolor: "white",
+          bgcolor: Colors.white100,
           p: 4,
           // minWidth: "300px",
           position: "absolute",
@@ -53,7 +53,7 @@ export default function Loading({
           {progressbar && `(${Math.round(progress)}%) `}
           {text + dots}
         </T>
-        {progressbar ? <LP variant="determinate" value={progress} /> : <LP />}
+        {progressbar ? <LP variant="determinate" value={progress} sx={{ bgcolor: "lightgray", "& .MuiLinearProgress-bar": { backgroundColor: Colors.green } }}/> : <LP sx={{ bgcolor: "lightgray", "& .MuiLinearProgress-bar": { backgroundColor: Colors.green } }}/>}
       </P>
     </M>
     </NetworkStatus>
