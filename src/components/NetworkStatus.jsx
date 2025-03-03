@@ -3,36 +3,65 @@ import { Snackbar, Alert } from "@mui/material";
 
 const NetworkStatus = ({ children }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [error, setError] = useState(sessionStorage.getItem("networkError"));
-  const [openSnackbar, setOpenSnackbar] = useState(!!error);
+  const [error, setError] = useState(null);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
 
   useEffect(() => {
-    const updateNetworkStatus = () => {
+    sessionStorage.removeItem("networkError"); // Clear old errors on mount
+
+    const checkInternetConnection = async () => {
       if (!navigator.onLine) {
-        const errorMsg = "No internet connection. Please check your network.";
-        setError(errorMsg);
-        sessionStorage.setItem("networkError", errorMsg);
         setIsOnline(false);
+        setError("No internet connection. Please check your network.");
+        sessionStorage.setItem("networkError", "No internet connection.");
         setOpenSnackbar(true);
-      } else {
-        setError(null);
-        sessionStorage.removeItem("networkError");
-        setIsOnline(true);
-        setOpenSnackbar(false);
+        return;
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+        const response = await fetch("https://1.1.1.1/cdn-cgi/trace", {
+          method: "HEAD",
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          setIsOnline(true);
+          setError(null);
+          sessionStorage.removeItem("networkError");
+          setOpenSnackbar(false);
+        } else {
+          throw new Error("No internet connection.");
+        }
+      } catch (err) {
+        setIsOnline(false);
+        setError("No internet connection. Please check your network.");
+        sessionStorage.setItem("networkError", "No internet connection.");
+        setOpenSnackbar(true);
       }
     };
 
-    window.addEventListener("offline", updateNetworkStatus);
-    window.addEventListener("online", updateNetworkStatus);
+    // Check network status every 5 seconds to detect changes
+    const interval = setInterval(checkInternetConnection, 5000);
+
+    // Listen for offline/online events
+    window.addEventListener("offline", checkInternetConnection);
+    window.addEventListener("online", checkInternetConnection);
 
     return () => {
-      window.removeEventListener("offline", updateNetworkStatus);
-      window.removeEventListener("online", updateNetworkStatus);
+      clearInterval(interval);
+      window.removeEventListener("offline", checkInternetConnection);
+      window.removeEventListener("online", checkInternetConnection);
     };
   }, []);
 
   const handleCloseSnackbar = () => {
-    setOpenSnackbar(false);
+    setTimeout(() => setOpenSnackbar(false), 500);
   };
 
   return (
@@ -42,11 +71,7 @@ const NetworkStatus = ({ children }) => {
         open={openSnackbar}
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        <Alert 
-          severity="error" 
-          sx={{ width: "100%" }} 
-          onClose={() => setOpenSnackbar(false)} // Allow manual close
-        >
+        <Alert severity="error" sx={{ width: "100%" }} onClose={handleCloseSnackbar}>
           {error}
         </Alert>
       </Snackbar>
