@@ -39,7 +39,12 @@ export default function FVStuPage() {
   };
 
   const renderFolderGrid = (folders, type) => (
-    <Grid
+  <Box
+  bgcolor='#f5f5f5'
+  minHeight='90vh'
+  >
+      <Grid
+    
       container
       spacing={7}
       sx={{
@@ -81,6 +86,7 @@ export default function FVStuPage() {
         </Grid>
       )}
     </Grid>
+  </Box>
   );
 
   return (
