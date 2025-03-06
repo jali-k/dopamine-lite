@@ -1,5 +1,5 @@
 import FVAdPage from "./pages/FVAdPage";
-import { Outlet, Route, Routes } from "react-router-dom";
+import { Outlet, Route, Routes, Navigate, useParams  } from "react-router-dom";
 import VideoUPPage from "./pages/VideoUPPage";
 import PDFUploaderPage from "./pages/PDFUploaderPage";
 import FVStuPage from "./pages/FVStuPage";
@@ -20,6 +20,10 @@ import NetworkStatus from "./components/NetworkStatus"; // Import NetworkStatus
 const theme = createTheme();
 
 export default function App() {
+  function RedirectToVideo() {
+  const { fname } = useParams();
+  return <Navigate to={`/video/${fname}`} />;
+}
   return (
     <ThemeProvider theme={theme}>
     <BrowserDetection>
@@ -39,6 +43,7 @@ export default function App() {
           <Route path="/video" element={<FVStuPage />} />
           <Route path="/pdf" element={<FVStuPage />} />
           <Route path="/video/:fname" element={<StuFileView />} />
+          <Route path="/:fname" element={<RedirectToVideo />} />
           <Route path="/video/:fname/:lname" element={<VideoPage />} />
           <Route path="/pdf/:fname" element={<PDFFileView />} />
           <Route path="/pdf/:fname/:lname" element={<PDFPage />} />
