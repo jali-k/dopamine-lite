@@ -370,7 +370,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   uE(() => {
     fetchManifest();
-    
+    console.log("Fetching...");
     const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000); // Refresh manifest every 8 hours
     // const intervalId = setInterval(fetchManifest, 55 * 60 * 1000); // Refresh manifest every 55 minutes
 
