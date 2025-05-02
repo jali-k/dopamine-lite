@@ -164,6 +164,55 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   };
 
 
+  // const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
+  //   let retries = 0;
+  //   const email = watermark;
+  //   const theessence = generateTheEssence("HET349DGHFRT#5$hY^GFS6*tH4*HW&", email);
+  //   // Headers to send with the request
+  //   const headers = {
+  //     'Content-Type': 'application/json',
+  //     email: watermark, // Custom header
+  //     theensemble: theessence, // Another custom header
+
+  //   };
+  //   const body = {
+  //     email: watermark,
+  //     theensemble: '#RTDFGhrt^756HG^#*756GDF',
+  //   }
+  //   while (retries < maxRetries) {
+  //     try {
+  //       const response = await axios.get(url, { headers });
+  //       // const response = await fetch(url, {
+  //       //   method: 'GET',
+  //       //   headers: {
+  //       //     'Content-Type' : 'application/json'
+  //       //   // //  `${watermark}`: 'email',
+  //       //   //   '#RTDFGhrt^756HG^#*756GDF': 'theensemble',
+  //       //   },
+  //       //   body: JSON.stringify(body),
+  //       // });
+  //       return response;
+  //       // if (response.ok) {
+  //       //   return response;
+  //       // } else {
+  //       //   retries++;
+  //       //   if (retries < maxRetries) {
+  //       //     onRetryError?.({ type: 'retry', attempt: retries });
+  //       //     await new Promise(resolve => setTimeout(resolve, delay));
+  //       //   }
+  //       // }
+  //     } catch (error) {
+  //       console.error('Error fetching manifest:', error);
+  //       // retries++;
+  //       // if (retries < maxRetries) {
+  //       //   onRetryError?.({ type: 'retry', attempt: retries });
+  //       //   await new Promise(resolve => setTimeout(resolve, delay));
+  //       // }
+  //     }
+  //   }
+  //   throw new Error('Failed to fetch manifest after several retries.');
+  // };
+
   const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
     const email = watermark;
@@ -179,7 +228,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       email: watermark,
       theensemble: '#RTDFGhrt^756HG^#*756GDF',
     }
-    while (retries < maxRetries) {
+    
       try {
         const response = await axios.get(url, { headers });
         // const response = await fetch(url, {
@@ -209,7 +258,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         //   await new Promise(resolve => setTimeout(resolve, delay));
         // }
       }
-    }
+   
     throw new Error('Failed to fetch manifest after several retries.');
   };
 
@@ -321,7 +370,9 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
 
   uE(() => {
     fetchManifest();
-    const intervalId = setInterval(fetchManifest, 3* 60 * 60 * 1000); // Refresh manifest every 55 minutes
+    
+    const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000); // Refresh manifest every 8 hours
+    // const intervalId = setInterval(fetchManifest, 55 * 60 * 1000); // Refresh manifest every 55 minutes
 
     return () => clearInterval(intervalId); // Cleanup interval on component unmount
   }, []);
@@ -545,7 +596,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       sx={{
         position: "absolute",
         top: "4px",
-        left: "8px",
+        left: "8px",  
         color: "#f4f4f4",
         backdropFilter: "blur(5px)",
         cursor: "pointer",
