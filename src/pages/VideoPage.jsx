@@ -58,30 +58,68 @@ export default function VideoPage() {
   const [securityCheck, setSecurityCheck] = useState(true);
   const [progress, setProgress] = useState(0);
 
-  async function getHandler() {
-    const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
-    if (securityCheckComplete) {
-      console.log("Inside get handler");
-      console.log("Security check already complete");
-    }
+  // async function getHandler() {
+  //   const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
+  //   if (securityCheckComplete) {
+  //     console.log("Inside get handler");
+  //     console.log("Security check already complete");
+  //   }
+  //   try {
+  //     const docSnap = await getDoc(docRef);
+  //     if (docSnap.exists()) {
+  //       setHandler(docSnap.data().handler);
+  //       setInitialLoadAttempted(true);
+  //     } else {
+  //       console.log("No such document!");
+  //       setHasLoadError(true);
+  //       setShowErrorDialog(true);
+  //       setInitialLoadAttempted(true);
+  //     }
+  //   } catch (err) {
+  //     console.log(err);
+  //     setHasLoadError(true);
+  //     setShowErrorDialog(true);
+  //     setInitialLoadAttempted(true);
+  //   }
+  // }
+
+  async function getHandler(maxRetries = 3, retryDelay = 1000) {
+  const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
     try {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setHandler(docSnap.data().handler);
         setInitialLoadAttempted(true);
+        setHasLoadError(false); // Reset error state on success
+        return; // Exit on success
       } else {
         console.log("No such document!");
+        attempt++;
+        if (attempt === maxRetries) {
+          setHasLoadError(true);
+          setShowErrorDialog(true);
+          setInitialLoadAttempted(true);
+        }
+      }
+    } catch (err) {
+      console.log(`Attempt ${attempt + 1} failed:`, err);
+      attempt++;
+      if (attempt === maxRetries) {
+        console.log("Max retries reached");
         setHasLoadError(true);
         setShowErrorDialog(true);
         setInitialLoadAttempted(true);
       }
-    } catch (err) {
-      console.log(err);
-      setHasLoadError(true);
-      setShowErrorDialog(true);
-      setInitialLoadAttempted(true);
+    }
+    // Wait before retrying
+    if (attempt < maxRetries) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
   }
+}
 
   useEffect(() => {
     getHandler();
@@ -254,7 +292,7 @@ export default function VideoPage() {
           }}
         >
           <CardContent sx={{ p: 0 }}>
-            {vurl ? (
+            {handler && vurl ? (
               <CVPL
 
                 url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=28800'}
