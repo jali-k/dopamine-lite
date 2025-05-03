@@ -256,7 +256,9 @@ export default function VideoPage() {
           <CardContent sx={{ p: 0 }}>
             {vurl ? (
               <CVPL
-                url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=3600'}
+
+                url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=28800'}
+
                 watermark={user.email}
                 canPlay={!securityCheck && progress === 100}
                 onError={handleVideoError}

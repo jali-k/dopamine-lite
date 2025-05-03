@@ -31,10 +31,22 @@ export default function FVStuPage() {
     return <Loading text="Loading Files" />;
   }
 
+  const truncateText = (text, maxLength = 30) => {
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength - 3) + "..."; // Truncate and add ellipsis
+    }
+    return text;
+  };
+
   const renderFolderGrid = (folders, type) => (
-    <Grid
+  <Box
+  bgcolor='#f5f5f5'
+  minHeight='90vh'
+  >
+      <Grid
+    
       container
-      spacing={2}
+      spacing={7}
       sx={{
         px: 2,
         width: '100%',
@@ -56,7 +68,7 @@ export default function FVStuPage() {
             }}
           >
             <FButton
-              fname={file.fname}
+              fname={truncateText(file.fname)} // Truncate before passing
               to={`/${type}/${file.fname}`}
               sx={{
                 width: '100%',
@@ -74,6 +86,7 @@ export default function FVStuPage() {
         </Grid>
       )}
     </Grid>
+  </Box>
   );
 
   return (
@@ -173,10 +186,12 @@ export default function FVStuPage() {
             position: 'relative',
           }}
         >
+  
           {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
           {activeTab === 1 && renderFolderGrid(pdfFolders, 'pdf')}
         </Box>
       </Container>
     </Box>
+    
   );
 }

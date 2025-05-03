@@ -6,6 +6,7 @@ import {
   Typography as T,
 } from "@mui/material";
 import React, { useEffect as uE } from "react";
+import NetworkStatus from "../components/NetworkStatus";
 import { Colors } from "../themes/colours";
 
 export default function Loading({
@@ -28,6 +29,7 @@ export default function Loading({
     return () => clearInterval(interval);
   }, []);
   return (
+    <NetworkStatus loading={true}>
     <M open={true}>
       <P
         sx={{
@@ -54,5 +56,6 @@ export default function Loading({
         {progressbar ? <LP variant="determinate" value={progress} sx={{ bgcolor: "lightgray", "& .MuiLinearProgress-bar": { backgroundColor: Colors.green } }}/> : <LP sx={{ bgcolor: "lightgray", "& .MuiLinearProgress-bar": { backgroundColor: Colors.green } }}/>}
       </P>
     </M>
+    </NetworkStatus>
   );
 }

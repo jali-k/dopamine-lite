@@ -84,7 +84,7 @@ export default function StuFileView() {
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "background.default",
+        bgcolor: "#f5f5f5",// The Background
         position: "relative",
       }}
     >
@@ -105,6 +105,9 @@ export default function StuFileView() {
           sx={{
             p: 3,
             borderRadius: 2,
+            // borderStyle: 'solid',
+            // borderWidth: 1,
+            // borderColor: '#2e7d32',
             bgcolor: 'customColors.cytoplasm',
             display: 'flex',
             alignItems: 'center',
