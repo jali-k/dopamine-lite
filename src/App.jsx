@@ -12,18 +12,22 @@ import Error404 from "./pages/Error404";
 import AdminButton from "./components/AdminButton";
 import PDFFileView from "./pages/PDFFileView";
 import PDFPage from "./pages/PDFPage";
-import EditTutorialPage from "./pages/EditTutorialPage"; // New import
+import EditTutorialPage from "./pages/EditTutorialPage";
 import BrowserDetection from "./components/BrowserDetectionComponent";
 import { ThemeProvider, createTheme } from '@mui/material';
 import KeyPressTracker from "./components/KeyPressTracker";
-import NetworkStatus from "./components/NetworkStatus"; // Import NetworkStatus
+import NetworkStatus from "./components/NetworkStatus";
+import MessageCenter from "./pages/admin/MessageCenter";
+import AdminDashboard from "./pages/admin/AdminDashboard"; // Import the AdminDashboard component
+
 const theme = createTheme();
 
 export default function App() {
   function RedirectToVideo() {
-  const { fname } = useParams();
-  return <Navigate to={`/video/${fname}`} />;
-}
+    const { fname } = useParams();
+    return <Navigate to={`/video/${fname}`} />;
+  }
+  
   return (
     <ThemeProvider theme={theme}>
     <BrowserDetection>
@@ -49,7 +53,7 @@ export default function App() {
           <Route path="/pdf/:fname/:lname" element={<PDFPage />} />
 
           {/* Admin routes */}
-          <Route path="/admin" element={<FVAdPage />} />
+          <Route path="/admin" element={<AdminDashboard />} /> {/* Use AdminDashboard as the main admin landing page */}
           <Route path="/admin/video" element={<FVAdPage />} />
           <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
           <Route path="/admin/video/:fname" element={<AdmFileView />} />
@@ -59,6 +63,11 @@ export default function App() {
           <Route path="/admin/pdf/:fname/add" element={<PDFUploaderPage />} />
           <Route path="/admin/pdf/:fname" element={<AdmPDFFileView />} />
           <Route path="/admin/pdf/:fname/:lname" element={<PDFPage />} />
+          
+          {/* Message Center routes */}
+          <Route path="/admin/messages" element={<MessageCenter />} />
+          <Route path="/admin/messages/history" element={<MessageCenter />} />
+          <Route path="/admin/messages/templates" element={<MessageCenter />} />
 
           <Route path="*" element={<Error404 />} />
         </Route>
