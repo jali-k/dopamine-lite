@@ -342,92 +342,102 @@ export default function MessageHistory() {
             </Paper>
 
             {/* Message Preview Dialog */}
-            <Dialog
-                open={previewOpen}
-                onClose={() => setPreviewOpen(false)}
-                maxWidth="md"
-                fullWidth
-            >
-                <DialogTitle>
-                    Message Details
-                    <IconButton
-                        aria-label="close"
-                        onClick={() => setPreviewOpen(false)}
-                        sx={{
-                            position: 'absolute',
-                            right: 8,
-                            top: 8,
-                            color: (theme) => theme.palette.grey[500],
-                        }}
-                    >
-                        <Close />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent>
-                    {selectedMessage && (
-                        <Bx>
-                            <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                                <T variant="body2">
-                                    <strong>Sent:</strong> {format(selectedMessage.sentAt, "PPpp")}
-                                </T>
-                                <T variant="body2">
-                                    <strong>Recipients:</strong> {selectedMessage.recipients?.length || 0}
-                                </T>
-                            </Stack>
+            {/* Message Preview Dialog */}
+<Dialog
+  open={previewOpen}
+  onClose={() => setPreviewOpen(false)}
+  maxWidth="md"
+  fullWidth
+>
+  <DialogTitle>
+    Message Details
+    <IconButton
+      aria-label="close"
+      onClick={() => setPreviewOpen(false)}
+      sx={{
+        position: 'absolute',
+        right: 8,
+        top: 8,
+        color: (theme) => theme.palette.grey[500],
+      }}
+    >
+      <Close />
+    </IconButton>
+  </DialogTitle>
+  <DialogContent>
+    {selectedMessage && (
+      <Bx>
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+          <T variant="body2">
+            <strong>Sent:</strong> {format(selectedMessage.sentAt, "PPpp")}
+          </T>
+          <T variant="body2">
+            <strong>Recipients:</strong> {selectedMessage.recipients?.length || 0}
+          </T>
+        </Stack>
 
-                            <MessagePreview
-                                title={selectedMessage.title}
-                                body={selectedMessage.body}
-                                student={selectedMessage.recipients?.[0]}
-                            />
+        <MessagePreview
+          title={selectedMessage.title}
+          body={selectedMessage.body} // Original body with preserved whitespace
+          student={selectedMessage.recipients?.[0]}
+        />
 
-                            {selectedMessage.recipients?.length > 0 && (
-                                <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
-                                    <T variant="subtitle1" gutterBottom>Recipients</T>
-                                    <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-                                        {selectedMessage.recipients.map((recipient, index) => (
-                                            <ListItem key={index}>
-                                                <ListItemIcon>
-                                                    <Email fontSize="small" />
-                                                </ListItemIcon>
-                                                <ListItemText
-                                                    primary={recipient.name}
-                                                    secondary={recipient.email}
-                                                />
-                                                {recipient.status === 'failed' ? (
-                                                    <Chip
-                                                        label="Failed"
-                                                        size="small"
-                                                        color="error"
-                                                        variant="outlined"
-                                                    />
-                                                ) : (
-                                                    <Chip
-                                                        label="Sent"
-                                                        size="small"
-                                                        color="success"
-                                                        variant="outlined"
-                                                    />
-                                                )}
-                                            </ListItem>
-                                        ))}
-                                    </List>
-                                </Paper>
-                            )}
-                        </Bx>
-                    )}
-                </DialogContent>
-                <DialogActions sx={{ justifyContent: 'flex-start', p: 2 }}>
-                    <B
-                        color="error"
-                        variant="contained"
-                        startIcon={<Send />}
-                        onClick={() => setConfirmResendOpen(true)}
-                    >
-                        Resend
-                    </B>
-                </DialogActions>
-            </Dialog>
+        {selectedMessage.recipients?.length > 0 && (
+          <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
+            <T variant="subtitle1" gutterBottom>Recipients</T>
+            <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
+              {selectedMessage.recipients.map((recipient, index) => (
+                <ListItem key={index}>
+                  <ListItemIcon>
+                    <Email fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={recipient.name}
+                    secondary={
+                      <>
+                        {recipient.email}
+                        {recipient.registration && (
+                          <span style={{ display: 'block' }}>
+                            Reg: {recipient.registration}
+                          </span>
+                        )}
+                      </>
+                    }
+                  />
+                  {recipient.status === 'failed' ? (
+                    <Chip
+                      label="Failed"
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                    />
+                  ) : (
+                    <Chip
+                      label="Sent"
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                    />
+                  )}
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        )}
+      </Bx>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ justifyContent: 'flex-start', p: 2 }}>
+    <B
+      color="error"
+      variant="contained"
+      startIcon={<Send />}
+      onClick={() => setConfirmResendOpen(true)}
+    >
+      Resend
+    </B>
+  </DialogActions>
+</Dialog>
 
             {/* Confirm Delete Dialog */}
             <Dialog

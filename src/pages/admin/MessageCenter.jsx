@@ -199,12 +199,13 @@ import {
         
         // Get the current user's email
         const senderEmail = "admin@sddopamine.com";
-  
+    
         // Create a message in the messageQueue collection to trigger the Cloud Function
         const messageQueueRef = collection(fireDB, "messageQueue");
         await addDoc(messageQueueRef, {
           title: messageTitle,
-          body: messageBody,
+          body: messageBody, // Store the original body with all newlines preserved
+          htmlBody: messageBody.replace(/\n/g, '<br>'), // Add an HTML version with <br> tags for email clients
           recipients: students,
           sentBy: senderEmail,
           fromEmail: "payments@em1004.sddopamine.com", // Your SendGrid verified sender
@@ -213,6 +214,7 @@ import {
           progress: 0,
           successCount: 0,
           failureCount: 0,
+          preserveWhitespace: true, // Flag to indicate whitespace should be preserved
         });
         
         // Show success message to user

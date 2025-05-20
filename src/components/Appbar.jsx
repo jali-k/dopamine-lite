@@ -7,7 +7,8 @@ import {
   Message as MessageIcon,
   VideoLibrary as VideoLibraryIcon,
   Description as DescriptionIcon,
-  Dashboard as DashboardIcon
+  Dashboard as DashboardIcon,
+  AlternateEmail as AlternateEmailIcon
 } from "@mui/icons-material";
 import {
   AppBar,
@@ -252,6 +253,24 @@ export default function Appbar() {
               </ListItemIcon>
               <Typography variant="body2" color="text.secondary">
                 Message Center
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/email-validator"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <AlternateEmailIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Email Validator
               </Typography>
             </MenuItem>
           </>

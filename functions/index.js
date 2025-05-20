@@ -40,7 +40,8 @@ exports.sendBulkEmails = functions.firestore
       // Create message history document
       await historyRef.set({
         title: messageData.title,
-        body: messageData.body,
+        body: messageData.body, // Store the original body for proper display
+        htmlBody: messageData.htmlBody || messageData.body.replace(/\n/g, '<br>'), // Store HTML version if available
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
         sentBy: messageData.sentBy,
         recipients: messageData.recipients.map(recipient => ({
@@ -50,6 +51,7 @@ exports.sendBulkEmails = functions.firestore
         totalRecipients: messageData.recipients.length,
         successCount: 0,
         failureCount: 0,
+        preserveWhitespace: true, // Flag to indicate whitespace preservation
       });
       
       // Process emails in batches of 100 (adjust based on your SendGrid plan)
@@ -66,20 +68,46 @@ exports.sendBulkEmails = functions.firestore
           try {
             // Replace placeholders in the message
             let personalizedBody = messageData.body;
-            personalizedBody = personalizedBody.replace(/{{name}}/gi, recipient.name);
-            personalizedBody = personalizedBody.replace(/{{email}}/gi, recipient.email);
+            
+            // Standard replacements
+            personalizedBody = personalizedBody.replace(/{{name}}/gi, recipient.name || "");
+            personalizedBody = personalizedBody.replace(/{{email}}/gi, recipient.email || "");
             personalizedBody = personalizedBody.replace(/{{month}}/gi, new Date().toLocaleString('default', { month: 'long' }));
             personalizedBody = personalizedBody.replace(/{{date}}/gi, new Date().toLocaleDateString());
             
-            // If you have other placeholders, add them here
+            // Add support for registration number
+            personalizedBody = personalizedBody.replace(/{{registration}}/gi, recipient.registration || "");
             
-            // Convert Markdown to HTML (you may want to use a proper markdown parser)
-            // This is a simple example
-            let htmlBody = personalizedBody
-              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
-              .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
-              .replace(/__(.*?)__/g, '<u>$1</u>')                // Underline
-              .replace(/\n/g, '<br>');                           // Line breaks
+            // Decide on HTML body - either use provided one or generate from text
+            let htmlBody;
+            
+            if (messageData.htmlBody) {
+              // If htmlBody was prepared by the client, use it with placeholder replacements
+              htmlBody = messageData.htmlBody;
+              htmlBody = htmlBody.replace(/{{name}}/gi, recipient.name || "");
+              htmlBody = htmlBody.replace(/{{email}}/gi, recipient.email || "");
+              htmlBody = htmlBody.replace(/{{month}}/gi, new Date().toLocaleString('default', { month: 'long' }));
+              htmlBody = htmlBody.replace(/{{date}}/gi, new Date().toLocaleDateString());
+              htmlBody = htmlBody.replace(/{{registration}}/gi, recipient.registration || "");
+            } else {
+              // Process each line individually to maintain exact whitespace
+              const lines = personalizedBody.split('\n');
+              
+              // Process each line to handle Markdown, but preserve whitespace exactly
+              const htmlLines = lines.map(line => {
+                return line
+                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+                  .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
+                  .replace(/__(.*?)__/g, '<u>$1</u>');               // Underline
+              });
+              
+              // Join with <br> tags but no extra whitespace
+              htmlBody = htmlLines.join('<br>');
+            }
+            
+            // Wrap HTML content in a div with white-space: pre-wrap for proper formatting
+            // IMPORTANT: No line breaks or extra spaces in this template literal
+            htmlBody = `<div style="white-space: pre-wrap; font-family: Arial, sans-serif; line-height: 1.5;">${htmlBody}</div>`;
             
             // Create the email
             const msg = {

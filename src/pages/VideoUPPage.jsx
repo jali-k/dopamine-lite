@@ -46,6 +46,7 @@ export default function VideoUPPage() {
     "පාරිසරික ජීව විද්‍යාව",
     "ක්ෂුද්‍ර ජීව විද්‍යාව",
     "ව්‍යවහාරික ජීව විද්‍යාව",
+    "Paper Discussion",
   ];
 
   const handleInputs = (e) => {

@@ -18,7 +18,9 @@ import { ThemeProvider, createTheme } from '@mui/material';
 import KeyPressTracker from "./components/KeyPressTracker";
 import NetworkStatus from "./components/NetworkStatus";
 import MessageCenter from "./pages/admin/MessageCenter";
-import AdminDashboard from "./pages/admin/AdminDashboard"; // Import the AdminDashboard component
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import EmailValidatorPage from "./pages/admin/EmailValidatorPage"; // Import the new EmailValidator component
+import StudentDashboard from "./pages/StudentDashboard"; // Import the new StudentDashboard component
 
 const theme = createTheme();
 
@@ -43,7 +45,7 @@ export default function App() {
           }
         >
           {/* Student routes */}
-          <Route path="/" element={<FVStuPage />} />
+          <Route path="/" element={<StudentDashboard />} />
           <Route path="/video" element={<FVStuPage />} />
           <Route path="/pdf" element={<FVStuPage />} />
           <Route path="/video/:fname" element={<StuFileView />} />
@@ -53,7 +55,7 @@ export default function App() {
           <Route path="/pdf/:fname/:lname" element={<PDFPage />} />
 
           {/* Admin routes */}
-          <Route path="/admin" element={<AdminDashboard />} /> {/* Use AdminDashboard as the main admin landing page */}
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/video" element={<FVAdPage />} />
           <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
           <Route path="/admin/video/:fname" element={<AdmFileView />} />
@@ -68,6 +70,9 @@ export default function App() {
           <Route path="/admin/messages" element={<MessageCenter />} />
           <Route path="/admin/messages/history" element={<MessageCenter />} />
           <Route path="/admin/messages/templates" element={<MessageCenter />} />
+          
+          {/* Email Validator route */}
+          <Route path="/admin/email-validator" element={<EmailValidatorPage />} />
 
           <Route path="*" element={<Error404 />} />
         </Route>
