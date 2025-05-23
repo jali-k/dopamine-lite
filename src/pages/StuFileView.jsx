@@ -5,16 +5,20 @@ import {
   Typography,
   Paper,
   Card,
-  CardContent
+  CardContent,
+  Alert,
+  AlertTitle
 } from "@mui/material";
 import {
   Science as ScienceIcon,
-  BiotechOutlined as BiotechIcon
+  BiotechOutlined as BiotechIcon,
+  Construction as ConstructionIcon
 } from '@mui/icons-material';
-import { collection } from "firebase/firestore";
+import { collection, doc, getDoc } from "firebase/firestore";
 import { NavLink, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
 import { useCollectionData } from "react-firebase-hooks/firestore";
+import { useState, useEffect } from "react";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import VCad from "../components/VCad";
@@ -35,6 +39,72 @@ export default function StuFileView() {
 
   const [tuts, loading] = useCollectionData(tutorialref);
   const [emails, emailLoading] = useCollectionData(emailListref);
+  const [enrichedTuts, setEnrichedTuts] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  // Fetch video statuses for each tutorial
+  useEffect(() => {
+    const fetchVideoStatuses = async () => {
+      if (!tuts || tuts.length === 0) return;
+      
+      setStatusLoading(true);
+      try {
+        const enrichedTutorials = await Promise.all(
+          tuts.map(async (tut) => {
+            // If tutorial has a handler, check if it exists in videos collection
+            if (tut.handler) {
+              try {
+                const videoDocRef = doc(fireDB, "videos", tut.handler);
+                const videoDoc = await getDoc(videoDocRef);
+                
+                if (videoDoc.exists()) {
+                  // Handler exists AND found in videos collection = New video with conversion
+                  const videoData = videoDoc.data();
+                  return {
+                    ...tut,
+                    videoStatus: videoData.status || 'processing',
+                    isLegacyVideo: false
+                  };
+                } else {
+                  // Handler exists but NOT found in videos collection = Legacy video
+                  return {
+                    ...tut,
+                    videoStatus: null,
+                    isLegacyVideo: true
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching video status for ${tut.handler}:`, error);
+                // Error fetching - treat as legacy
+                return {
+                  ...tut,
+                  videoStatus: null,
+                  isLegacyVideo: true
+                };
+              }
+            }
+            
+            // No handler - this is also a legacy video
+            return {
+              ...tut,
+              videoStatus: null,
+              isLegacyVideo: true
+            };
+          })
+        );
+        
+        setEnrichedTuts(enrichedTutorials);
+      } catch (error) {
+        console.error('Error enriching tutorials with video status:', error);
+        // Fallback to treating all as legacy videos
+        setEnrichedTuts(tuts.map(tut => ({ ...tut, videoStatus: null, isLegacyVideo: true })));
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+
+    fetchVideoStatuses();
+  }, [tuts]);
 
   if (loading) {
     return <Loading text="Loading Tutorials" />;
@@ -42,6 +112,10 @@ export default function StuFileView() {
   if (emailLoading) {
     return <Loading text="Checking Emails" />;
   }
+  if (statusLoading) {
+    return <Loading text="Loading Video Status" />;
+  }
+
   if (isAdmin) {
     emails.push({ email: user.email });
     console.log("giving access to admin: ", user.email);
@@ -89,6 +163,36 @@ export default function StuFileView() {
       }}
     >
       <Appbar />
+      
+      {/* System Update Banner */}
+      <Alert 
+        severity="warning" 
+        icon={<ConstructionIcon />}
+        sx={{
+          borderRadius: 0,
+          backgroundColor: 'rgba(255, 152, 0, 0.1)',
+          border: '1px solid rgba(255, 152, 0, 0.4)',
+          borderLeft: 'none',
+          borderRight: 'none',
+          '& .MuiAlert-icon': {
+            color: '#f57c00'
+          },
+          '& .MuiAlert-message': {
+            width: '100%'
+          }
+        }}
+      >
+        <AlertTitle sx={{ mb: 1, fontWeight: 600, color: '#e65100' }}>
+          System Updates in Progress
+        </AlertTitle>
+        <Typography variant="body2" sx={{ color: '#bf360c', mb: 0.5 }}>
+          We are currently upgrading our video streaming infrastructure.
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#bf360c' }}>
+          You may experience temporary playback issues until <strong>May 23, 2025 at midnight</strong>. We apologize for any inconvenience.
+        </Typography>
+      </Alert>
+      
       <Box
         sx={{
           display: "flex",
@@ -105,9 +209,6 @@ export default function StuFileView() {
           sx={{
             p: 3,
             borderRadius: 2,
-            // borderStyle: 'solid',
-            // borderWidth: 1,
-            // borderColor: '#2e7d32',
             bgcolor: 'customColors.cytoplasm',
             display: 'flex',
             alignItems: 'center',
@@ -128,8 +229,8 @@ export default function StuFileView() {
             position: 'relative'
           }}
         >
-          {tuts.length > 0 ? (
-            tuts.map((tut, index) => (
+          {enrichedTuts.length > 0 ? (
+            enrichedTuts.map((tut, index) => (
               <Grid
                 item
                 key={index}

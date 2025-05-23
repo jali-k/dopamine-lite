@@ -57,26 +57,6 @@ export default function VideoUPPage() {
     setValues({ ...values, [e.target.name]: e.target.value });
   };
 
-  // Function to upload thumbnail to Firebase Storage
-  const uploadThumbnailToFirebase = async (thumbnailFile) => {
-    try {
-      await uploadFile(
-        ref(
-          fireStorage,
-          `thumbnails/${params.fname}/${values.title}/${thumbnailFile.name}`
-        ),
-        thumbnailFile,
-        {
-          contentType: thumbnailFile.type,
-        }
-      );
-      return true;
-    } catch (error) {
-      console.error("Error uploading thumbnail:", error);
-      throw error;
-    }
-  };
-
   // Function to upload video to EC2
   const uploadVideoToEC2 = async (videoFile) => {
     if (!videoFile) return null;
@@ -87,8 +67,6 @@ export default function VideoUPPage() {
     try {
       const formData = new FormData();
       formData.append("video", videoFile);
-      formData.append('videoId', values.handler);
-      console.log("Uploading video to EC2:", formData);
       
       // Create XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
@@ -155,6 +133,18 @@ export default function VideoUPPage() {
     alert("Don't close the tab until the upload is complete!");
     
     try {
+      // First, upload the thumbnail to Firebase Storage
+      await uploadFile(
+        ref(
+          fireStorage,
+          `thumbnails/${params.fname}/${values.title}/${values.thumbnail.name}`
+        ),
+        values.thumbnail,
+        {
+          contentType: values.thumbnail.type,
+        }
+      );
+      
       // Create the initial document with "pending" status
       await setDoc(docRef, {
         title: values.title,
@@ -169,25 +159,8 @@ export default function VideoUPPage() {
         uploadDate: new Date().toISOString(), // Add upload timestamp
       });
       
-      // 🎯 SIMULTANEOUS UPLOADS - Both happen at the same time
-      setConversionStatus("Starting simultaneous uploads...");
-      
-      const [thumbnailResult, videoResult] = await Promise.allSettled([
-        uploadThumbnailToFirebase(values.thumbnail),
-        uploadVideoToEC2(values.video)
-      ]);
-      
-      // Check thumbnail upload result
-      if (thumbnailResult.status === 'rejected') {
-        throw new Error(`Thumbnail upload failed: ${thumbnailResult.reason.message}`);
-      }
-      
-      // Check video upload result
-      if (videoResult.status === 'rejected') {
-        throw new Error(`Video upload failed: ${videoResult.reason.message}`);
-      }
-      
-      const conversionResult = videoResult.value;
+      // Upload video to EC2 for conversion
+      const conversionResult = await uploadVideoToEC2(values.video);
       
       if (conversionResult && conversionResult.videoId) {
         // Update the document with the conversion result
@@ -361,18 +334,12 @@ export default function VideoUPPage() {
           value={values.description}
         />
         <Select
-          displayEmpty
+          label="Lesson"
           id="select"
           required
           name="lesson"
           onChange={handleInputs}
-          value={values.lesson}
-          renderValue={(selected) => {
-            if (!selected) {
-              return <Typography color="text.secondary">Select a lesson</Typography>;
-            }
-            return selected;
-          }}
+          value={values.lesson || ""}
         >
           {lessonlist.map((lesson, index) => (
             <MenuItem key={index} value={lesson}>

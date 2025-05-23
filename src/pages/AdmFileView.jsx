@@ -26,10 +26,11 @@ import {
 import ScienceIcon from '@mui/icons-material/Science';
 import BiotechIcon from '@mui/icons-material/Biotech';
 import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
-import { collection, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
 import { useCollectionData } from "react-firebase-hooks/firestore";
+import { useState, useEffect } from "react";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import VCad from "../components/VCad";
@@ -39,7 +40,6 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import EmailIcon from "@mui/icons-material/Email";
 import DoneIcon from "@mui/icons-material/Done";
 import EditIcon from "@mui/icons-material/Edit";
-import { useState } from "react";
 import { deleteTutorial, isValidEmail } from "../../funcs";
 import { Add } from "@mui/icons-material";
 import { jhsfg } from "../../af";
@@ -57,6 +57,8 @@ export default function AdmFileView() {
 
   const [editableemails, setEditableEmails] = useState("");
   const [openDeleteFolderConfirm, setOpenDeleteFolderConfirm] = useState(false);
+  const [enrichedTuts, setEnrichedTuts] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const { isAdmin } = useUser();
 
@@ -65,6 +67,70 @@ export default function AdmFileView() {
     useCollectionData(emailListref);
 
   const navigator = useNavigate();
+
+  // Fetch video statuses for each tutorial
+  useEffect(() => {
+    const fetchVideoStatuses = async () => {
+      if (!tuts || tuts.length === 0) return;
+      
+      setStatusLoading(true);
+      try {
+        const enrichedTutorials = await Promise.all(
+          tuts.map(async (tut) => {
+            // If tutorial has a handler, check if it exists in videos collection
+            if (tut.handler) {
+              try {
+                const videoDocRef = doc(fireDB, "videos", tut.handler);
+                const videoDoc = await getDoc(videoDocRef);
+                
+                if (videoDoc.exists()) {
+                  // Handler exists AND found in videos collection = New video with conversion
+                  const videoData = videoDoc.data();
+                  return {
+                    ...tut,
+                    videoStatus: videoData.status || 'processing',
+                    isLegacyVideo: false
+                  };
+                } else {
+                  // Handler exists but NOT found in videos collection = Legacy video
+                  return {
+                    ...tut,
+                    videoStatus: null,
+                    isLegacyVideo: true
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching video status for ${tut.handler}:`, error);
+                // Error fetching - treat as legacy
+                return {
+                  ...tut,
+                  videoStatus: null,
+                  isLegacyVideo: true
+                };
+              }
+            }
+            
+            // No handler - this is also a legacy video
+            return {
+              ...tut,
+              videoStatus: null,
+              isLegacyVideo: true
+            };
+          })
+        );
+        
+        setEnrichedTuts(enrichedTutorials);
+      } catch (error) {
+        console.error('Error enriching tutorials with video status:', error);
+        // Fallback to treating all as legacy videos
+        setEnrichedTuts(tuts.map(tut => ({ ...tut, videoStatus: null, isLegacyVideo: true })));
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+
+    fetchVideoStatuses();
+  }, [tuts]);
 
   const dbemails = [
     ...new Set(
@@ -141,7 +207,7 @@ export default function AdmFileView() {
   const handleDeleteFolder = async () => {
     try {
       // Delete all tutorials in the folder
-      tuts.forEach((tut) => {
+      enrichedTuts.forEach((tut) => {
         deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
       });
 
@@ -169,6 +235,9 @@ export default function AdmFileView() {
   }
   if (emailLoading) {
     return <Loading text="Checking Emails" />;
+  }
+  if (statusLoading) {
+    return <Loading text="Loading Video Status" />;
   }
   if (!isAdmin) {
     return (
@@ -245,8 +314,8 @@ export default function AdmFileView() {
         <Card variant="outlined" sx={{ mb: 2, bgcolor: 'background.paper' }}>
           <CardContent>
             <Grid container spacing={2} columns={12}>
-              {tuts.length > 0 ? (
-                tuts.map((tut, index) => (
+              {enrichedTuts.length > 0 ? (
+                enrichedTuts.map((tut, index) => (
                   <Grid item key={index} xs={12} sm={6} md={4}>
                     <Card
                       variant="outlined"
@@ -307,36 +376,6 @@ export default function AdmFileView() {
 
         {/* Authorized Users Accordion */}
         <AuthorizedUsersAccordion emails={emails} />
-        {/* <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}
-            sx={{ bgcolor: 'customColors.membrane' }}>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <PrecisionManufacturingIcon />
-              <T variant="h6">Authorized Users</T>
-            </Stack>
-          </AccordionSummary>
-          <AccordionDetails>
-            <L>
-              {emails.length > 0 ? (
-                emails.map((email, index) => (
-                  <ListItem disablePadding key={index}>
-                    <ListItemIcon>
-                      <EmailIcon />
-                    </ListItemIcon>
-                    <ListItemText primary={email.email} />
-                  </ListItem>
-                ))
-              ) : (
-                <ListItem>
-                  <ListItemIcon>
-                    <DoneIcon color="success" />
-                  </ListItemIcon>
-                  <ListItemText primary="Free Access" />
-                </ListItem>
-              )}
-            </L>
-          </AccordionDetails>
-        </Accordion> */}
 
         {/* Edit Access Accordion */}
         <Accordion>

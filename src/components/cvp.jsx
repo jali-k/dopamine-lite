@@ -6,6 +6,7 @@ import {
   FullscreenExit,
   Pause,
   PlayArrow,
+  Settings as SettingsIcon
 } from "@mui/icons-material";
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
@@ -15,6 +16,9 @@ import {
   Slider as Sl,
   Typography as T,
   CircularProgress as CP,
+  Menu,
+  MenuItem,
+  ListItemText
 } from "@mui/material";
 import { useEffect as uE, useRef as uR, useState as uS } from "react";
 import {
@@ -29,6 +33,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   const vdrf = uR(null);
   const slrf = uR(null);
   const animationRef = uR(null);
+  const hlsRef = uR(null);
 
   const debounceTimeout = uR(null);
 
@@ -40,6 +45,12 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   const [duration, stDV] = uS(0);
   const [loading, setLoading] = uS(true);
   const [showControls, setShowControls] = uS(true);
+  
+  // Quality settings state
+  const [qualityLevels, setQualityLevels] = uS([]);
+  const [currentQuality, setCurrentQuality] = uS(-1); // -1 means auto
+  const [settingsMenuAnchor, setSettingsMenuAnchor] = uS(null);
+  
   let timeoutId;
 
   const hTUF = () => {
@@ -118,7 +129,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         stCTV(newTime);
       } else {
         vdrf.current.currentTime = 0;
-        stCTV(vdrf.current.duration);
+        stCTV(0);
       }
   
       vdrf.current.onseeked = () => setLoading(false);
@@ -134,7 +145,6 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       animationRef.current = requestAnimationFrame(aSF);
     }
   };
-
 
   const generateTheEssence = (secretCode, email) => {
     const timestamp = Date.now().toString(); // Current timestamp as a string
@@ -163,56 +173,6 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     return encoded;
   };
 
-
-  // const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
-  //   let retries = 0;
-  //   const email = watermark;
-  //   const theessence = generateTheEssence("HET349DGHFRT#5$hY^GFS6*tH4*HW&", email);
-  //   // Headers to send with the request
-  //   const headers = {
-  //     'Content-Type': 'application/json',
-  //     email: watermark, // Custom header
-  //     theensemble: theessence, // Another custom header
-
-  //   };
-  //   const body = {
-  //     email: watermark,
-  //     theensemble: '#RTDFGhrt^756HG^#*756GDF',
-  //   }
-  //   while (retries < maxRetries) {
-  //     try {
-  //       const response = await axios.get(url, { headers });
-  //       // const response = await fetch(url, {
-  //       //   method: 'GET',
-  //       //   headers: {
-  //       //     'Content-Type' : 'application/json'
-  //       //   // //  `${watermark}`: 'email',
-  //       //   //   '#RTDFGhrt^756HG^#*756GDF': 'theensemble',
-  //       //   },
-  //       //   body: JSON.stringify(body),
-  //       // });
-  //       return response;
-  //       // if (response.ok) {
-  //       //   return response;
-  //       // } else {
-  //       //   retries++;
-  //       //   if (retries < maxRetries) {
-  //       //     onRetryError?.({ type: 'retry', attempt: retries });
-  //       //     await new Promise(resolve => setTimeout(resolve, delay));
-  //       //   }
-  //       // }
-  //     } catch (error) {
-  //       console.error('Error fetching manifest:', error);
-  //       // retries++;
-  //       // if (retries < maxRetries) {
-  //       //   onRetryError?.({ type: 'retry', attempt: retries });
-  //       //   await new Promise(resolve => setTimeout(resolve, delay));
-  //       // }
-  //     }
-  //   }
-  //   throw new Error('Failed to fetch manifest after several retries.');
-  // };
-
   const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
     const email = watermark;
@@ -222,44 +182,32 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       'Content-Type': 'application/json',
       email: watermark, // Custom header
       theensemble: theessence, // Another custom header
-
     };
-    const body = {
-      email: watermark,
-      theensemble: '#RTDFGhrt^756HG^#*756GDF',
-    }
     
-      try {
-        const response = await axios.get(url, { headers });
-        // const response = await fetch(url, {
-        //   method: 'GET',
-        //   headers: {
-        //     'Content-Type' : 'application/json'
-        //   // //  `${watermark}`: 'email',
-        //   //   '#RTDFGhrt^756HG^#*756GDF': 'theensemble',
-        //   },
-        //   body: JSON.stringify(body),
-        // });
-        return response;
-        // if (response.ok) {
-        //   return response;
-        // } else {
-        //   retries++;
-        //   if (retries < maxRetries) {
-        //     onRetryError?.({ type: 'retry', attempt: retries });
-        //     await new Promise(resolve => setTimeout(resolve, delay));
-        //   }
-        // }
-      } catch (error) {
-        console.error('Error fetching manifest:', error);
-        // retries++;
-        // if (retries < maxRetries) {
-        //   onRetryError?.({ type: 'retry', attempt: retries });
-        //   await new Promise(resolve => setTimeout(resolve, delay));
-        // }
-      }
-   
-    throw new Error('Failed to fetch manifest after several retries.');
+    try {
+      const response = await axios.get(url, { headers });
+      return response;
+    } catch (error) {
+      console.error('Error fetching manifest:', error);
+      throw error;
+    }
+  };
+
+  const handleQualityChange = (qualityIndex) => {
+    if (!hlsRef.current) return;
+    
+    setCurrentQuality(qualityIndex);
+    setSettingsMenuAnchor(null);
+    
+    if (qualityIndex === -1) {
+      // Auto quality
+      hlsRef.current.currentLevel = -1;
+      console.log('Switched to auto quality');
+    } else {
+      // Manual quality selection
+      hlsRef.current.nextLevel = qualityIndex;
+      console.log(`Switched to quality level ${qualityIndex}: ${qualityLevels[qualityIndex]?.height}p`);
+    }
   };
 
   const fetchManifest = async () => {
@@ -272,7 +220,19 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
       const modifiedManifest = data.modified_m3u8_content;
 
       if (Hls.isSupported()) {
-        const hls = new Hls();
+        // Clean up existing HLS instance
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+        }
+
+        const hls = new Hls({
+          // Enable adaptive bitrate streaming
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+        });
+        
+        hlsRef.current = hls;
 
         // Create a Blob URL for the modified manifest
         const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
@@ -283,18 +243,52 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         hls.attachMedia(vdrf.current);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('Manifest parsed, available levels:', hls.levels);
+          
+          // Store quality levels for the settings menu
+          const levels = hls.levels.map((level, index) => ({
+            index,
+            height: level.height,
+            width: level.width,
+            bitrate: level.bitrate,
+            name: `${level.height}p`
+          }));
+          
+          setQualityLevels(levels);
           setLoading(false);
+          
           if (canPlay) {
             vdrf.current.play();
           }
         });
 
-        hls.on(Hls.Events.ERROR, () => {
-          setLoading(false);
-          onError?.({ type: 'manifest' });
+        hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+          console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
         });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS Error:', data);
+          setLoading(false);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, try to recover');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, try to recover');
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                onError?.({ type: 'manifest' });
+                break;
+            }
+          }
+        });
+
       } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
-        // Fallback for native HLS support
+        // Fallback for native HLS support (Safari)
         vdrf.current.src = data.manifest_url;
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
@@ -315,52 +309,6 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     }
   };
 
-
-  // const fetchManifest = async () => {
-  //   try {
-  //     const response = await fetchWithRetry(url, 3, 1000, onError);
-  //     const data = await response.json();
-  //     const modifiedManifest = data.modified_m3u8_content;
-
-  //     if (Hls.isSupported()) {
-  //       const hls = new Hls();
-  //       const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
-  //       const blobUrl = URL.createObjectURL(blob);
-  //       hls.loadSource(blobUrl);
-  //       hls.attachMedia(vdrf.current);
-
-  //       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-  //         setLoading(false);
-  //         if (canPlay) {
-  //           vdrf.current.play();
-  //         }
-  //       });
-
-  //       hls.on(Hls.Events.ERROR, () => {
-  //         setLoading(false);
-  //         onError?.({ type: 'manifest' });
-  //       });
-  //     } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
-  //       vdrf.current.src = data.manifest_url;
-  //       vdrf.current.addEventListener('loadedmetadata', () => {
-  //         setLoading(false);
-  //         if (canPlay) {
-  //           vdrf.current.play();
-  //         }
-  //       });
-
-  //       vdrf.current.addEventListener('error', () => {
-  //         setLoading(false);
-  //         onError?.({ type: 'manifest' });
-  //       });
-  //     }
-  //   } catch (error) {
-  //     console.error('Error fetching manifest:', error);
-  //     setLoading(false);
-  //     onError?.({ type: 'manifest' });
-  //   }
-  // };
-
   // Add this effect to handle playback when security check completes
   uE(() => {
     if (canPlay && vdrf.current && !loading) {
@@ -372,10 +320,16 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     fetchManifest();
     console.log("Fetching...");
     const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000); // Refresh manifest every 8 hours
-    // const intervalId = setInterval(fetchManifest, 55 * 60 * 1000); // Refresh manifest every 55 minutes
 
-    return () => clearInterval(intervalId); // Cleanup interval on component unmount
-  }, []);
+    return () => {
+      clearInterval(intervalId);
+      // Cleanup HLS instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [url]); // Add url as dependency to refetch when URL changes
 
   uE(() => {
     if (vdrf.current) {
@@ -514,7 +468,6 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         <Replay10Icon />
       </IBT>
 
-
       <IBT
         color="inherit"
         size="small"
@@ -578,6 +531,18 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         </T>
         <FastForward />
       </IBT>
+
+      {/* Quality Settings Button */}
+      {qualityLevels.length > 1 && (
+        <IBT
+          color="inherit"
+          size="small"
+          onClick={(e) => setSettingsMenuAnchor(e.currentTarget)}
+        >
+          <SettingsIcon />
+        </IBT>
+      )}
+
       <IBT
         color="inherit"
         size="small"
@@ -592,6 +557,38 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         {fhandle.active ? <FullscreenExit /> : <Fullscreen />}
       </IBT>
     </B>)}
+
+    {/* Quality Settings Menu */}
+    <Menu
+      anchorEl={settingsMenuAnchor}
+      open={Boolean(settingsMenuAnchor)}
+      onClose={() => setSettingsMenuAnchor(null)}
+      PaperProps={{
+        sx: {
+          bgcolor: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          backdropFilter: 'blur(10px)',
+        }
+      }}
+    >
+      <MenuItem onClick={() => handleQualityChange(-1)}>
+        <ListItemText 
+          primary="Auto" 
+          secondary={currentQuality === -1 ? '✓' : ''}
+          sx={{ color: 'white' }}
+        />
+      </MenuItem>
+      {qualityLevels.map((level) => (
+        <MenuItem key={level.index} onClick={() => handleQualityChange(level.index)}>
+          <ListItemText 
+            primary={level.name}
+            secondary={currentQuality === level.index ? '✓' : ''}
+            sx={{ color: 'white' }}
+          />
+        </MenuItem>
+      ))}
+    </Menu>
+
     <T
       sx={{
         position: "absolute",

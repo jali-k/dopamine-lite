@@ -1,185 +1,238 @@
 import {
-  Box,
-  Button,
-  Skeleton,
-  Tooltip,
-  Typography,
   Card,
   CardContent,
-  CardActionArea,
-  Stack
+  CardMedia,
+  Typography,
+  Box,
+  Stack,
+  Chip
 } from "@mui/material";
-import {
-  Error as ErrorIcon,
-  BiotechOutlined as BiotechIcon,
-  PlayCircleOutline as PlayIcon,
-  VideoLibrary as VideoIcon
-} from "@mui/icons-material";
-import { useDownloadURL } from "react-firebase-hooks/storage";
-import { fireStorage } from "../../firebaseconfig";
-import { ref } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
-import { Colors } from "../themes/colours";
+import { useDownloadURL } from "react-firebase-hooks/storage";
+import { ref } from "firebase/storage";
+import { fireStorage } from "../../firebaseconfig";
+import { 
+  HighQuality, 
+  VideoFile, 
+  CheckCircle, 
+  HourglassEmpty 
+} from "@mui/icons-material";
 
 export default function VCad({ tut }) {
-  const [url, loading, error] = useDownloadURL(
+  const navigate = useNavigate();
+  
+  const [thumbnailURL, loading, error] = useDownloadURL(
     ref(fireStorage, `thumbnails/${tut.fpath}/${tut.title}/${tut.thumbnail}`)
   );
 
-  const navigator = useNavigate();
-
   const handleClick = () => {
-    navigator(`${tut.title}`);
+    // Legacy videos are always clickable
+    // New videos are only clickable if completed
+    if (tut.isLegacyVideo || tut.videoStatus === 'completed') {
+      // Check if we're on admin or student page
+      const isAdminPage = window.location.pathname.includes('/admin');
+      if (isAdminPage) {
+        navigate(`/admin/video/${tut.fpath}/${tut.title}`);
+      } else {
+        navigate(`/video/${tut.fpath}/${tut.title}`);
+      }
+    }
+  };
+
+  const isClickable = tut.isLegacyVideo || tut.videoStatus === 'completed';
+
+  // Status chip configuration
+  const getStatusChip = () => {
+    if (tut.videoStatus === 'completed') {
+      return (
+        <Chip
+          icon={<CheckCircle />}
+          label="Completed"
+          size="small"
+          sx={{
+            backgroundColor: '#4caf50',
+            color: 'white',
+            fontWeight: 'bold',
+            '& .MuiChip-icon': {
+              color: 'white'
+            }
+          }}
+        />
+      );
+    } else {
+      return (
+        <Chip
+          icon={<HourglassEmpty />}
+          label="Processing"
+          size="small"
+          sx={{
+            backgroundColor: '#ff9800',
+            color: 'white',
+            fontWeight: 'bold',
+            '& .MuiChip-icon': {
+              color: 'white'
+            }
+          }}
+        />
+      );
+    }
   };
 
   return (
-    <Tooltip
-      title={
-        tut.description.length > 100
-          ? tut.description.slice(0, 100) + "..."
-          : tut.description
-      }
-      placement="top"
-      arrow
+    <Card
+      variant="outlined"
+      sx={{
+        cursor: isClickable ? 'pointer' : 'default',
+        opacity: isClickable ? 1 : 0.7,
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': isClickable ? {
+          transform: 'translateY(-2px)',
+          boxShadow: 3
+        } : {},
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative'
+      }}
+      onClick={handleClick}
     >
-      <Card
-        sx={{
-          width: '100%',
-          height: '100%',
-          bgcolor: 'background.paper',
-          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-          '&:hover': {
-            transform: 'translateY(-4px)',
-            boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
-            '& .play-icon': {
-              opacity: 1,
-              transform: 'translate(-50%, -50%) scale(1.1)',
-            }
-          }
-        }}
-      >
-        <CardActionArea
-          onClick={handleClick}
-          sx={{ height: '100%' }}
+      {/* Status Badge - only show for non-legacy videos */}
+      {!tut.isLegacyVideo && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 1
+          }}
         >
-          <Box
+          {getStatusChip()}
+        </Box>
+      )}
+
+      {/* Thumbnail */}
+      <CardMedia
+        component="img"
+        height="200"
+        image={thumbnailURL || "/api/placeholder/400/200"}
+        alt={tut.title}
+        sx={{
+          objectFit: 'cover',
+          backgroundColor: 'grey.100'
+        }}
+      />
+
+      <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Stack spacing={1} sx={{ flex: 1 }}>
+          {/* Title */}
+          <Typography
+            variant="h6"
+            component="div"
             sx={{
-              position: 'relative',
-              width: '100%',
-              aspectRatio: "16/9",
-              borderBottom: '1px solid',
-              borderColor: 'customColors.membrane'
+              fontWeight: 'bold',
+              lineHeight: 1.2,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
             }}
           >
-            {loading ? (
-              <Skeleton
-                variant="rectangular"
-                width="100%"
-                height="100%"
-                animation="wave"
-              />
-            ) : error ? (
-              <Box
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  bgcolor: 'error.light',
-                  gap: 1,
-                  p: 2
-                }}
-                onClick={() => window.location.reload()}
-              >
-                <ErrorIcon color="error" sx={{ fontSize: 40 }} />
-                <Typography
-                  variant="caption"
-                  color="error"
-                  align="center"
-                >
-                  Failed to load thumbnail
-                  Click to retry
-                </Typography>
-              </Box>
-            ) : (
+            {tut.title}
+          </Typography>
+
+          {/* Lesson */}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}
+          >
+            📚 {tut.lesson}
+          </Typography>
+
+          {/* Description */}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              flex: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}
+          >
+            {tut.description}
+          </Typography>
+
+          {/* Bottom info */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto' }}>
+            <Typography variant="body2" color="text.secondary">
+              📅 {tut.date?.replaceAll("-", "/")}
+            </Typography>
+            
+            {/* Video type indicator - only show for completed non-legacy videos */}
+            {!tut.isLegacyVideo && tut.videoStatus === 'completed' && (
               <>
-                <Box
-                  component="img"
-                  src={url}
-                  alt={tut.title}
-                  sx={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                />
-                {/* Play button overlay */}
-                <Box
-                  className="play-icon"
-                  sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    opacity: 0,
-                    transition: 'all 0.2s ease-in-out',
-                    bgcolor: 'rgba(46, 125, 50, 0.9)',
-                    borderRadius: '50%',
-                    p: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <PlayIcon sx={{ fontSize: 40, color: 'white' }} />
-                </Box>
+                {tut.converted && (
+                  <Chip
+                    icon={<HighQuality />}
+                    label="Multi-Quality"
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+                {!tut.converted && (
+                  <Chip
+                    icon={<VideoFile />}
+                    label="Standard"
+                    size="small"
+                    color="default"
+                    variant="outlined"
+                  />
+                )}
               </>
             )}
-          </Box>
+          </Stack>
+        </Stack>
+      </CardContent>
 
-          <CardContent sx={{ p: 2 }}>
-            <Stack spacing={1}>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-              >
-                <VideoIcon
-                  sx={{
-                    fontSize: 20,
-                    color: Colors.green,
-                    opacity: 0.8
-                  }}
-                />
-                <Typography
-                  variant="subtitle1"
-                  sx={{
-                    fontWeight: 500,
-                    color: 'text.primary',
-                    lineHeight: 1.2
-                  }}
-                >
-                  {tut.title}
-                </Typography>
-              </Stack>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{
-                  display: '-webkit-box',
-                  overflow: 'hidden',
-                  WebkitBoxOrient: 'vertical',
-                  WebkitLineClamp: 2,
-                }}
-              >
-                {tut.lesson || "Biology Tutorial"}
-              </Typography>
-            </Stack>
-          </CardContent>
-        </CardActionArea>
-      </Card>
-    </Tooltip>
+      {/* Processing overlay for non-completed, non-legacy videos */}
+      {!tut.isLegacyVideo && tut.videoStatus !== 'completed' && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 1
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              backgroundColor: 'rgba(255, 152, 0, 0.9)',
+              color: 'white',
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+              fontWeight: 'bold'
+            }}
+          >
+            Video Processing...
+          </Typography>
+        </Box>
+      )}
+    </Card>
   );
 }

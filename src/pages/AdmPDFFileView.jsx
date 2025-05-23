@@ -14,44 +14,54 @@ import {
   Stack,
   TextField as Tf,
   Typography as T,
-  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   Card,
   CardContent,
-  CardActions
+  CardActions,
+  Paper
 } from "@mui/material";
+import ScienceIcon from '@mui/icons-material/Science';
+import BiotechIcon from '@mui/icons-material/Biotech';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
 import { collection, deleteDoc, doc, setDoc } from "firebase/firestore";
-import { ref, deleteObject } from "firebase/storage";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
-import { fireDB, fireStorage } from "../../firebaseconfig";
+import { fireDB } from "../../firebaseconfig";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
+import VCad from "../components/VCad";
+import ConversionStatusChip from "../components/ConversionStatusChip";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { useUser } from "../contexts/UserProvider";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import EmailIcon from "@mui/icons-material/Email";
 import DoneIcon from "@mui/icons-material/Done";
-import { PictureAsPdf, DeleteForever } from "@mui/icons-material";
+import EditIcon from "@mui/icons-material/Edit";
 import { useState } from "react";
+import { deleteTutorial, isValidEmail } from "../../funcs";
 import { Add } from "@mui/icons-material";
-import ScienceIcon from '@mui/icons-material/Science';
-import BiotechIcon from '@mui/icons-material/Biotech';
-import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
+import { jhsfg } from "../../af";
+import AuthorizedUsersAccordion from "../components/AuthorizedUsersAccordion ";
 
-export default function AdmPDFFileView() {
+export default function AdmFileView() {
   const params = useParams();
-  const pdfRef = collection(fireDB, "pdfFolders", params.fname, "pdfs");
+  const tutorialref = collection(fireDB, "folders", params.fname, "tutorials");
   const emailListref = collection(
     fireDB,
-    "pdfFolders",
+    "folders",
     params.fname,
     "emailslist"
   );
 
   const [editableemails, setEditableEmails] = useState("");
+  const [openDeleteFolderConfirm, setOpenDeleteFolderConfirm] = useState(false);
 
   const { isAdmin } = useUser();
 
-  const [pdfs, loading] = useCollectionData(pdfRef);
+  const [tuts, loading] = useCollectionData(tutorialref);
   const [emails, emailLoading, error, snapshot] =
     useCollectionData(emailListref);
 
@@ -63,17 +73,23 @@ export default function AdmPDFFileView() {
         .replaceAll(",", "\n")
         .split("\n")
         .filter((email) => email !== "")
-        .map((email) => email.trim().toLowerCase())
+        .map((email) => email.trim().toLowerCase().replace(/\s+/g, ""))
     ),
   ];
 
   const addEmailsToDB = async () => {
     dbemails.forEach(async (email) => {
       try {
-        await setDoc(doc(emailListref, email), { email });
+        if (!isValidEmail(email)) {
+          console.log("Invalid Email");
+          return;
+        }
+        await setDoc(doc(emailListref, email), {
+          email: email,
+        });
       } catch (err) {
-        setEditableEmails("An error occurred while adding emails");
-        console.error(err);
+        setEditableEmails("An error occured while adding emails");
+        console.log(err);
       }
     });
     setEditableEmails("");
@@ -85,7 +101,7 @@ export default function AdmPDFFileView() {
         try {
           await deleteDoc(doc.ref);
         } catch (err) {
-          console.error(err);
+          console.log(err);
         }
       });
       console.log("All emails deleted");
@@ -96,8 +112,8 @@ export default function AdmPDFFileView() {
         try {
           await deleteDoc(doc.ref);
         } catch (err) {
-          setEditableEmails("An error occurred while deleting emails");
-          console.error(err);
+          setEditableEmails("An error occured while deleting emails");
+          console.log(err);
         }
       }
     });
@@ -105,28 +121,52 @@ export default function AdmPDFFileView() {
     setEditableEmails("");
   };
 
-  // Modified function to delete individual PDF from Firestore and Storage
-  const deletePDF = async (pdf) => {
+  const deleteIndividualTutorial = async (tut) => {
     try {
-      // Validate PDF title
-      if (!pdf.title || pdf.title.trim() === '') {
-        console.error("Invalid PDF title");
-        return;
-      }
-
-      // Delete PDF document from Firestore
-      await deleteDoc(doc(pdfRef, pdf.title));
-
-      // Use full path from storage root
-      const storageRef = ref(fireStorage, `${pdf.url}`);
-      await deleteObject(storageRef);
+      await deleteTutorial(params.fname, tut.title, null, tut.thumbnail);
+      console.log(`Tutorial ${tut.title} deleted`);
     } catch (err) {
-      console.error("Error deleting PDF:", err);
+      console.error("Error deleting tutorial:", err);
+    }
+  };
+
+  const handleEditTutorial = (tut) => {
+    navigator(`edit/${tut.title}`, {
+      state: {
+        tutorial: tut,
+        folderName: params.fname
+      }
+    });
+  };
+
+  const handleDeleteFolder = async () => {
+    try {
+      // Delete all tutorials in the folder
+      tuts.forEach((tut) => {
+        deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
+      });
+
+      // Delete all emails
+      snapshot.forEach(async (doc) => {
+        try {
+          await deleteDoc(doc.ref);
+        } catch (err) {
+          console.log(err);
+        }
+      });
+
+      // Delete the folder itself
+      await deleteDoc(doc(fireDB, "folders", params.fname));
+
+      console.log(`Folder ${params.fname} deleted`);
+      navigator("/admin");
+    } catch (error) {
+      console.error("Error deleting folder:", error);
     }
   };
 
   if (loading) {
-    return <Loading text="Loading PDFs" />;
+    return <Loading text="Loading Tutorials" />;
   }
   if (emailLoading) {
     return <Loading text="Checking Emails" />;
@@ -143,7 +183,15 @@ export default function AdmPDFFileView() {
           textDecoration: "none",
         }}
       >
-        <T color={"error.main"}>You are not authorized to view this page.</T>
+        <T color={"error.main"}>
+          {jhsfg([
+            89, 111, 117, 32, 97, 114, 101, 32, 110, 111, 116, 32, 97, 117, 116,
+            104, 111, 114, 105, 122, 101, 100, 32, 116, 111, 32, 118, 105, 101,
+            119, 32, 116, 104, 105, 115, 32, 112, 97, 103, 101, 46, 32, 67, 108,
+            105, 99, 107, 32, 104, 101, 114, 101, 32, 116, 111, 32, 103, 111,
+            32, 98, 97, 99, 107,
+          ])}
+        </T>
       </NavLink>
     );
   }
@@ -155,7 +203,7 @@ export default function AdmPDFFileView() {
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "background.default",
+        bgcolor: "#f4f4f4",
         position: "relative",
       }}
     >
@@ -170,7 +218,7 @@ export default function AdmPDFFileView() {
           pb: 10,
         }}
       >
-        {/* Header */}
+        {/* Header with DNA animation */}
         <Paper
           elevation={0}
           sx={{
@@ -183,79 +231,71 @@ export default function AdmPDFFileView() {
             gap: 2
           }}
         >
-          <BiotechIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <ScienceIcon
+            sx={{
+              fontSize: 32,
+              color: 'primary.main'
+            }}
+            className="rotating-dna"
+          />
           <T variant="h4">
-            {params.fname} PDF Documents
+            {params.fname} Tutorials (Admin)
           </T>
         </Paper>
 
-        {/* PDF Grid */}
-        <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
+        {/* Tutorials Grid */}
+        <Card variant="outlined" sx={{ mb: 2, bgcolor: 'background.paper' }}>
           <CardContent>
-            <Grid container spacing={2}>
-              {pdfs?.length > 0 ? (
-                pdfs.map((pdf, index) => (
-                  <Grid
-                    item
-                    key={index}
-                    xs={12}
-                    sm={6}
-                    md={4}
-                  >
+            <Grid container spacing={2} columns={12}>
+              {tuts.length > 0 ? (
+                tuts.map((tut, index) => (
+                  <Grid item key={index} xs={12} sm={6} md={4}>
                     <Card
                       variant="outlined"
                       sx={{
                         height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
-                        transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                        '&:hover': {
-                          transform: 'translateY(-4px)',
-                          boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
-                        }
+                        bgcolor: 'background.paper',
+                        position: 'relative'
                       }}
                     >
-                      <CardContent sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 2
-                      }}>
-                        <PictureAsPdf
-                          sx={{
-                            fontSize: 64,
-                            color: 'error.main',
-                            opacity: 0.9
-                          }}
-                        />
-                        <T variant="h6" sx={{ textAlign: 'center', wordBreak: 'break-word' }}>
-                          {pdf.title}
-                        </T>
-                      </CardContent>
-                      <CardActions sx={{
-                        justifyContent: 'center',
-                        p: 2,
-                        pt: 0,
-                        gap: 1
-                      }}>
+                      {/* Status Chip positioned at top right */}
+                      <Bx
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          zIndex: 2,
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          borderRadius: 1,
+                          p: 0.5,
+                          boxShadow: 1
+                        }}
+                      >
+                        <ConversionStatusChip tutorial={tut} folderName={params.fname} />
+                      </Bx>
+
+                      <VCad tut={{ ...tut, fpath: params.fname }} />
+                      
+                      <CardActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
                         <B
+                          fullWidth
+                          startIcon={<BiotechIcon />}
                           variant="contained"
                           color="primary"
-                          href={pdf.url}
-                          target="_blank"
-                          startIcon={<PictureAsPdf />}
-                          sx={{ textTransform: 'none' }}
+                          onClick={() => handleEditTutorial(tut)}
                         >
-                          View PDF
+                          Edit Tutorial
                         </B>
                         <B
+                          fullWidth
+                          startIcon={<DeleteIcon />}
                           variant="contained"
                           color="error"
-                          startIcon={<DeleteForever />}
-                          onClick={() => deletePDF(pdf)}
-                          sx={{ textTransform: 'none' }}
+                          onClick={() => deleteIndividualTutorial(tut)}
                         >
-                          Delete
+                          Delete Tutorial
                         </B>
                       </CardActions>
                     </Card>
@@ -266,7 +306,7 @@ export default function AdmPDFFileView() {
                   <Bx
                     sx={{
                       textAlign: "center",
-                      py: 6,
+                      py: 4,
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -274,8 +314,8 @@ export default function AdmPDFFileView() {
                     }}
                   >
                     <ScienceIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.5 }} />
-                    <T variant="h6" color="text.secondary">
-                      No PDFs Found in {params.fname}
+                    <T color="text.secondary">
+                      No Tutorials Found in {params.fname}
                     </T>
                   </Bx>
                 </Grid>
@@ -285,49 +325,12 @@ export default function AdmPDFFileView() {
         </Card>
 
         {/* Authorized Users Accordion */}
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<ExpandMoreIcon />}
-            sx={{ bgcolor: 'customColors.membrane' }}
-          >
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <PrecisionManufacturingIcon />
-              <T variant="h6">Authorized Users</T>
-            </Stack>
-          </AccordionSummary>
-          <AccordionDetails>
-            <L>
-              {emails?.length > 0 ? (
-                emails.map((email, index) => (
-                  <ListItem disablePadding key={index}>
-                    <ListItemIcon>
-                      <EmailIcon />
-                    </ListItemIcon>
-                    <ListItemText primary={email.email} />
-                  </ListItem>
-                ))
-              ) : (
-                <ListItem>
-                  <ListItemIcon>
-                    <DoneIcon color="success" />
-                  </ListItemIcon>
-                  <ListItemText primary="Free Access" />
-                </ListItem>
-              )}
-            </L>
-          </AccordionDetails>
-        </Accordion>
+        <AuthorizedUsersAccordion emails={emails} />
 
         {/* Edit Access Accordion */}
         <Accordion>
-          <AccordionSummary
-            expandIcon={<ExpandMoreIcon />}
-            sx={{ bgcolor: 'customColors.membrane' }}
-          >
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <EmailIcon />
-              <T variant="h6">Edit Access</T>
-            </Stack>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <T variant="h6">Edit Access</T>
           </AccordionSummary>
           <AccordionDetails
             sx={{
@@ -341,7 +344,8 @@ export default function AdmPDFFileView() {
               multiline
               minRows={3}
               maxRows={5}
-              placeholder="Use comma or new line separated emails to give or revoke access. Type DELETE_ALL to remove all emails and give free access."
+              variant="outlined"
+              placeholder="Use comma or new line separated emails to give or revoke access to specific users. Type DELETE_ALL to remove all emails and give free access."
               value={editableemails}
               onChange={(e) => setEditableEmails(e.target.value)}
             />
@@ -350,7 +354,6 @@ export default function AdmPDFFileView() {
                 variant="contained"
                 color="success"
                 onClick={addEmailsToDB}
-                sx={{ textTransform: 'none' }}
               >
                 Add
               </B>
@@ -358,7 +361,6 @@ export default function AdmPDFFileView() {
                 variant="contained"
                 color="error"
                 onClick={deleteEmailsfromDB}
-                sx={{ textTransform: 'none' }}
               >
                 Remove
               </B>
@@ -368,37 +370,16 @@ export default function AdmPDFFileView() {
 
         {/* Delete Folder Button */}
         <B
+          fullWidth
           color="error"
           variant="contained"
-          startIcon={<DeleteForever />}
-          onClick={async () => {
-            pdfs.forEach(async (pdf) => {
-              try {
-                await deleteDoc(doc(pdfRef, pdf.title));
-              } catch (err) {
-                console.error(err);
-              }
-            });
-            snapshot.forEach(async (doc) => {
-              try {
-                await deleteDoc(doc.ref);
-              } catch (err) {
-                console.error(err);
-              }
-            });
-            await deleteDoc(doc(fireDB, "pdfFolders", params.fname));
-            navigator("/admin");
-          }}
-          sx={{
-            textTransform: 'none',
-            py: 1.5
-          }}
+          onClick={() => setOpenDeleteFolderConfirm(true)}
         >
           Delete {params.fname} Folder
         </B>
       </Bx>
 
-      {/* Add PDF FAB */}
+      {/* Add Tutorial FAB */}
       <Fab
         color="secondary"
         sx={{
@@ -406,7 +387,6 @@ export default function AdmPDFFileView() {
           bottom: "20px",
           right: "20px",
           zIndex: 1000,
-          boxShadow: '0 4px 20px rgba(46, 125, 50, 0.2)',
         }}
         onClick={() => {
           navigator("add");
@@ -414,6 +394,33 @@ export default function AdmPDFFileView() {
       >
         <Add />
       </Fab>
+
+      {/* Folder Delete Confirmation Dialog */}
+      <Dialog
+        open={openDeleteFolderConfirm}
+        onClose={() => setOpenDeleteFolderConfirm(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Folder</DialogTitle>
+        <DialogContent>
+          <T variant="body1">
+            Are you sure you want to delete the folder "{params.fname}"?
+            This will remove all tutorials and email access settings.
+          </T>
+        </DialogContent>
+        <DialogActions>
+          <B onClick={() => setOpenDeleteFolderConfirm(false)}>
+            Cancel
+          </B>
+          <B
+            color="error"
+            onClick={handleDeleteFolder}
+          >
+            Delete
+          </B>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

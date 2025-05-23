@@ -9,12 +9,15 @@ import {
   Stack,
   CircularProgress,
   Alert,
-  AlertTitle
+  AlertTitle,
+  Chip
 } from "@mui/material";
 import {
   BiotechOutlined as BiotechIcon,
   CalendarToday as CalendarIcon,
   Description as DescriptionIcon,
+  Construction as ConstructionIcon,
+  HighQuality as HighQualityIcon
 } from '@mui/icons-material';
 import Appbar from "../components/Appbar";
 import { fireDB } from "../../firebaseconfig";
@@ -43,6 +46,11 @@ export default function VideoPage() {
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [showRetryWarning, setShowRetryWarning] = useState(false);
   const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
+  
+  // New state variables for video source handling
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [isConvertedVideo, setIsConvertedVideo] = useState(false);
+  const [videoFolderId, setVideoFolderId] = useState(null);
 
   const emailListref = collection(
     fireDB,
@@ -51,6 +59,13 @@ export default function VideoPage() {
     "emailslist"
   );
 
+  // const statusRef = collection(
+  //   fireDB,
+  //   "videos",
+  //   handler,
+  //   "emailslist"
+  // );
+
   const [emails, emailLoading] = useCollectionData(emailListref);
   const { user, isAdmin } = useUser();
   const [tut, loading] = useDocumentData(lessonref);
@@ -58,74 +73,88 @@ export default function VideoPage() {
   const [securityCheck, setSecurityCheck] = useState(true);
   const [progress, setProgress] = useState(0);
 
-  // async function getHandler() {
-  //   const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
-  //   if (securityCheckComplete) {
-  //     console.log("Inside get handler");
-  //     console.log("Security check already complete");
-  //   }
-  //   try {
-  //     const docSnap = await getDoc(docRef);
-  //     if (docSnap.exists()) {
-  //       setHandler(docSnap.data().handler);
-  //       setInitialLoadAttempted(true);
-  //     } else {
-  //       console.log("No such document!");
-  //       setHasLoadError(true);
-  //       setShowErrorDialog(true);
-  //       setInitialLoadAttempted(true);
-  //     }
-  //   } catch (err) {
-  //     console.log(err);
-  //     setHasLoadError(true);
-  //     setShowErrorDialog(true);
-  //     setInitialLoadAttempted(true);
-  //   }
-  // }
+  // Function to determine the correct video URL based on conversion status
+  const determineVideoUrl = (tutData) => {
+    console.log("Determining video URL. Document data:", tutData);
+    
+    if (tutData.converted === true && tutData.folderid) {
+      console.log("Using converted video with folderid:", tutData.folderid);
+      setIsConvertedVideo(true);
+      setVideoFolderId(tutData.folderid);
+      
+      // For new EC2-converted videos, use master.m3u8
+      const url = `https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
+      setVideoUrl(url);
+      console.log("Generated URL for converted video:", url);
+    } else {
+      console.log("Using legacy video with handler:", tutData.handler);
+      setIsConvertedVideo(false);
+      
+      // For legacy videos, use index.m3u8
+      const url = `https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
+      setVideoUrl(url);
+      console.log("Generated URL for legacy video:", url);
+    }
+  };
 
   async function getHandler(maxRetries = 3, retryDelay = 1000) {
-  const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
-  let attempt = 0;
+    const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
+    let attempt = 0;
 
-  while (attempt < maxRetries) {
-    try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setHandler(docSnap.data().handler);
-        setInitialLoadAttempted(true);
-        setHasLoadError(false); // Reset error state on success
-        return; // Exit on success
-      } else {
-        console.log("No such document!");
+    while (attempt < maxRetries) {
+      try {
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const tutData = docSnap.data();
+          console.log("Document data retrieved:", tutData);
+          
+          setHandler(tutData.handler);
+          setInitialLoadAttempted(true);
+          setHasLoadError(false); // Reset error state on success
+          
+          // Determine the correct video URL
+          determineVideoUrl(tutData);
+          
+          return; // Exit on success
+        } else {
+          console.log("No such document!");
+          attempt++;
+          if (attempt === maxRetries) {
+            setHasLoadError(true);
+            setShowErrorDialog(true);
+            setInitialLoadAttempted(true);
+          }
+        }
+      } catch (err) {
+        console.log(`Attempt ${attempt + 1} failed:`, err);
         attempt++;
         if (attempt === maxRetries) {
+          console.log("Max retries reached");
           setHasLoadError(true);
           setShowErrorDialog(true);
           setInitialLoadAttempted(true);
         }
       }
-    } catch (err) {
-      console.log(`Attempt ${attempt + 1} failed:`, err);
-      attempt++;
-      if (attempt === maxRetries) {
-        console.log("Max retries reached");
-        setHasLoadError(true);
-        setShowErrorDialog(true);
-        setInitialLoadAttempted(true);
+      // Wait before retrying
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
     }
-    // Wait before retrying
-    if (attempt < maxRetries) {
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-    }
   }
-}
 
   useEffect(() => {
     getHandler();
   }, []);
 
- useEffect(() => {
+  // Update video URL when tut data changes
+  useEffect(() => {
+    if (tut && !loading) {
+      console.log("Tutorial data updated, refreshing video URL");
+      determineVideoUrl(tut);
+    }
+  }, [tut, loading]);
+
+  useEffect(() => {
     if (!handler || hasLoadError || showRetryWarning) return; // Add showRetryWarning check
 
     const interval = setInterval(() => {
@@ -149,6 +178,8 @@ export default function VideoPage() {
   }, [handler, hasLoadError, showRetryWarning]); // Add showRetryWarning dependency
 
   const handleVideoError = (error) => {
+    console.log("Video error detected:", error);
+    
     if (!securityCheckComplete) {
       if (error?.type === 'retry') {
         setRetryAttempt(error.attempt);
@@ -253,6 +284,37 @@ export default function VideoPage() {
       }}
     >
       <Appbar />
+      
+     {/* System Update Banner */}
+     <Alert 
+        severity="warning" 
+        icon={<ConstructionIcon />}
+        sx={{
+          borderRadius: 0,
+          backgroundColor: 'rgba(255, 152, 0, 0.1)',
+          border: '1px solid rgba(255, 152, 0, 0.4)',
+          borderLeft: 'none',
+          borderRight: 'none',
+          '& .MuiAlert-icon': {
+            color: '#f57c00'
+          },
+          '& .MuiAlert-message': {
+            width: '100%'
+          }
+        }}
+      >
+        <AlertTitle sx={{ mb: 1, fontWeight: 600, color: '#e65100' }}>
+          System Updates in Progress
+        </AlertTitle>
+        <Typography variant="body2" sx={{ color: '#bf360c', mb: 0.5 }}>
+          We are currently upgrading our video streaming infrastructure.
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#bf360c' }}>
+          You may experience temporary playback issues until <strong>May 23, 2025 at midnight</strong>. We apologize for any inconvenience.
+        </Typography>
+      </Alert>
+      
+      
       <Box
         sx={{
           p: 2,
@@ -277,9 +339,20 @@ export default function VideoPage() {
           }}
         >
           <BiotechIcon sx={{ fontSize: 32, color: Colors.green }} />
-          <Typography variant="h4">
-            {tut.title} - {tut.lesson}
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <Typography variant="h4">
+              {tut.title} - {tut.lesson}
+            </Typography>
+            {isConvertedVideo && (
+              <Chip 
+                icon={<HighQualityIcon />} 
+                label="Multi-resolution" 
+                size="small" 
+                color="primary" 
+                sx={{ mt: 1, width: 'fit-content' }}
+              />
+            )}
+          </Box>
         </Paper>
 
         {/* Video Player Card */}
@@ -292,11 +365,9 @@ export default function VideoPage() {
           }}
         >
           <CardContent sx={{ p: 0 }}>
-            {handler && vurl ? (
+            {handler && videoUrl ? (
               <CVPL
-
-                url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=28800'}
-
+                url={videoUrl}
                 watermark={user.email}
                 canPlay={!securityCheck && progress === 100}
                 onError={handleVideoError}
@@ -332,6 +403,18 @@ export default function VideoPage() {
                   {tut.description}
                 </Typography>
               </Stack>
+              
+              {/* Additional info for converted videos */}
+              {isConvertedVideo && videoFolderId && (
+                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Video Type: Multi-resolution (EC2 Converted)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Conversion ID: {videoFolderId}
+                  </Typography>
+                </Box>
+              )}
             </Stack>
           </CardContent>
         </Card>
