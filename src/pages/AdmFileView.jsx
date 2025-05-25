@@ -21,11 +21,16 @@ import {
   Card,
   CardContent,
   CardActions,
-  Paper
+  Paper,
+  Chip,
+  Alert
 } from "@mui/material";
 import ScienceIcon from '@mui/icons-material/Science';
 import BiotechIcon from '@mui/icons-material/Biotech';
 import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
+import ErrorIcon from '@mui/icons-material/Error';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { collection, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
@@ -68,6 +73,45 @@ export default function AdmFileView() {
 
   const navigator = useNavigate();
 
+  // Helper function to get video status info
+  const getVideoStatusInfo = (videoStatus, errorMessage = null, failedAt = null) => {
+    switch (videoStatus) {
+      case 'processing':
+        return {
+          status: 'processing',
+          color: 'warning',
+          icon: <HourglassEmptyIcon />,
+          label: 'Processing',
+          description: 'Video is being converted...'
+        };
+      case 'completed':
+        return {
+          status: 'completed',
+          color: 'success',
+          icon: <CheckCircleIcon />,
+          label: 'Completed',
+          description: 'Video conversion successful'
+        };
+      case 'error':
+        return {
+          status: 'error',
+          color: 'error',
+          icon: <ErrorIcon />,
+          label: 'Failed',
+          description: errorMessage || 'Video conversion failed',
+          failedAt: failedAt
+        };
+      default:
+        return {
+          status: 'legacy',
+          color: 'default',
+          icon: <ScienceIcon />,
+          label: 'Legacy',
+          description: 'Legacy video (no conversion tracking)'
+        };
+    }
+  };
+
   // Fetch video statuses for each tutorial
   useEffect(() => {
     const fetchVideoStatuses = async () => {
@@ -89,14 +133,22 @@ export default function AdmFileView() {
                   return {
                     ...tut,
                     videoStatus: videoData.status || 'processing',
-                    isLegacyVideo: false
+                    errorMessage: videoData.error || null,
+                    failedAt: videoData.failedAt || null,
+                    isLegacyVideo: false,
+                    statusInfo: getVideoStatusInfo(
+                      videoData.status || 'processing',
+                      videoData.error,
+                      videoData.failedAt
+                    )
                   };
                 } else {
                   // Handler exists but NOT found in videos collection = Legacy video
                   return {
                     ...tut,
                     videoStatus: null,
-                    isLegacyVideo: true
+                    isLegacyVideo: true,
+                    statusInfo: getVideoStatusInfo(null)
                   };
                 }
               } catch (error) {
@@ -105,7 +157,8 @@ export default function AdmFileView() {
                 return {
                   ...tut,
                   videoStatus: null,
-                  isLegacyVideo: true
+                  isLegacyVideo: true,
+                  statusInfo: getVideoStatusInfo(null)
                 };
               }
             }
@@ -114,7 +167,8 @@ export default function AdmFileView() {
             return {
               ...tut,
               videoStatus: null,
-              isLegacyVideo: true
+              isLegacyVideo: true,
+              statusInfo: getVideoStatusInfo(null)
             };
           })
         );
@@ -123,7 +177,12 @@ export default function AdmFileView() {
       } catch (error) {
         console.error('Error enriching tutorials with video status:', error);
         // Fallback to treating all as legacy videos
-        setEnrichedTuts(tuts.map(tut => ({ ...tut, videoStatus: null, isLegacyVideo: true })));
+        setEnrichedTuts(tuts.map(tut => ({ 
+          ...tut, 
+          videoStatus: null, 
+          isLegacyVideo: true,
+          statusInfo: getVideoStatusInfo(null)
+        })));
       } finally {
         setStatusLoading(false);
       }
@@ -310,6 +369,33 @@ export default function AdmFileView() {
             {params.fname} Tutorials
           </T>
         </Paper>
+
+        {/* Video Status Summary */}
+        {enrichedTuts.length > 0 && (
+          <Card variant="outlined" sx={{ mb: 2 }}>
+            <CardContent>
+              <T variant="h6" gutterBottom>Video Status Overview</T>
+              <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                {['processing', 'completed', 'error', 'legacy'].map(status => {
+                  const count = enrichedTuts.filter(tut => tut.statusInfo.status === status).length;
+                  if (count === 0) return null;
+                  
+                  const statusInfo = getVideoStatusInfo(status === 'legacy' ? null : status);
+                  return (
+                    <Chip
+                      key={status}
+                      icon={statusInfo.icon}
+                      label={`${statusInfo.label}: ${count}`}
+                      color={statusInfo.color}
+                      variant="outlined"
+                    />
+                  );
+                })}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tutorials Grid */}
         <Card variant="outlined" sx={{ mb: 2, bgcolor: 'background.paper' }}>
           <CardContent>
@@ -327,7 +413,48 @@ export default function AdmFileView() {
                       }}
                     >
                       <VCad tut={{ ...tut, fpath: params.fname }} />
-                      <CardActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
+                      
+                      {/* Video Status Display */}
+                      <Bx sx={{ p: 2, pt: 1 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+                          <Chip
+                            icon={tut.statusInfo.icon}
+                            label={tut.statusInfo.label}
+                            color={tut.statusInfo.color}
+                            size="small"
+                          />
+                        </Stack>
+                        
+                        {/* Error Details */}
+                        {tut.statusInfo.status === 'error' && (
+                          <Alert severity="error" sx={{ mb: 1 }}>
+                            <T variant="body2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                              Conversion Failed
+                            </T>
+                            {tut.errorMessage && (
+                              <T variant="body2" sx={{ fontSize: '0.75rem', mb: 0.5 }}>
+                                Error: {tut.errorMessage}
+                              </T>
+                            )}
+                            {tut.failedAt && (
+                              <T variant="body2" sx={{ fontSize: '0.75rem' }}>
+                                Failed at: {new Date(tut.failedAt).toLocaleString()}
+                              </T>
+                            )}
+                          </Alert>
+                        )}
+                        
+                        {/* Processing Status */}
+                        {tut.statusInfo.status === 'processing' && (
+                          <Alert severity="info" sx={{ mb: 1 }}>
+                            <T variant="body2">
+                              Video is currently being processed. This may take several minutes.
+                            </T>
+                          </Alert>
+                        )}
+                      </Bx>
+
+                      <CardActions sx={{ flexDirection: 'column', gap: 1, p: 2, pt: 0 }}>
                         <B
                           fullWidth
                           startIcon={<BiotechIcon />}
@@ -372,7 +499,6 @@ export default function AdmFileView() {
             </Grid>
           </CardContent>
         </Card>
-
 
         {/* Authorized Users Accordion */}
         <AuthorizedUsersAccordion emails={emails} />

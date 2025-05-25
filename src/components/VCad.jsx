@@ -13,8 +13,7 @@ import { ref } from "firebase/storage";
 import { fireStorage } from "../../firebaseconfig";
 import { 
   HighQuality, 
-  VideoFile, 
-  CheckCircle, 
+  CheckCircle,
   HourglassEmpty 
 } from "@mui/icons-material";
 
@@ -25,10 +24,13 @@ export default function VCad({ tut }) {
     ref(fireStorage, `thumbnails/${tut.fpath}/${tut.title}/${tut.thumbnail}`)
   );
 
+  // Check if we're on admin page to determine what to show
+  const isAdminPage = window.location.pathname.includes('/admin');
+
   const handleClick = () => {
     // Legacy videos are always clickable
-    // New videos are only clickable if completed
-    if (tut.isLegacyVideo || tut.videoStatus === 'completed') {
+    // New videos are only clickable if completed/processed
+    if (tut.isLegacyVideo || tut.videoStatus === 'completed' || tut.videoStatus === 'processed') {
       // Check if we're on admin or student page
       const isAdminPage = window.location.pathname.includes('/admin');
       if (isAdminPage) {
@@ -39,11 +41,11 @@ export default function VCad({ tut }) {
     }
   };
 
-  const isClickable = tut.isLegacyVideo || tut.videoStatus === 'completed';
+  const isClickable = tut.isLegacyVideo || tut.videoStatus === 'completed' || tut.videoStatus === 'processed';
 
   // Status chip configuration
   const getStatusChip = () => {
-    if (tut.videoStatus === 'completed') {
+    if (tut.videoStatus === 'completed' || tut.videoStatus === 'processed') {
       return (
         <Chip
           icon={<CheckCircle />}
@@ -96,8 +98,11 @@ export default function VCad({ tut }) {
       }}
       onClick={handleClick}
     >
-      {/* Status Badge - only show for non-legacy videos */}
+      {/* Status Badge - show based on user type and video status */}
       {!tut.isLegacyVideo && (
+        (isAdminPage && tut.videoStatus) || // Admin: show all statuses
+        (!isAdminPage && tut.videoStatus === 'processing') // Student: only show processing (not completed/processed)
+      ) && (
         <Box
           sx={{
             position: 'absolute',
@@ -175,35 +180,28 @@ export default function VCad({ tut }) {
               📅 {tut.date?.replaceAll("-", "/")}
             </Typography>
             
-            {/* Video type indicator - only show for completed non-legacy videos */}
-            {!tut.isLegacyVideo && tut.videoStatus === 'completed' && (
-              <>
-                {tut.converted && (
-                  <Chip
-                    icon={<HighQuality />}
-                    label="Multi-Quality"
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                  />
-                )}
-                {!tut.converted && (
-                  <Chip
-                    icon={<VideoFile />}
-                    label="Standard"
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                  />
-                )}
-              </>
+            {/* Video type indicator - show for all completed/processed non-legacy videos */}
+            {!tut.isLegacyVideo && (tut.videoStatus === 'completed' || tut.videoStatus === 'processed') && (
+              <Chip
+                icon={<HighQuality />}
+                label="Multi-Quality"
+                size="small"
+                sx={{
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  border: '1px solid #4caf50',
+                  '& .MuiChip-icon': {
+                    color: 'white'
+                  }
+                }}
+              />
             )}
           </Stack>
         </Stack>
       </CardContent>
 
       {/* Processing overlay for non-completed, non-legacy videos */}
-      {!tut.isLegacyVideo && tut.videoStatus !== 'completed' && (
+      {!tut.isLegacyVideo && tut.videoStatus !== 'completed' && tut.videoStatus !== 'processed' && (
         <Box
           sx={{
             position: 'absolute',
@@ -229,7 +227,7 @@ export default function VCad({ tut }) {
               fontWeight: 'bold'
             }}
           >
-            Video Processing...
+            Video is Processing...
           </Typography>
         </Box>
       )}

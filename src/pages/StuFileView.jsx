@@ -164,33 +164,63 @@ export default function StuFileView() {
     >
       <Appbar />
       
-      {/* System Update Banner */}
-      <Alert 
-        severity="warning" 
-        icon={<ConstructionIcon />}
+            {/* Multi-Quality Video Feature Banner */}
+            <Alert 
+        severity="success" 
+        icon={<BiotechIcon />}
         sx={{
           borderRadius: 0,
-          backgroundColor: 'rgba(255, 152, 0, 0.1)',
-          border: '1px solid rgba(255, 152, 0, 0.4)',
+          background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(102, 187, 106, 0.08) 100%)',
+          border: '1px solid rgba(46, 125, 50, 0.3)',
           borderLeft: 'none',
           borderRight: 'none',
           '& .MuiAlert-icon': {
-            color: '#f57c00'
+            color: '#2e7d32',
+            fontSize: '28px'
           },
           '& .MuiAlert-message': {
             width: '100%'
           }
         }}
       >
-        <AlertTitle sx={{ mb: 1, fontWeight: 600, color: '#e65100' }}>
-          System Updates in Progress
+        <AlertTitle sx={{ mb: 1, fontWeight: 700, color: '#1b5e20', fontSize: '1.1rem' }}>
+          🎉 New Feature: Multi-Quality Video Streaming Now Available!
         </AlertTitle>
-        <Typography variant="body2" sx={{ color: '#bf360c', mb: 0.5 }}>
-          We are currently upgrading our video streaming infrastructure.
+        <Typography variant="body2" sx={{ color: '#2e7d32', mb: 0.5, fontWeight: 500 }}>
+          Experience adaptive streaming with multiple video quality options for new videos:
         </Typography>
-        <Typography variant="body2" sx={{ color: '#bf360c' }}>
-          You may experience temporary playback issues until <strong>May 23, 2025 at midnight</strong>. We apologize for any inconvenience.
-        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📉 Lower data usage with quality selection
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            ⚡ Faster loading times
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📶 Adapt quality to your connection strength
+          </Typography>
+        </Box>
       </Alert>
       
       <Box

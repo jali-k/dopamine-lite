@@ -59,13 +59,6 @@ export default function VideoPage() {
     "emailslist"
   );
 
-  // const statusRef = collection(
-  //   fireDB,
-  //   "videos",
-  //   handler,
-  //   "emailslist"
-  // );
-
   const [emails, emailLoading] = useCollectionData(emailListref);
   const { user, isAdmin } = useUser();
   const [tut, loading] = useDocumentData(lessonref);
@@ -73,22 +66,52 @@ export default function VideoPage() {
   const [securityCheck, setSecurityCheck] = useState(true);
   const [progress, setProgress] = useState(0);
 
-  // Function to determine the correct video URL based on conversion status
-  const determineVideoUrl = (tutData) => {
+  // Function to check video status from videos collection
+  const checkVideoStatus = async (tutorialHandler) => {
+    try {
+      console.log("Checking video status for handler:", tutorialHandler);
+      const videoDocRef = doc(fireDB, "videos", tutorialHandler);
+      const videoDocSnap = await getDoc(videoDocRef);
+      
+      if (videoDocSnap.exists()) {
+        const videoData = videoDocSnap.data();
+        console.log("Video document data:", videoData);
+        return videoData.status === 'completed';
+      } else {
+        console.log("No video document found for handler:", tutorialHandler);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking video status:", error);
+      return false;
+    }
+  };
+
+  // Function to determine the correct video URL based on video status
+  const determineVideoUrl = async (tutData) => {
     console.log("Determining video URL. Document data:", tutData);
     
-    if (tutData.converted === true && tutData.folderid) {
-      console.log("Using converted video with folderid:", tutData.folderid);
+    if (!tutData.handler) {
+      console.log("No handler available, cannot determine video URL");
+      return;
+    }
+
+    // Check video status from videos collection
+    const isNewVideo = await checkVideoStatus(tutData.handler);
+    
+    if (isNewVideo) {
+      console.log("Using new EC2-converted video with handler:", tutData.handler);
       setIsConvertedVideo(true);
-      setVideoFolderId(tutData.folderid);
+      setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
       
       // For new EC2-converted videos, use master.m3u8
       const url = `https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
       setVideoUrl(url);
-      console.log("Generated URL for converted video:", url);
+      console.log("Generated URL for new EC2-converted video:", url);
     } else {
       console.log("Using legacy video with handler:", tutData.handler);
       setIsConvertedVideo(false);
+      setVideoFolderId(null);
       
       // For legacy videos, use index.m3u8
       const url = `https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
@@ -112,8 +135,8 @@ export default function VideoPage() {
           setInitialLoadAttempted(true);
           setHasLoadError(false); // Reset error state on success
           
-          // Determine the correct video URL
-          determineVideoUrl(tutData);
+          // Determine the correct video URL (now async)
+          await determineVideoUrl(tutData);
           
           return; // Exit on success
         } else {
@@ -148,7 +171,7 @@ export default function VideoPage() {
 
   // Update video URL when tut data changes
   useEffect(() => {
-    if (tut && !loading) {
+    if (tut && !loading && tut.handler) {
       console.log("Tutorial data updated, refreshing video URL");
       determineVideoUrl(tut);
     }
@@ -172,7 +195,7 @@ export default function VideoPage() {
         }
         return nextProgress;
       });
-    }, 300);
+    }, 80);
 
     return () => clearInterval(interval);
   }, [handler, hasLoadError, showRetryWarning]); // Add showRetryWarning dependency
@@ -285,33 +308,63 @@ export default function VideoPage() {
     >
       <Appbar />
       
-     {/* System Update Banner */}
-     <Alert 
-        severity="warning" 
-        icon={<ConstructionIcon />}
+           {/* Multi-Quality Video Feature Banner */}
+           <Alert 
+        severity="success" 
+        icon={<BiotechIcon />}
         sx={{
           borderRadius: 0,
-          backgroundColor: 'rgba(255, 152, 0, 0.1)',
-          border: '1px solid rgba(255, 152, 0, 0.4)',
+          background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(102, 187, 106, 0.08) 100%)',
+          border: '1px solid rgba(46, 125, 50, 0.3)',
           borderLeft: 'none',
           borderRight: 'none',
           '& .MuiAlert-icon': {
-            color: '#f57c00'
+            color: '#2e7d32',
+            fontSize: '28px'
           },
           '& .MuiAlert-message': {
             width: '100%'
           }
         }}
       >
-        <AlertTitle sx={{ mb: 1, fontWeight: 600, color: '#e65100' }}>
-          System Updates in Progress
+        <AlertTitle sx={{ mb: 1, fontWeight: 700, color: '#1b5e20', fontSize: '1.1rem' }}>
+          🎉 New Feature: Multi-Quality Video Streaming Now Available!
         </AlertTitle>
-        <Typography variant="body2" sx={{ color: '#bf360c', mb: 0.5 }}>
-          We are currently upgrading our video streaming infrastructure.
+        <Typography variant="body2" sx={{ color: '#2e7d32', mb: 0.5, fontWeight: 500 }}>
+          Experience adaptive streaming with multiple video quality options for new videos:
         </Typography>
-        <Typography variant="body2" sx={{ color: '#bf360c' }}>
-          You may experience temporary playback issues until <strong>May 23, 2025 at midnight</strong>. We apologize for any inconvenience.
-        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📉 Lower data usage with quality selection
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            ⚡ Faster loading times
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📶 Adapt quality to your connection strength
+          </Typography>
+        </Box>
       </Alert>
       
       
@@ -344,13 +397,21 @@ export default function VideoPage() {
               {tut.title} - {tut.lesson}
             </Typography>
             {isConvertedVideo && (
-              <Chip 
-                icon={<HighQualityIcon />} 
-                label="Multi-resolution" 
-                size="small" 
-                color="primary" 
-                sx={{ mt: 1, width: 'fit-content' }}
-              />
+                 <Chip
+               
+                 icon={<HighQualityIcon />}
+                 label="Multi-Quality"
+                 size="small"
+                 sx={{
+                   backgroundColor: '#4caf50',
+                   color: 'white',
+                   width: 'fit-content',
+                   border: '1px solid #4caf50',
+                   '& .MuiChip-icon': {
+                     color: 'white'
+                   }
+                 }}
+               />
             )}
           </Box>
         </Paper>
@@ -404,17 +465,7 @@ export default function VideoPage() {
                 </Typography>
               </Stack>
               
-              {/* Additional info for converted videos */}
-              {isConvertedVideo && videoFolderId && (
-                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Video Type: Multi-resolution (EC2 Converted)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Conversion ID: {videoFolderId}
-                  </Typography>
-                </Box>
-              )}
+              
             </Stack>
           </CardContent>
         </Card>
