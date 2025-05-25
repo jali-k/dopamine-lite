@@ -59,7 +59,7 @@ export default function App() {
           <Route path="/admin/video" element={<FVAdPage />} />
           <Route path="/admin/video/:fname/add" element={<VideoUPPage />} />
           <Route path="/admin/video/:fname" element={<AdmFileView />} />
-          <Route path="/admin/video/:fname/:lname" element={<ADVideoPage />} />
+          <Route path="/admin/video/:fname/:lname" element={<VideoPage />} />
           <Route path="/admin/video/:fname/edit/:tname" element={<EditTutorialPage />} />
           <Route path="/admin/pdf" element={<FVAdPage />} />
           <Route path="/admin/pdf/:fname/add" element={<PDFUploaderPage />} />
