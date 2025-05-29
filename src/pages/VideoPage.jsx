@@ -51,6 +51,7 @@ export default function VideoPage() {
   const [videoUrl, setVideoUrl] = useState(null);
   const [isConvertedVideo, setIsConvertedVideo] = useState(false);
   const [videoFolderId, setVideoFolderId] = useState(null);
+  const [isVideoUrlSet, setIsVideoUrlSet] = useState(false); // Added flag to prevent duplicate calls
 
   const emailListref = collection(
     fireDB,
@@ -120,6 +121,7 @@ export default function VideoPage() {
     }
   };
 
+  // Improved handler fetching - only fetch once
   async function getHandler(maxRetries = 3, retryDelay = 1000) {
     const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
     let attempt = 0;
@@ -131,22 +133,24 @@ export default function VideoPage() {
           const tutData = docSnap.data();
           console.log("Document data retrieved:", tutData);
           
-          setHandler(tutData.handler);
-          setInitialLoadAttempted(true);
-          setHasLoadError(false); // Reset error state on success
-          
-          // Determine the correct video URL (now async)
-          await determineVideoUrl(tutData);
-          
-          return; // Exit on success
+          // Only proceed if we have a handler
+          if (tutData.handler) {
+            setHandler(tutData.handler);
+            setInitialLoadAttempted(true);
+            setHasLoadError(false);
+            
+            // Set video URL only once
+            await determineVideoUrl(tutData);
+            setIsVideoUrlSet(true);
+            
+            return; // Exit on success
+          } else {
+            console.log("No handler found in document");
+            throw new Error("No handler available");
+          }
         } else {
           console.log("No such document!");
-          attempt++;
-          if (attempt === maxRetries) {
-            setHasLoadError(true);
-            setShowErrorDialog(true);
-            setInitialLoadAttempted(true);
-          }
+          throw new Error("Document not found");
         }
       } catch (err) {
         console.log(`Attempt ${attempt + 1} failed:`, err);
@@ -158,6 +162,7 @@ export default function VideoPage() {
           setInitialLoadAttempted(true);
         }
       }
+      
       // Wait before retrying
       if (attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, retryDelay));
@@ -165,20 +170,15 @@ export default function VideoPage() {
     }
   }
 
+  // Single useEffect for initial handler fetch
   useEffect(() => {
     getHandler();
-  }, []);
+  }, []); // Only run once on mount
 
-  // Update video URL when tut data changes
+  // Security check useEffect - properly waits for handler and video URL
   useEffect(() => {
-    if (tut && !loading && tut.handler) {
-      console.log("Tutorial data updated, refreshing video URL");
-      determineVideoUrl(tut);
-    }
-  }, [tut, loading]);
-
-  useEffect(() => {
-    if (!handler || hasLoadError || showRetryWarning) return; // Add showRetryWarning check
+    // Wait for handler AND ensure video URL is set
+    if (!handler || !isVideoUrlSet || hasLoadError || showRetryWarning) return;
 
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
@@ -198,7 +198,7 @@ export default function VideoPage() {
     }, 80);
 
     return () => clearInterval(interval);
-  }, [handler, hasLoadError, showRetryWarning]); // Add showRetryWarning dependency
+  }, [handler, isVideoUrlSet, hasLoadError, showRetryWarning]); // Added isVideoUrlSet dependency
 
   const handleVideoError = (error) => {
     console.log("Video error detected:", error);
