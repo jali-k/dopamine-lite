@@ -1,3 +1,4 @@
+// src/components/Appbar.jsx
 import {
   Home,
   NavigateNext,
@@ -8,7 +9,8 @@ import {
   VideoLibrary as VideoLibraryIcon,
   Description as DescriptionIcon,
   Dashboard as DashboardIcon,
-  AlternateEmail as AlternateEmailIcon
+  AlternateEmail as AlternateEmailIcon,
+  Notifications as NotificationsIcon
 } from "@mui/icons-material";
 import {
   AppBar,
@@ -31,7 +33,7 @@ import { signOut } from "../../af";
 import { useState } from "react";
 import appIcon from '../assets/icon.jpg';
 import { Colors } from "../themes/colours";
-
+import NotificationBadge from "./notifications/NotificationBadge";
 
 export default function Appbar() {
   const { user, isAdmin } = useUser();
@@ -94,26 +96,31 @@ export default function Appbar() {
               Dopamine Lite
             </Typography>
           </Stack>
-          <IconButton
-            onClick={handleClick}
-            sx={{
-              border: '2px solid rgba(255, 255, 255, 0.2)',
-              padding: '4px',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                border: '2px solid rgba(255, 255, 255, 0.5)',
-              }
-            }}
-          >
-            <Avatar
-              src={user.photoURL}
+          
+          {/* Right side with notification badge and user avatar */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <NotificationBadge />
+            <IconButton
+              onClick={handleClick}
               sx={{
-                width: 32,
-                height: 32,
-                boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                border: '2px solid rgba(255, 255, 255, 0.2)',
+                padding: '4px',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  border: '2px solid rgba(255, 255, 255, 0.5)',
+                }
               }}
-            />
-          </IconButton>
+            >
+              <Avatar
+                src={user.photoURL}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                }}
+              />
+            </IconButton>
+          </Stack>
         </Toolbar>
       </AppBar>
 
@@ -253,6 +260,24 @@ export default function Appbar() {
               </ListItemIcon>
               <Typography variant="body2" color="text.secondary">
                 Message Center
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/notifications"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <NotificationsIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Notification Center
               </Typography>
             </MenuItem>
             

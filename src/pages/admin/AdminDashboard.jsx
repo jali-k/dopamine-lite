@@ -1,3 +1,4 @@
+// src/pages/admin/AdminDashboard.jsx
 import {
   Box as Bx,
   Container,
@@ -18,6 +19,7 @@ import {
   Message,
   Folder,
   AlternateEmail,
+  Notifications,
 } from "@mui/icons-material";
 import { useUser } from "../../contexts/UserProvider";
 import { useState, useEffect } from "react";
@@ -32,6 +34,7 @@ export default function AdminDashboard() {
     videoFolders: 0,
     pdfFolders: 0,
     totalMessages: 0,
+    totalNotifications: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -54,11 +57,23 @@ export default function AdminDashboard() {
           // This is fine for first-time setup
         }
         
+        // Fetch notification stats
+        let notificationCount = 0;
+        try {
+          const notificationsRef = collection(fireDB, "notifications");
+          const notificationsSnapshot = await getDocs(notificationsRef);
+          notificationCount = notificationsSnapshot.size;
+        } catch (error) {
+          console.log("Notifications may not exist yet:", error);
+          // This is fine for first-time setup
+        }
+        
         // Update stats
         setStats({
           videoFolders: videoFoldersSnapshot.size,
           pdfFolders: pdfFoldersSnapshot.size,
           totalMessages: messageCount,
+          totalNotifications: notificationCount,
         });
         setLoading(false);
       } catch (error) {
@@ -119,6 +134,15 @@ export default function AdminDashboard() {
       highlight: true, // Highlight this as a new feature
     },
     {
+      title: "Notification Center",
+      description: "Send announcements and notifications to students",
+      icon: <Notifications sx={{ fontSize: 60, color: "warning.main" }} />,
+      path: "/admin/notifications",
+      count: stats.totalNotifications,
+      countLabel: "Notifications Sent",
+      highlight: true, // Highlight this as a new feature
+    },
+    {
       title: "Email Validator",
       description: "Validate and fix student email addresses from CSV files",
       icon: <AlternateEmail sx={{ fontSize: 60, color: "info.main" }} />,
@@ -167,16 +191,16 @@ export default function AdminDashboard() {
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', color: 'warning.contrastText' }}>
-                <VideoLibrary sx={{ fontSize: 40, mb: 1 }} />
-                <T variant="h5">{stats.videoFolders}</T>
-                <T variant="body2">Video Folders</T>
+                <Notifications sx={{ fontSize: 40, mb: 1 }} />
+                <T variant="h5">{stats.totalNotifications}</T>
+                <T variant="body2">Notifications</T>
               </Paper>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light', color: 'error.contrastText' }}>
                 <PictureAsPdf sx={{ fontSize: 40, mb: 1 }} />
-                <T variant="h5">{stats.pdfFolders}</T>
-                <T variant="body2">PDF Folders</T>
+                <T variant="h5">{stats.videoFolders}</T>
+                <T variant="body2">Video Folders</T>
               </Paper>
             </Grid>
           </Grid>
@@ -193,11 +217,17 @@ export default function AdminDashboard() {
                   transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                   '&:hover': {
                     transform: 'translateY(-4px)',
-                    boxShadow: module.highlight ? '0 8px 24px rgba(76, 175, 80, 0.25)' : '0 8px 24px rgba(0, 0, 0, 0.1)',
+                    boxShadow: module.highlight ? 
+                      (module.title === "Notification Center" ? '0 8px 24px rgba(255, 152, 0, 0.25)' :
+                       module.title === "Email Validator" ? '0 8px 24px rgba(33, 150, 243, 0.25)' : 
+                       '0 8px 24px rgba(76, 175, 80, 0.25)') : 
+                      '0 8px 24px rgba(0, 0, 0, 0.1)',
                   },
                   border: module.highlight ? '1px solid' : 'none',
                   borderColor: module.highlight ? (
-                    module.title === "Email Validator" ? 'info.main' : 'success.main'
+                    module.title === "Notification Center" ? 'warning.main' :
+                    module.title === "Email Validator" ? 'info.main' : 
+                    'success.main'
                   ) : 'transparent',
                 }}
               >
@@ -214,7 +244,11 @@ export default function AdminDashboard() {
                       {module.highlight && (
                         <Chip 
                           label="New" 
-                          color={module.title === "Email Validator" ? "info" : "success"} 
+                          color={
+                            module.title === "Notification Center" ? "warning" :
+                            module.title === "Email Validator" ? "info" : 
+                            "success"
+                          } 
                           size="small"
                         />
                       )}
@@ -226,7 +260,11 @@ export default function AdminDashboard() {
                       label={`${module.count} ${module.countLabel}`}
                       variant="outlined"
                       size="small"
-                      color={module.highlight ? (module.title === "Email Validator" ? "info" : "success") : "default"}
+                      color={module.highlight ? (
+                        module.title === "Notification Center" ? "warning" :
+                        module.title === "Email Validator" ? "info" : 
+                        "success"
+                      ) : "default"}
                     />
                   </CardContent>
                 </CardActionArea>

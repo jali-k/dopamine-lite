@@ -21,6 +21,8 @@ import MessageCenter from "./pages/admin/MessageCenter";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import EmailValidatorPage from "./pages/admin/EmailValidatorPage"; // Import the new EmailValidator component
 import StudentDashboard from "./pages/StudentDashboard"; // Import the new StudentDashboard component
+import NotificationCenterPage from "./pages/admin/NotificationCenterPage"; // Import the new NotificationCenter component
+import NotificationPage from "./pages/NotificationPage"; // Import the student notification page
 
 const theme = createTheme();
 
@@ -53,6 +55,7 @@ export default function App() {
           <Route path="/video/:fname/:lname" element={<VideoPage />} />
           <Route path="/pdf/:fname" element={<PDFFileView />} />
           <Route path="/pdf/:fname/:lname" element={<PDFPage />} />
+          <Route path="/notifications" element={<NotificationPage />} />
 
           {/* Admin routes */}
           <Route path="/admin" element={<AdminDashboard />} />
@@ -70,6 +73,10 @@ export default function App() {
           <Route path="/admin/messages" element={<MessageCenter />} />
           <Route path="/admin/messages/history" element={<MessageCenter />} />
           <Route path="/admin/messages/templates" element={<MessageCenter />} />
+          
+          {/* Notification Center routes */}
+          <Route path="/admin/notifications" element={<NotificationCenterPage />} />
+          <Route path="/admin/notifications/history" element={<NotificationCenterPage />} />
           
           {/* Email Validator route */}
           <Route path="/admin/email-validator" element={<EmailValidatorPage />} />
