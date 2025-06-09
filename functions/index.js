@@ -194,3 +194,69 @@ exports.sendBulkEmails = functions.firestore
       
       return { success: true, messageId: context.params.messageId };
     });
+
+
+/**
+ * Cloud Function to process notifications and update user summaries
+ * This function is triggered by a new document in the 'notifications' collection
+ */
+exports.processNotification = functions.firestore
+  .document("notifications/{notificationId}")
+  .onCreate(async (snapshot, context) => {
+    try {
+      const notification = snapshot.data();
+      const notificationId = context.params.notificationId;
+      
+      console.log(`Processing notification ${notificationId} for ${notification.targetUsers.length} users`);
+      
+      const { targetUsers, createdAt } = notification;
+      
+      if (!targetUsers || targetUsers.length === 0) {
+        console.log("No target users found");
+        return;
+      }
+
+      // Process users in batches of 500 (Firestore limit)
+      const batchSize = 500;
+      const batches = [];
+      
+      for (let i = 0; i < targetUsers.length; i += batchSize) {
+        const batch = admin.firestore().batch();
+        const chunk = targetUsers.slice(i, i + batchSize);
+        
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1}, users ${i + 1} to ${Math.min(i + batchSize, targetUsers.length)}`);
+        
+        chunk.forEach(userEmail => {
+          const summaryRef = admin.firestore().doc(`userNotificationSummary/${userEmail}`);
+          batch.set(summaryRef, {
+            unreadCount: admin.firestore.FieldValue.increment(1),
+            lastNotificationAt: createdAt,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+        
+        batches.push(batch.commit());
+      }
+      
+      // Execute all batches in parallel
+      await Promise.all(batches);
+      
+      console.log(`Successfully processed notification ${notificationId} for ${targetUsers.length} users`);
+      
+      // Update notification status
+      await admin.firestore().doc(`notifications/${notificationId}`).update({
+        status: 'processed',
+        processedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+    } catch (error) {
+      console.error("Error processing notification:", error);
+      
+      // Update notification with error status
+      await admin.firestore().doc(`notifications/${context.params.notificationId}`).update({
+        status: 'error',
+        error: error.message,
+        processedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  });
