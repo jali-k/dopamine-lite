@@ -28,7 +28,8 @@ import {
   Tooltip,
   Checkbox,
   Alert,
-  Snackbar
+  Snackbar,
+  Collapse
 } from "@mui/material";
 import {
   RemoveRedEye,
@@ -42,9 +43,14 @@ import {
   TrendingUp,
   DeleteForever,
   SelectAll,
-  ClearAll
+  ClearAll,
+  Person,
+  Badge,
+  ExpandMore,
+  ExpandLess,
+  Clear
 } from "@mui/icons-material";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useUser } from "../../contexts/UserProvider";
 import { useNotificationHistory } from "../../hooks/useNotifications";
 import { format } from "date-fns";
@@ -69,6 +75,10 @@ export default function NotificationHistory() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 6;
 
+  // Recipients search state
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
+  const [recipientsExpanded, setRecipientsExpanded] = useState(false);
+
   // Delete functionality
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -81,6 +91,20 @@ export default function NotificationHistory() {
     notification.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Filter recipients based on search query
+  const filteredRecipients = useMemo(() => {
+    if (!selectedNotification?.recipients || !recipientSearchQuery.trim()) {
+      return selectedNotification?.recipients || [];
+    }
+    
+    const query = recipientSearchQuery.toLowerCase().trim();
+    return selectedNotification.recipients.filter(recipient => 
+      recipient.name?.toLowerCase().includes(query) ||
+      recipient.email?.toLowerCase().includes(query) ||
+      recipient.registration?.toLowerCase().includes(query)
+    );
+  }, [selectedNotification?.recipients, recipientSearchQuery]);
+
   // Pagination
   const totalPages = Math.ceil(filteredNotifications.length / itemsPerPage);
   const paginatedNotifications = filteredNotifications.slice(
@@ -92,6 +116,9 @@ export default function NotificationHistory() {
   const handleViewDetails = (notification) => {
     setSelectedNotification(notification);
     setDetailsOpen(true);
+    // Reset recipient search when opening new notification
+    setRecipientSearchQuery('');
+    setRecipientsExpanded(false);
   };
 
   const getStatusColor = (status) => {
@@ -117,6 +144,33 @@ export default function NotificationHistory() {
     return Math.round((notification.readCount / notification.totalRecipients) * 100);
   };
 
+  // Helper function to highlight search text
+  const highlightSearchText = (text, searchQuery) => {
+    if (!searchQuery.trim() || !text) return text;
+    
+    const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) =>
+      regex.test(part) ? (
+        <span key={index} style={{ backgroundColor: '#FFEB3B', fontWeight: 'bold' }}>
+          {part}
+        </span>
+      ) : (
+        part
+      )
+    );
+  };
+
+  // Recipients helper functions
+  const handleClearRecipientSearch = () => {
+    setRecipientSearchQuery('');
+  };
+
+  const handleToggleRecipientsExpanded = () => {
+    setRecipientsExpanded(!recipientsExpanded);
+  };
+
   // Delete functions
   const handleDeleteClick = (notificationId) => {
     setDeletingId(notificationId);
@@ -136,6 +190,11 @@ export default function NotificationHistory() {
           message: result.message,
           severity: "success"
         });
+        // Close dialog if the deleted notification was open
+        if (selectedNotification?.id === deletingId) {
+          setDetailsOpen(false);
+          setSelectedNotification(null);
+        }
       } else {
         setActionAlert({
           open: true,
@@ -155,6 +214,11 @@ export default function NotificationHistory() {
       setDeletingId(null);
     }
   };
+
+  // Recipients data
+  const totalRecipients = selectedNotification?.recipients?.length || 0;
+  const showingRecipientsCount = filteredRecipients.length;
+  const hasRecipientSearch = recipientSearchQuery.trim().length > 0;
 
   return (
     <Bx>
@@ -449,45 +513,168 @@ export default function NotificationHistory() {
                   />
                 </Paper>
 
-                {/* Recipients Section */}
+                {/* Enhanced Recipients Section with Search */}
                 {selectedNotification.recipients && selectedNotification.recipients.length > 0 && (
                   <Paper variant="outlined" sx={{ p: 2 }}>
-                    <T variant="subtitle1" gutterBottom>
-                      Recipients ({selectedNotification.recipients.length})
-                    </T>
+                    {/* Header */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <T variant="subtitle1" fontWeight="bold">
+                        Recipients
+                      </T>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                          icon={<Person fontSize="small" />}
+                          label={`${totalRecipients} total`}
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                        />
+                        {hasRecipientSearch && (
+                          <Chip 
+                            icon={<Search fontSize="small" />}
+                            label={`${showingRecipientsCount} found`}
+                            size="small"
+                            color="success"
+                          />
+                        )}
+                      </Stack>
+                    </Stack>
+
                     <Divider sx={{ mb: 2 }} />
-                    <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-                      {selectedNotification.recipients.slice(0, 10).map((recipient, index) => (
-                        <ListItem key={index}>
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: 'primary.light' }}>
-                              <Email fontSize="small" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={recipient.name}
-                            secondary={
-                              <>
-                                {recipient.email}
-                                {recipient.registration && (
-                                  <span style={{ display: 'block' }}>
-                                    Reg: {recipient.registration}
-                                  </span>
-                                )}
-                              </>
-                            }
-                          />
-                        </ListItem>
-                      ))}
-                      {selectedNotification.recipients.length > 10 && (
-                        <ListItem>
-                          <ListItemText
-                            primary={`... and ${selectedNotification.recipients.length - 10} more recipients`}
-                            sx={{ textAlign: 'center', fontStyle: 'italic' }}
-                          />
-                        </ListItem>
-                      )}
-                    </List>
+
+                    {/* Search Bar */}
+                    <Tf
+                      fullWidth
+                      size="small"
+                      placeholder="Search by name, email, or registration number..."
+                      value={recipientSearchQuery}
+                      onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Search sx={{ color: 'text.secondary', fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: recipientSearchQuery && (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={handleClearRecipientSearch}
+                              edge="end"
+                              sx={{ mr: -0.5 }}
+                            >
+                              <Clear fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ 
+                        mb: 2,
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                        }
+                      }}
+                    />
+
+                    {/* Search Results Info */}
+                    {hasRecipientSearch && (
+                      <Alert 
+                        severity={showingRecipientsCount > 0 ? "info" : "warning"}
+                        sx={{ mb: 2, py: 0.5 }}
+                        variant="outlined"
+                      >
+                        {showingRecipientsCount > 0 ? (
+                          <>
+                            Found <strong>{showingRecipientsCount}</strong> recipient{showingRecipientsCount !== 1 ? 's' : ''} 
+                            matching "<strong>{recipientSearchQuery}</strong>"
+                          </>
+                        ) : (
+                          <>
+                            No recipients found matching "<strong>{recipientSearchQuery}</strong>"
+                          </>
+                        )}
+                      </Alert>
+                    )}
+
+                    {/* Recipients List */}
+                    {showingRecipientsCount > 0 && (
+                      <>
+                        {/* Show/Hide Toggle for large lists */}
+                        {totalRecipients > 10 && !hasRecipientSearch && (
+                          <Stack direction="row" justifyContent="center" sx={{ mb: 1 }}>
+                            <IconButton 
+                              onClick={handleToggleRecipientsExpanded}
+                              size="small"
+                              sx={{ 
+                                bgcolor: 'grey.100',
+                                '&:hover': { bgcolor: 'grey.200' }
+                              }}
+                            >
+                              {recipientsExpanded ? <ExpandLess /> : <ExpandMore />}
+                              <T variant="caption" sx={{ ml: 0.5 }}>
+                                {recipientsExpanded ? 'Show Less' : `Show All ${totalRecipients}`}
+                              </T>
+                            </IconButton>
+                          </Stack>
+                        )}
+
+                        <List dense sx={{ maxHeight: recipientsExpanded || hasRecipientSearch ? 400 : 300, overflow: 'auto' }}>
+                          {(recipientsExpanded || hasRecipientSearch ? filteredRecipients : filteredRecipients.slice(0, 10))
+                            .map((recipient, index) => (
+                              <ListItem 
+                                key={`${recipient.email}-${index}`}
+                                sx={{
+                                  borderRadius: 1,
+                                  mb: 0.5,
+                                  bgcolor: hasRecipientSearch ? 'rgba(76, 175, 80, 0.04)' : 'transparent',
+                                  border: hasRecipientSearch ? '1px solid rgba(76, 175, 80, 0.2)' : 'none',
+                                  '&:hover': {
+                                    bgcolor: 'action.hover',
+                                  }
+                                }}
+                              >
+                                <ListItemAvatar>
+                                  <Avatar sx={{ bgcolor: '#4CAF50', width: 40, height: 40 }}>
+                                    <Email fontSize="small" />
+                                  </Avatar>
+                                </ListItemAvatar>
+                                
+                                <ListItemText
+                                  primary={
+                                    <T variant="subtitle2" sx={{ fontWeight: 500 }}>
+                                      {highlightSearchText(recipient.name || 'No Name', recipientSearchQuery)}
+                                    </T>
+                                  }
+                                  secondary={
+                                    <Bx>
+                                      <T variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                                        {highlightSearchText(recipient.email, recipientSearchQuery)}
+                                      </T>
+                                      {recipient.registration && (
+                                        <Stack direction="row" alignItems="center" spacing={1}>
+                                          <Badge fontSize="small" sx={{ color: 'text.secondary' }} />
+                                          <T variant="caption" color="text.secondary">
+                                            Reg: {highlightSearchText(recipient.registration, recipientSearchQuery)}
+                                          </T>
+                                        </Stack>
+                                      )}
+                                    </Bx>
+                                  }
+                                />
+                              </ListItem>
+                            ))}
+                        </List>
+
+                        {/* Show more indicator */}
+                        {!recipientsExpanded && !hasRecipientSearch && totalRecipients > 10 && (
+                          <Bx sx={{ textAlign: 'center', py: 1, bgcolor: 'grey.50', borderRadius: 1, mt: 1 }}>
+                            <T variant="caption" color="text.secondary">
+                              Showing 10 of {totalRecipients} recipients
+                            </T>
+                          </Bx>
+                        )}
+                      </>
+                    )}
                   </Paper>
                 )}
               </Stack>
