@@ -67,6 +67,11 @@ export default function NotificationBadge() {
   };
 
   const handleNotificationClick = async (notification) => {
+  
+
+    handleClose();
+    // Navigate directly to the specific notification view
+    navigate(`/notifications/${notification.id}`);
     // Mark as read if unread
     if (!notification.isRead) {
       setActionLoading(true);
@@ -74,8 +79,7 @@ export default function NotificationBadge() {
       setActionLoading(false);
     }
     
-    handleClose();
-    navigate('/notifications');
+    
   };
 
   const handleMarkAllRead = async () => {
@@ -289,7 +293,7 @@ export default function NotificationBadge() {
                       WebkitLineClamp: 2,
                     }}
                   >
-                    {extractPlainText(notification.content, 100)}
+                    {"Click to view details or mark as read."}
                   </T>
                   
                   {/* Read/Unread Status */}

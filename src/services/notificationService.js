@@ -100,6 +100,43 @@ export const getNotificationHistory = async (adminEmail, lastDoc = null, pageSiz
   }
 };
 
+/**
+ * Get a single notification by ID for a specific user
+ */
+export const getNotificationByIdForUser = async (notificationId, userEmail) => {
+  try {
+    const result = await getNotificationById(notificationId);
+    
+    if (!result.success) {
+      return result;
+    }
+    
+    // Check if user has access to this notification
+    if (!result.notification.targetUsers.includes(userEmail)) {
+      return { 
+        success: false, 
+        error: 'You do not have access to this notification' 
+      };
+    }
+    
+    // Check if user has read this notification
+    const readDocRef = doc(fireDB, "notificationReads", `${notificationId}_${userEmail}`);
+    const readDoc = await getDoc(readDocRef);
+    
+    return {
+      success: true,
+      notification: {
+        ...result.notification,
+        isRead: readDoc.exists(),
+        readAt: readDoc.exists() ? readDoc.data().readAt?.toDate() : null
+      }
+    };
+  } catch (error) {
+    console.error('Error getting notification for user:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const getNotificationById = async (notificationId) => {
   try {
     const docRef = doc(fireDB, "notifications", notificationId);

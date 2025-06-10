@@ -147,7 +147,7 @@ import {
                 }
               }}
               dangerouslySetInnerHTML={{ 
-                __html: notification.contentHtml || notification.content.replace(/\n/g, '<br>') 
+                __html: notification.contentHtml || (notification.content.replace(/\n/g, '<br>') ) || 'No content available'
               }}
             />
             
