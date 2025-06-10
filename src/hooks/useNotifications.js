@@ -4,7 +4,11 @@ import {
   getUserNotifications, 
   subscribeToNotifications,
   markNotificationAsRead,
-  markAllNotificationsAsRead 
+  markAllNotificationsAsRead,
+  deleteNotification, 
+  deleteMultipleNotifications, 
+  permanentlyDeleteNotification,
+  restoreNotification 
 } from '../services/notificationService';
 
 // src/hooks/useNotificationCount.js
@@ -186,6 +190,75 @@ export const useNotificationCount = (userEmail) => {
 
 
 
+// export const useNotificationHistory = (adminEmail) => {
+//   const [notifications, setNotifications] = useState([]);
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState(null);
+//   const [hasMore, setHasMore] = useState(true);
+//   const [lastDoc, setLastDoc] = useState(null);
+
+//   const loadHistory = useCallback(async (reset = true) => {
+//     if (!adminEmail) return;
+
+//     try {
+//       setLoading(true);
+//       setError(null);
+
+//       const result = await getNotificationHistory(
+//         adminEmail,
+//         reset ? null : lastDoc,
+//         20
+//       );
+
+//       if (result.success) {
+//         if (reset) {
+//           setNotifications(result.notifications);
+//         } else {
+//           setNotifications(prev => [...prev, ...result.notifications]);
+//         }
+
+//         setHasMore(result.hasMore);
+
+//         if (result.notifications.length > 0) {
+//           setLastDoc(result.notifications[result.notifications.length - 1].docRef);
+//         }
+//       } else {
+//         setError(result.error);
+//       }
+//     } catch (err) {
+//       console.error('Error loading notification history:', err);
+//       setError(err.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [adminEmail, lastDoc]);
+
+//   const loadMore = useCallback(() => {
+//     if (!loading && hasMore) {
+//       loadHistory(false);
+//     }
+//   }, [loading, hasMore, loadHistory]);
+
+//   const refresh = useCallback(() => {
+//     setLastDoc(null);
+//     setHasMore(true);
+//     loadHistory(true);
+//   }, [loadHistory]);
+
+//   useEffect(() => {
+//     loadHistory(true);
+//   }, [adminEmail]);
+
+//   return {
+//     notifications,
+//     loading,
+//     error,
+//     hasMore,
+//     loadMore,
+//     refresh
+//   };
+// };
+
 export const useNotificationHistory = (adminEmail) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -241,6 +314,86 @@ export const useNotificationHistory = (adminEmail) => {
     loadHistory(true);
   }, [loadHistory]);
 
+  // DELETE FUNCTIONS - NEW ADDITIONS
+
+  const deleteNotificationById = useCallback(async (notificationId) => {
+    if (!adminEmail) return { success: false, error: "Admin email required" };
+
+    try {
+      const result = await deleteNotification(notificationId, adminEmail);
+      
+      if (result.success) {
+        // Optimistically remove from local state
+        setNotifications(prev => 
+          prev.filter(notif => notif.id !== notificationId)
+        );
+      }
+      
+      return result;
+    } catch (err) {
+      console.error('Error deleting notification:', err);
+      return { success: false, error: err.message };
+    }
+  }, [adminEmail]);
+
+  const deleteMultiple = useCallback(async (notificationIds) => {
+    if (!adminEmail) return { success: false, error: "Admin email required" };
+
+    try {
+      const result = await deleteMultipleNotifications(notificationIds, adminEmail);
+      
+      if (result.success) {
+        // Optimistically remove from local state
+        setNotifications(prev => 
+          prev.filter(notif => !notificationIds.includes(notif.id))
+        );
+      }
+      
+      return result;
+    } catch (err) {
+      console.error('Error deleting multiple notifications:', err);
+      return { success: false, error: err.message };
+    }
+  }, [adminEmail]);
+
+  const permanentlyDelete = useCallback(async (notificationId) => {
+    if (!adminEmail) return { success: false, error: "Admin email required" };
+
+    try {
+      const result = await permanentlyDeleteNotification(notificationId, adminEmail);
+      
+      if (result.success) {
+        // Remove from local state
+        setNotifications(prev => 
+          prev.filter(notif => notif.id !== notificationId)
+        );
+      }
+      
+      return result;
+    } catch (err) {
+      console.error('Error permanently deleting notification:', err);
+      return { success: false, error: err.message };
+    }
+  }, [adminEmail]);
+
+  const restore = useCallback(async (notificationId) => {
+    if (!adminEmail) return { success: false, error: "Admin email required" };
+
+    try {
+      const result = await restoreNotification(notificationId, adminEmail);
+      
+      if (result.success) {
+        // Refresh the list to show restored notification
+        refresh();
+      }
+      
+      return result;
+    } catch (err) {
+      console.error('Error restoring notification:', err);
+      return { success: false, error: err.message };
+    }
+  }, [adminEmail, refresh]);
+
   useEffect(() => {
     loadHistory(true);
   }, [adminEmail]);
@@ -251,6 +404,11 @@ export const useNotificationHistory = (adminEmail) => {
     error,
     hasMore,
     loadMore,
-    refresh
+    refresh,
+    // NEW DELETE FUNCTIONS
+    deleteNotificationById,
+    deleteMultiple,
+    permanentlyDelete,
+    restore
   };
 };
