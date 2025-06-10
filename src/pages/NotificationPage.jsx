@@ -139,7 +139,7 @@ import {
         <Paper sx={{ p: 3, m: 2, borderRadius: 2 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" alignItems="center" spacing={2}>
-              <Notifications color="primary" sx={{ fontSize: 32 }} />
+              <Notifications sx={{ fontSize: 32, color: '#4CAF50' }} />
               <Bx>
                 <T variant="h4" fontWeight="bold">
                   Notifications
