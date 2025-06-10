@@ -5,16 +5,20 @@ import {
   Typography,
   Paper,
   Card,
-  CardContent
+  CardContent,
+  Alert,
+  AlertTitle
 } from "@mui/material";
 import {
   Science as ScienceIcon,
-  BiotechOutlined as BiotechIcon
+  BiotechOutlined as BiotechIcon,
+  Construction as ConstructionIcon
 } from '@mui/icons-material';
-import { collection } from "firebase/firestore";
+import { collection, doc, getDoc } from "firebase/firestore";
 import { NavLink, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
 import { useCollectionData } from "react-firebase-hooks/firestore";
+import { useState, useEffect } from "react";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import VCad from "../components/VCad";
@@ -35,6 +39,72 @@ export default function StuFileView() {
 
   const [tuts, loading] = useCollectionData(tutorialref);
   const [emails, emailLoading] = useCollectionData(emailListref);
+  const [enrichedTuts, setEnrichedTuts] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  // Fetch video statuses for each tutorial
+  useEffect(() => {
+    const fetchVideoStatuses = async () => {
+      if (!tuts || tuts.length === 0) return;
+      
+      setStatusLoading(true);
+      try {
+        const enrichedTutorials = await Promise.all(
+          tuts.map(async (tut) => {
+            // If tutorial has a handler, check if it exists in videos collection
+            if (tut.handler) {
+              try {
+                const videoDocRef = doc(fireDB, "videos", tut.handler);
+                const videoDoc = await getDoc(videoDocRef);
+                
+                if (videoDoc.exists()) {
+                  // Handler exists AND found in videos collection = New video with conversion
+                  const videoData = videoDoc.data();
+                  return {
+                    ...tut,
+                    videoStatus: videoData.status || 'processing',
+                    isLegacyVideo: false
+                  };
+                } else {
+                  // Handler exists but NOT found in videos collection = Legacy video
+                  return {
+                    ...tut,
+                    videoStatus: null,
+                    isLegacyVideo: true
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching video status for ${tut.handler}:`, error);
+                // Error fetching - treat as legacy
+                return {
+                  ...tut,
+                  videoStatus: null,
+                  isLegacyVideo: true
+                };
+              }
+            }
+            
+            // No handler - this is also a legacy video
+            return {
+              ...tut,
+              videoStatus: null,
+              isLegacyVideo: true
+            };
+          })
+        );
+        
+        setEnrichedTuts(enrichedTutorials);
+      } catch (error) {
+        console.error('Error enriching tutorials with video status:', error);
+        // Fallback to treating all as legacy videos
+        setEnrichedTuts(tuts.map(tut => ({ ...tut, videoStatus: null, isLegacyVideo: true })));
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+
+    fetchVideoStatuses();
+  }, [tuts]);
 
   if (loading) {
     return <Loading text="Loading Tutorials" />;
@@ -42,6 +112,10 @@ export default function StuFileView() {
   if (emailLoading) {
     return <Loading text="Checking Emails" />;
   }
+  if (statusLoading) {
+    return <Loading text="Loading Video Status" />;
+  }
+
   if (isAdmin) {
     emails.push({ email: user.email });
     console.log("giving access to admin: ", user.email);
@@ -89,6 +163,66 @@ export default function StuFileView() {
       }}
     >
       <Appbar />
+      
+            {/* Multi-Quality Video Feature Banner */}
+            <Alert 
+        severity="success" 
+        icon={<BiotechIcon />}
+        sx={{
+          borderRadius: 0,
+          background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(102, 187, 106, 0.08) 100%)',
+          border: '1px solid rgba(46, 125, 50, 0.3)',
+          borderLeft: 'none',
+          borderRight: 'none',
+          '& .MuiAlert-icon': {
+            color: '#2e7d32',
+            fontSize: '28px'
+          },
+          '& .MuiAlert-message': {
+            width: '100%'
+          }
+        }}
+      >
+        <AlertTitle sx={{ mb: 1, fontWeight: 700, color: '#1b5e20', fontSize: '1.1rem' }}>
+          🎉 New Feature: Multi-Quality Video Streaming Now Available!
+        </AlertTitle>
+        <Typography variant="body2" sx={{ color: '#2e7d32', mb: 0.5, fontWeight: 500 }}>
+          Experience adaptive streaming with multiple video quality options for new videos:
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📉 Lower data usage with quality selection
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            ⚡ Faster loading times
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📶 Adapt quality to your connection strength
+          </Typography>
+        </Box>
+      </Alert>
+      
       <Box
         sx={{
           display: "flex",
@@ -105,9 +239,6 @@ export default function StuFileView() {
           sx={{
             p: 3,
             borderRadius: 2,
-            // borderStyle: 'solid',
-            // borderWidth: 1,
-            // borderColor: '#2e7d32',
             bgcolor: 'customColors.cytoplasm',
             display: 'flex',
             alignItems: 'center',
@@ -128,8 +259,8 @@ export default function StuFileView() {
             position: 'relative'
           }}
         >
-          {tuts.length > 0 ? (
-            tuts.map((tut, index) => (
+          {enrichedTuts.length > 0 ? (
+            enrichedTuts.map((tut, index) => (
               <Grid
                 item
                 key={index}

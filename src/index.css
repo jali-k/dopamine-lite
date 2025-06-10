@@ -39,6 +39,20 @@ video::-webkit-media-controls-fullscreen-button {
   animation: rotate 20s linear infinite;
 }
 
+.preserve-whitespace {
+  white-space: pre-wrap !important;
+}
+
+.markdown-body p {
+  white-space: pre-wrap !important;
+  margin-bottom: 1em;
+}
+
+.MuiCardContent-root .markdown-body {
+  white-space: pre-wrap !important;
+  word-break: break-word;
+}
+
 .watermark {
   position: absolute;
   pointer-events: none;
