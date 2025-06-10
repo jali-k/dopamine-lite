@@ -21,9 +21,12 @@ import MessageCenter from "./pages/admin/MessageCenter";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import EmailValidatorPage from "./pages/admin/EmailValidatorPage"; // Import the new EmailValidator component
 import StudentDashboard from "./pages/StudentDashboard"; // Import the new StudentDashboard component
-import NotificationCenterPage from "./pages/admin/NotificationCenterPage"; // Import the new NotificationCenter component
+import NotificationCenterPage from "./pages/admin/NotificationCenterPage"; // Import the existing NotificationCenter component
+import PersonalizedNotificationCenter from "./pages/admin/PersonalizedNotificationCenter"; // Import the new PersonalizedNotificationCenter component
 import NotificationPage from "./pages/NotificationPage"; // Import the student notification page
-
+import PersonalizedNotificationPage from "./pages/PersonalizedNotificationPage"; // Import the new PersonalizedNotificationPage component
+import PersonalizedNotificationViewPage from "./pages/PersonalizedNotificationViewPage"; 
+import NotificationViewPage from "./pages/NotificationViewPage";
 const theme = createTheme();
 
 export default function App() {
@@ -56,6 +59,7 @@ export default function App() {
           <Route path="/pdf/:fname" element={<PDFFileView />} />
           <Route path="/pdf/:fname/:lname" element={<PDFPage />} />
           <Route path="/notifications" element={<NotificationPage />} />
+          <Route path="/notifications/:id" element={<NotificationViewPage />} />
 
           {/* Admin routes */}
           <Route path="/admin" element={<AdminDashboard />} />
@@ -74,9 +78,16 @@ export default function App() {
           <Route path="/admin/messages/history" element={<MessageCenter />} />
           <Route path="/admin/messages/templates" element={<MessageCenter />} />
           
-          {/* Notification Center routes */}
+          {/* Original Notification Center routes */}
           <Route path="/admin/notifications" element={<NotificationCenterPage />} />
           <Route path="/admin/notifications/history" element={<NotificationCenterPage />} />
+          
+          {/* NEW: Personalized Notification Center routes */}
+          <Route path="/personalizednotifications" element={<PersonalizedNotificationPage />} />
+          <Route path="/personalizednotifications/:id" element={<PersonalizedNotificationViewPage />} />
+          <Route path="/admin/personalizednotifications" element={<PersonalizedNotificationCenter />} />
+          <Route path="/admin/personalizednotifications/history" element={<PersonalizedNotificationCenter />} />
+          <Route path="/admin/personalizednotifications/templates" element={<PersonalizedNotificationCenter />} />
           
           {/* Email Validator route */}
           <Route path="/admin/email-validator" element={<EmailValidatorPage />} />

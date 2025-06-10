@@ -1,4 +1,4 @@
-// src/components/Appbar.jsx
+// src/components/Appbar.jsx - Updated with both badges
 import {
   Home,
   NavigateNext,
@@ -10,7 +10,8 @@ import {
   Description as DescriptionIcon,
   Dashboard as DashboardIcon,
   AlternateEmail as AlternateEmailIcon,
-  Notifications as NotificationsIcon
+  Notifications as NotificationsIcon,
+  NotificationsActive as NotificationsActiveIcon // Add this import
 } from "@mui/icons-material";
 import {
   AppBar,
@@ -34,6 +35,7 @@ import { useState } from "react";
 import appIcon from '../assets/icon.jpg';
 import { Colors } from "../themes/colours";
 import NotificationBadge from "./notifications/NotificationBadge";
+import PersonalizedNotificationBadge from "./personalizednotifications/PersonalizedNotificationBadge"; // NEW
 
 export default function Appbar() {
   const { user, isAdmin } = useUser();
@@ -97,9 +99,14 @@ export default function Appbar() {
             </Typography>
           </Stack>
           
-          {/* Right side with notification badge and user avatar */}
+          {/* Right side with BOTH notification badges and user avatar */}
           <Stack direction="row" alignItems="center" spacing={1}>
+            {/* Regular Notification Badge (Bell) */}
             <NotificationBadge />
+            
+            {/* NEW: Personalized Notification Badge (Message) */}
+            <PersonalizedNotificationBadge />
+            
             <IconButton
               onClick={handleClick}
               sx={{
@@ -278,6 +285,25 @@ export default function Appbar() {
               </ListItemIcon>
               <Typography variant="body2" color="text.secondary">
                 Notification Center
+              </Typography>
+            </MenuItem>
+            
+            {/* NEW: Add Personalized Notifications to admin menu */}
+            <MenuItem
+              component={Link}
+              to="/admin/personalizednotifications"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <NotificationsActiveIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Personalized Notifications
               </Typography>
             </MenuItem>
             

@@ -20,6 +20,7 @@ import {
   Folder,
   AlternateEmail,
   Notifications,
+  NotificationsActive,
 } from "@mui/icons-material";
 import { useUser } from "../../contexts/UserProvider";
 import { useState, useEffect } from "react";
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
     pdfFolders: 0,
     totalMessages: 0,
     totalNotifications: 0,
+    totalPersonalizedNotifications: 0, // NEW: Personalized notifications count
   });
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +59,7 @@ export default function AdminDashboard() {
           // This is fine for first-time setup
         }
         
-        // Fetch notification stats
+        // Fetch original notification stats
         let notificationCount = 0;
         try {
           const notificationsRef = collection(fireDB, "notifications");
@@ -68,12 +70,24 @@ export default function AdminDashboard() {
           // This is fine for first-time setup
         }
         
+        // NEW: Fetch personalized notification stats
+        let personalizedNotificationCount = 0;
+        try {
+          const personalizedNotificationsRef = collection(fireDB, "personalizedNotificationQueue");
+          const personalizedNotificationsSnapshot = await getDocs(personalizedNotificationsRef);
+          personalizedNotificationCount = personalizedNotificationsSnapshot.size;
+        } catch (error) {
+          console.log("Personalized notifications may not exist yet:", error);
+          // This is fine for first-time setup
+        }
+        
         // Update stats
         setStats({
           videoFolders: videoFoldersSnapshot.size,
           pdfFolders: pdfFoldersSnapshot.size,
           totalMessages: messageCount,
           totalNotifications: notificationCount,
+          totalPersonalizedNotifications: personalizedNotificationCount,
         });
         setLoading(false);
       } catch (error) {
@@ -131,16 +145,27 @@ export default function AdminDashboard() {
       path: "/admin/messages",
       count: stats.totalMessages,
       countLabel: "Messages Sent",
-      highlight: true, // Highlight this as a new feature
+      // highlight: true, // Highlight this as a feature
     },
     {
       title: "Notification Center",
-      description: "Send announcements and notifications to students",
+      description: "Send basic announcements and notifications to students",
       icon: <Notifications sx={{ fontSize: 60, color: "warning.main" }} />,
       path: "/admin/notifications",
       count: stats.totalNotifications,
       countLabel: "Notifications Sent",
       highlight: true, // Highlight this as a new feature
+      isNew: true, // Mark as completely new
+    },
+    {
+      title: "Personalized Notifications",
+      description: "Send dynamic, personalized notifications with placeholders and rich formatting",
+      icon: <NotificationsActive sx={{ fontSize: 60, color: "secondary.main" }} />,
+      path: "/admin/personalizednotifications",
+      count: stats.totalPersonalizedNotifications,
+      countLabel: "Campaigns Sent",
+      highlight: true, // Highlight this as a new feature
+      isNew: true, // Mark as completely new
     },
     {
       title: "Email Validator",
@@ -193,14 +218,14 @@ export default function AdminDashboard() {
               <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', color: 'warning.contrastText' }}>
                 <Notifications sx={{ fontSize: 40, mb: 1 }} />
                 <T variant="h5">{stats.totalNotifications}</T>
-                <T variant="body2">Notifications</T>
+                <T variant="body2">Basic Notifications</T>
               </Paper>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light', color: 'error.contrastText' }}>
-                <PictureAsPdf sx={{ fontSize: 40, mb: 1 }} />
-                <T variant="h5">{stats.videoFolders}</T>
-                <T variant="body2">Video Folders</T>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'secondary.light', color: 'secondary.contrastText' }}>
+                <NotificationsActive sx={{ fontSize: 40, mb: 1 }} />
+                <T variant="h5">{stats.totalPersonalizedNotifications}</T>
+                <T variant="body2">Personalized Campaigns</T>
               </Paper>
             </Grid>
           </Grid>
@@ -210,7 +235,7 @@ export default function AdminDashboard() {
         
         <Grid container spacing={3}>
           {adminModules.map((module, index) => (
-            <Grid item xs={12} md={4} lg={3} key={index}>
+            <Grid item xs={12} md={4} lg={4} key={index}>
               <Card 
                 sx={{ 
                   height: '100%',
@@ -219,6 +244,7 @@ export default function AdminDashboard() {
                     transform: 'translateY(-4px)',
                     boxShadow: module.highlight ? 
                       (module.title === "Notification Center" ? '0 8px 24px rgba(255, 152, 0, 0.25)' :
+                       module.title === "Personalized Notifications" ? '0 8px 24px rgba(156, 39, 176, 0.25)' :
                        module.title === "Email Validator" ? '0 8px 24px rgba(33, 150, 243, 0.25)' : 
                        '0 8px 24px rgba(76, 175, 80, 0.25)') : 
                       '0 8px 24px rgba(0, 0, 0, 0.1)',
@@ -226,6 +252,7 @@ export default function AdminDashboard() {
                   border: module.highlight ? '1px solid' : 'none',
                   borderColor: module.highlight ? (
                     module.title === "Notification Center" ? 'warning.main' :
+                    module.title === "Personalized Notifications" ? 'secondary.main' :
                     module.title === "Email Validator" ? 'info.main' : 
                     'success.main'
                   ) : 'transparent',
@@ -243,13 +270,15 @@ export default function AdminDashboard() {
                       <T variant="h6">{module.title}</T>
                       {module.highlight && (
                         <Chip 
-                          label="New" 
+                          label={module.isNew ? "New!" : "New"} 
                           color={
                             module.title === "Notification Center" ? "warning" :
+                            module.title === "Personalized Notifications" ? "secondary" :
                             module.title === "Email Validator" ? "info" : 
                             "success"
                           } 
                           size="small"
+                          variant={module.isNew ? "filled" : "outlined"}
                         />
                       )}
                     </Stack>
@@ -262,6 +291,7 @@ export default function AdminDashboard() {
                       size="small"
                       color={module.highlight ? (
                         module.title === "Notification Center" ? "warning" :
+                        module.title === "Personalized Notifications" ? "secondary" :
                         module.title === "Email Validator" ? "info" : 
                         "success"
                       ) : "default"}
@@ -272,6 +302,41 @@ export default function AdminDashboard() {
             </Grid>
           ))}
         </Grid>
+        
+        {/* Feature Comparison Info */}
+        <Paper sx={{ mt: 4, p: 3, bgcolor: 'grey.50' }}>
+          <T variant="h6" gutterBottom>Communication Tools Comparison</T>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={4}>
+              <Stack spacing={1}>
+                <T variant="subtitle1" color="success.main">📧 Message Center</T>
+                <T variant="body2">• Sends emails via SendGrid</T>
+                <T variant="body2">• Payment confirmations</T>
+                <T variant="body2">• External email delivery</T>
+                <T variant="body2">• Template-based messages</T>
+              </Stack>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Stack spacing={1}>
+                <T variant="subtitle1" color="warning.main">🔔 Notification Center</T>
+                <T variant="body2">• Basic in-app notifications</T>
+                <T variant="body2">• Simple announcements</T>
+                <T variant="body2">• No personalization</T>
+                <T variant="body2">• Standard formatting</T>
+              </Stack>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Stack spacing={1}>
+                <T variant="subtitle1" color="secondary.main">🎯 Personalized Notifications</T>
+                <T variant="body2">• Dynamic content with placeholders</T>
+                <T variant="body2">• Rich text formatting & links</T>
+                <T variant="body2">• CSV-based targeting</T>
+                <T variant="body2">• Template management</T>
+                <T variant="body2">• Real-time delivery tracking</T>
+              </Stack>
+            </Grid>
+          </Grid>
+        </Paper>
       </Bx>
     </Container>
   );
