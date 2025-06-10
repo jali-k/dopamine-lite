@@ -1,443 +1,552 @@
 // src/components/admin/NotificationHistory.jsx
 import {
-    Box as Bx,
-    Paper,
-    Typography as T,
-    Grid,
-    Card,
-    CardContent,
-    CardActions,
-    Button as B,
-    Chip,
-    Stack,
-    InputAdornment,
-    TextField as Tf,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    IconButton,
-    LinearProgress,
-    Divider,
-    Avatar,
-    List,
-    ListItem,
-    ListItemAvatar,
-    ListItemText,
-    Pagination,
-    Tooltip,
-  } from "@mui/material";
-  import {
-    RemoveRedEye,
-    Search,
-    CheckCircle,
-    Schedule,
-    Error as ErrorIcon,
-    Close,
-    Email,
-    Notifications,
-    TrendingUp,
-  } from "@mui/icons-material";
-  import { useState, useEffect } from "react";
-  import { useUser } from "../../contexts/UserProvider";
-  import { useNotificationHistory } from "../../hooks/useNotifications";
-  import { format } from "date-fns";
-  
-  export default function NotificationHistory() {
-    const { user } = useUser();
-    const {
-      notifications,
-      loading,
-      error,
-      hasMore,
-      loadMore,
-      refresh
-    } = useNotificationHistory(user.email);
-  
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedNotification, setSelectedNotification] = useState(null);
-    const [detailsOpen, setDetailsOpen] = useState(false);
-    const [page, setPage] = useState(1);
-    const itemsPerPage = 6;
-  
-    // Filter notifications based on search term
-    const filteredNotifications = notifications.filter(notification =>
-      notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      notification.content.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  
-    // Pagination
-    const totalPages = Math.ceil(filteredNotifications.length / itemsPerPage);
-    const paginatedNotifications = filteredNotifications.slice(
-      (page - 1) * itemsPerPage,
-      page * itemsPerPage
-    );
-  
-    const handleViewDetails = (notification) => {
-      setSelectedNotification(notification);
-      setDetailsOpen(true);
-    };
-  
-    const getStatusColor = (status) => {
-      switch (status) {
-        case 'processed':
-          return 'success';
-        case 'processing':
-          return 'warning';
-        case 'error':
-          return 'error';
-        default:
-          return 'default';
+  Box as Bx,
+  Paper,
+  Typography as T,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Button as B,
+  Chip,
+  Stack,
+  InputAdornment,
+  TextField as Tf,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  LinearProgress,
+  Divider,
+  Avatar,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Pagination,
+  Tooltip,
+  Checkbox,
+  Alert,
+  Snackbar
+} from "@mui/material";
+import {
+  RemoveRedEye,
+  Search,
+  CheckCircle,
+  Schedule,
+  Error as ErrorIcon,
+  Close,
+  Email,
+  Notifications,
+  TrendingUp,
+  DeleteForever,
+  SelectAll,
+  ClearAll
+} from "@mui/icons-material";
+import { useState, useEffect } from "react";
+import { useUser } from "../../contexts/UserProvider";
+import { useNotificationHistory } from "../../hooks/useNotifications";
+import { format } from "date-fns";
+import { processMarkdownLinks } from "../../services/notificationService";
+
+export default function NotificationHistory() {
+  const { user } = useUser();
+  const {
+    notifications,
+    loading,
+    error,
+    hasMore,
+    loadMore,
+    refresh,
+    permanentlyDelete
+  } = useNotificationHistory(user.email);
+
+  // State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 6;
+
+  // Delete functionality
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionAlert, setActionAlert] = useState({ open: false, message: "", severity: "success" });
+
+  // Filter notifications based on search term
+  const filteredNotifications = notifications.filter(notification =>
+    notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    notification.content.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Pagination
+  const totalPages = Math.ceil(filteredNotifications.length / itemsPerPage);
+  const paginatedNotifications = filteredNotifications.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
+
+  // Helper functions
+  const handleViewDetails = (notification) => {
+    setSelectedNotification(notification);
+    setDetailsOpen(true);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'processed': return 'success';
+      case 'processing': return 'warning';
+      case 'error': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'processed': return <CheckCircle fontSize="small" />;
+      case 'processing': return <Schedule fontSize="small" />;
+      case 'error': return <ErrorIcon fontSize="small" />;
+      default: return <Schedule fontSize="small" />;
+    }
+  };
+
+  const calculateReadPercentage = (notification) => {
+    if (!notification.totalRecipients || notification.totalRecipients === 0) return 0;
+    return Math.round((notification.readCount / notification.totalRecipients) * 100);
+  };
+
+  // Delete functions
+  const handleDeleteClick = (notificationId) => {
+    setDeletingId(notificationId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingId) return;
+
+    setActionLoading(true);
+    try {
+      const result = await permanentlyDelete(deletingId);
+
+      if (result.success) {
+        setActionAlert({
+          open: true,
+          message: result.message,
+          severity: "success"
+        });
+      } else {
+        setActionAlert({
+          open: true,
+          message: result.error,
+          severity: "error"
+        });
       }
-    };
-  
-    const getStatusIcon = (status) => {
-      switch (status) {
-        case 'processed':
-          return <CheckCircle fontSize="small" />;
-        case 'processing':
-          return <Schedule fontSize="small" />;
-        case 'error':
-          return <ErrorIcon fontSize="small" />;
-        default:
-          return <Schedule fontSize="small" />;
-      }
-    };
-  
-    const calculateReadPercentage = (notification) => {
-      if (!notification.totalRecipients || notification.totalRecipients === 0) return 0;
-      return Math.round((notification.readCount / notification.totalRecipients) * 100);
-    };
-  
-    return (
-      <Bx>
-        <Paper sx={{ p: 3, mb: 2 }}>
-          <T variant="h5" gutterBottom>Notification History</T>
-  
-          {/* Search Bar */}
-          <Tf
-            fullWidth
-            placeholder="Search notifications..."
-            variant="outlined"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setPage(1); // Reset to first page when searching
-            }}
-            sx={{ mb: 3 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
-          />
-  
-          {loading && <LinearProgress sx={{ mb: 2 }} />}
-  
-          {error && (
-            <Paper
-              variant="outlined"
-              sx={{ p: 2, mb: 2, bgcolor: "error.light" }}
-            >
-              <T color="error">{error}</T>
-            </Paper>
-          )}
-  
-          {!loading && filteredNotifications.length === 0 && (
-            <Bx
-              sx={{
-                textAlign: "center",
-                py: 4,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 2
-              }}
-            >
-              <Notifications sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
-              {searchTerm ? (
-                <T variant="body1" color="text.secondary">
-                  No notifications match your search criteria
-                </T>
-              ) : (
-                <T variant="body1" color="text.secondary">
-                  No notifications sent yet. Create your first notification to see it here.
-                </T>
-              )}
-            </Bx>
-          )}
-  
-          <Grid container spacing={2}>
-            {paginatedNotifications.map((notification) => (
-              <Grid item xs={12} md={6} key={notification.id}>
-                <Card
-                  variant="outlined"
-                  sx={{
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    transition: 'box-shadow 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    }
-                  }}
-                >
-                  <CardContent sx={{ flex: 1 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
-                      <T variant="h6" noWrap sx={{ flex: 1, mr: 1 }}>
-                        {notification.title}
-                      </T>
+    } catch (error) {
+      setActionAlert({
+        open: true,
+        message: "An unexpected error occurred",
+        severity: "error"
+      });
+    } finally {
+      setActionLoading(false);
+      setDeleteConfirmOpen(false);
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <Bx>
+      <Paper sx={{ p: 3, mb: 2 }}>
+        {/* Header */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+          <T variant="h5">Notification History</T>
+        </Stack>
+
+        {/* Search Bar */}
+        <Tf
+          fullWidth
+          placeholder="Search notifications..."
+          variant="outlined"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPage(1);
+          }}
+          sx={{ mb: 3 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search />
+              </InputAdornment>
+            ),
+          }}
+        />
+
+        {loading && <LinearProgress sx={{ mb: 2 }} />}
+
+        {error && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: "error.light" }}>
+            <T color="error">{error}</T>
+          </Paper>
+        )}
+
+        {!loading && filteredNotifications.length === 0 && (
+          <Bx sx={{ textAlign: "center", py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <Notifications sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
+            {searchTerm ? (
+              <T variant="body1" color="text.secondary">
+                No notifications match your search criteria
+              </T>
+            ) : (
+              <T variant="body1" color="text.secondary">
+                No notifications sent yet. Create your first notification to see it here.
+              </T>
+            )}
+          </Bx>
+        )}
+
+        <Grid container spacing={2}>
+          {paginatedNotifications.map((notification) => (
+            <Grid item xs={12} md={6} key={notification.id}>
+              <Card
+                variant="outlined"
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'box-shadow 0.3s ease',
+                  '&:hover': {
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  }
+                }}
+              >
+                <CardContent sx={{ flex: 1 }}>
+                  {/* Title and Delete Button */}
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
+                    <T variant="h6" noWrap sx={{ flex: 1, mr: 1 }}>
+                      {notification.title}
+                    </T>
+                    
+                    <Stack direction="row" spacing={1} alignItems="center">
                       <Chip
                         icon={getStatusIcon(notification.status)}
                         label={notification.status || 'processing'}
                         size="small"
                         color={getStatusColor(notification.status)}
                       />
+                      
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteClick(notification.id)}
+                        sx={{
+                          '&:hover': {
+                            backgroundColor: 'error.light',
+                            color: 'error.dark'
+                          }
+                        }}
+                      >
+                        <DeleteForever fontSize="small" />
+                      </IconButton>
                     </Stack>
-  
-                    <T
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        mb: 2,
-                        display: '-webkit-box',
-                        overflow: 'hidden',
-                        WebkitBoxOrient: 'vertical',
-                        WebkitLineClamp: 3,
-                        lineHeight: 1.4,
-                        height: '4.2em', // 3 lines * 1.4 line height
-                      }}
-                    >
-                      {notification.content}
-                    </T>
-  
-                    <Stack spacing={1}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  </Stack>
+
+                  <T
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      mb: 2,
+                      display: '-webkit-box',
+                      overflow: 'hidden',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 3,
+                      lineHeight: 1.4,
+                      height: '4.2em',
+                    }}
+                  >
+                    {notification.content}
+                  </T>
+
+                  <Stack spacing={1}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <T variant="caption" color="text.secondary">
+                        Sent: {format(notification.createdAt, "MMM d, yyyy 'at' h:mm a")}
+                      </T>
+                      <Chip
+                        label={`${notification.totalRecipients} recipients`}
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                      />
+                    </Stack>
+
+                    <Bx>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                        <T variant="caption" color="text.secondary">Read Rate</T>
                         <T variant="caption" color="text.secondary">
-                          Sent: {format(notification.createdAt, "MMM d, yyyy 'at' h:mm a")}
+                          {notification.readCount || 0} / {notification.totalRecipients} ({calculateReadPercentage(notification)}%)
                         </T>
-                        <Chip
-                          label={`${notification.totalRecipients} recipients`}
-                          size="small"
-                          variant="outlined"
-                          color="primary"
-                        />
                       </Stack>
-  
-                      {/* Read Statistics */}
-                      <Bx>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-                          <T variant="caption" color="text.secondary">
-                            Read Rate
-                          </T>
-                          <T variant="caption" color="text.secondary">
-                            {notification.readCount || 0} / {notification.totalRecipients} ({calculateReadPercentage(notification)}%)
-                          </T>
-                        </Stack>
-                        <LinearProgress
-                          variant="determinate"
-                          value={calculateReadPercentage(notification)}
-                          sx={{
-                            height: 4,
-                            borderRadius: 2,
-                            bgcolor: 'rgba(0,0,0,0.1)',
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 2,
-                            }
-                          }}
-                        />
-                      </Bx>
-                    </Stack>
-                  </CardContent>
-  
-                  <CardActions sx={{ justifyContent: 'space-between', p: 2, pt: 0 }}>
-                    <B
-                      startIcon={<RemoveRedEye />}
-                      onClick={() => handleViewDetails(notification)}
-                      size="small"
-                      variant="outlined"
-                    >
-                      View Details
-                    </B>
-  
-                    <Stack direction="row" spacing={1}>
-                      <Tooltip title="Total Recipients">
-                        <Chip
-                          icon={<Email fontSize="small" />}
-                          label={notification.totalRecipients}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Tooltip>
-                      <Tooltip title="Read Count">
-                        <Chip
-                          icon={<TrendingUp fontSize="small" />}
-                          label={notification.readCount || 0}
-                          size="small"
-                          variant="outlined"
-                          color="success"
-                        />
-                      </Tooltip>
-                    </Stack>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-  
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <Bx sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={(e, newPage) => setPage(newPage)}
-                color="primary"
-                showFirstButton
-                showLastButton
-              />
-            </Bx>
-          )}
-  
-          {/* Load More for infinite scrolling */}
-          {hasMore && !searchTerm && page === totalPages && (
-            <Bx sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <B onClick={loadMore} disabled={loading}>
-                Load More
-              </B>
-            </Bx>
-          )}
-        </Paper>
-  
-        {/* Notification Details Dialog */}
-        <Dialog
-          open={detailsOpen}
-          onClose={() => setDetailsOpen(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>
-            Notification Details
-            <IconButton
-              aria-label="close"
-              onClick={() => setDetailsOpen(false)}
-              sx={{
-                position: 'absolute',
-                right: 8,
-                top: 8,
-                color: (theme) => theme.palette.grey[500],
-              }}
-            >
-              <Close />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent>
-            {selectedNotification && (
-              <Bx>
-                <Stack spacing={2}>
-                  {/* Basic Info */}
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <T variant="h6" gutterBottom>{selectedNotification.title}</T>
-                    <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                      <Chip
-                        icon={getStatusIcon(selectedNotification.status)}
-                        label={selectedNotification.status || 'processing'}
-                        color={getStatusColor(selectedNotification.status)}
+                      <LinearProgress
+                        variant="determinate"
+                        value={calculateReadPercentage(notification)}
+                        sx={{
+                          height: 4,
+                          borderRadius: 2,
+                          bgcolor: 'rgba(0,0,0,0.1)',
+                          '& .MuiLinearProgress-bar': { borderRadius: 2 }
+                        }}
                       />
+                    </Bx>
+                  </Stack>
+                </CardContent>
+
+                <CardActions sx={{ justifyContent: 'space-between', p: 2, pt: 0 }}>
+                  <B
+                    startIcon={<RemoveRedEye />}
+                    onClick={() => handleViewDetails(notification)}
+                    size="small"
+                    variant="outlined"
+                  >
+                    View Details
+                  </B>
+
+                  <Stack direction="row" spacing={1}>
+                    <Tooltip title="Total Recipients">
                       <Chip
-                        label={`${selectedNotification.totalRecipients} recipients`}
+                        icon={<Email fontSize="small" />}
+                        label={notification.totalRecipients}
+                        size="small"
                         variant="outlined"
                       />
+                    </Tooltip>
+                    <Tooltip title="Read Count">
                       <Chip
-                        label={`${selectedNotification.readCount || 0} read (${calculateReadPercentage(selectedNotification)}%)`}
+                        icon={<TrendingUp fontSize="small" />}
+                        label={notification.readCount || 0}
+                        size="small"
+                        variant="outlined"
                         color="success"
-                        variant="outlined"
                       />
-                    </Stack>
-                    <T variant="body2" color="text.secondary">
-                      <strong>Sent:</strong> {format(selectedNotification.createdAt, "PPpp")}
-                    </T>
-                    {selectedNotification.processedAt && (
-                      <T variant="body2" color="text.secondary">
-                        <strong>Processed:</strong> {format(selectedNotification.processedAt, "PPpp")}
-                      </T>
-                    )}
-                  </Paper>
-  
-                  {/* Content */}
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <T variant="subtitle1" gutterBottom>Content</T>
-                    <Divider sx={{ mb: 2 }} />
-                    <Bx 
-                      sx={{
-                        '& a': {
-                          color: 'primary.main',
-                          textDecoration: 'underline',
-                        },
-                        '& strong': {
-                          fontWeight: 'bold'
-                        },
-                        '& em': {
-                          fontStyle: 'italic'
-                        }
-                      }}
-                      dangerouslySetInnerHTML={{ 
-                        __html: selectedNotification.contentHtml || selectedNotification.content 
-                      }}
+                    </Tooltip>
+                  </Stack>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <Bx sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Pagination
+              count={totalPages}
+              page={page}
+              onChange={(e, newPage) => setPage(newPage)}
+              color="primary"
+              showFirstButton
+              showLastButton
+            />
+          </Bx>
+        )}
+
+        {/* Load More */}
+        {hasMore && !searchTerm && page === totalPages && (
+          <Bx sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+            <B onClick={loadMore} disabled={loading}>
+              Load More
+            </B>
+          </Bx>
+        )}
+      </Paper>
+
+      {/* Notification Details Dialog */}
+      <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Notification Details
+          <IconButton
+            aria-label="close"
+            onClick={() => setDetailsOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8, color: (theme) => theme.palette.grey[500] }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedNotification && (
+            <Bx>
+              <Stack spacing={2}>
+                {/* Basic Info with delete button */}
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
+                    <T variant="h6" sx={{ flex: 1 }}>{selectedNotification.title}</T>
+                    <B
+                      color="error"
+                      size="small"
+                      startIcon={<DeleteForever />}
+                      onClick={() => handleDeleteClick(selectedNotification.id)}
+                    >
+                      Delete Permanently
+                    </B>
+                  </Stack>
+                  
+                  <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+                    <Chip
+                      icon={getStatusIcon(selectedNotification.status)}
+                      label={selectedNotification.status || 'processing'}
+                      color={getStatusColor(selectedNotification.status)}
                     />
-                  </Paper>
-  
-                  {/* Recipients Sample */}
-                  {selectedNotification.recipients && selectedNotification.recipients.length > 0 && (
-                    <Paper variant="outlined" sx={{ p: 2 }}>
-                      <T variant="subtitle1" gutterBottom>
-                        Recipients ({selectedNotification.recipients.length})
-                      </T>
-                      <Divider sx={{ mb: 2 }} />
-                      <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-                        {selectedNotification.recipients.slice(0, 10).map((recipient, index) => (
-                          <ListItem key={index}>
-                            <ListItemAvatar>
-                              <Avatar sx={{ bgcolor: 'primary.light' }}>
-                                <Email fontSize="small" />
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={recipient.name}
-                              secondary={
-                                <>
-                                  {recipient.email}
-                                  {recipient.registration && (
-                                    <span style={{ display: 'block' }}>
-                                      Reg: {recipient.registration}
-                                    </span>
-                                  )}
-                                </>
-                              }
-                            />
-                          </ListItem>
-                        ))}
-                        {selectedNotification.recipients.length > 10 && (
-                          <ListItem>
-                            <ListItemText
-                              primary={`... and ${selectedNotification.recipients.length - 10} more recipients`}
-                              sx={{ textAlign: 'center', fontStyle: 'italic' }}
-                            />
-                          </ListItem>
-                        )}
-                      </List>
-                    </Paper>
+                    <Chip
+                      label={`${selectedNotification.totalRecipients} recipients`}
+                      variant="outlined"
+                    />
+                    <Chip
+                      label={`${selectedNotification.readCount || 0} read (${calculateReadPercentage(selectedNotification)}%)`}
+                      color="success"
+                      variant="outlined"
+                    />
+                  </Stack>
+                  
+                  <T variant="body2" color="text.secondary">
+                    <strong>Sent:</strong> {format(selectedNotification.createdAt, "PPpp")}
+                  </T>
+                  {selectedNotification.processedAt && (
+                    <T variant="body2" color="text.secondary">
+                      <strong>Processed:</strong> {format(selectedNotification.processedAt, "PPpp")}
+                    </T>
                   )}
-                </Stack>
-              </Bx>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <B onClick={() => setDetailsOpen(false)}>Close</B>
-          </DialogActions>
-        </Dialog>
-      </Bx>
-    );
-  }
+                </Paper>
+
+                {/* Content Section */}
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <T variant="subtitle1" gutterBottom>Content</T>
+                  <Divider sx={{ mb: 2 }} />
+                  <Bx 
+                    sx={{
+                      '& a': { color: 'primary.main', textDecoration: 'underline', transition: 'all 0.2s ease', '&:hover': { textDecoration: 'none', color: 'primary.dark' } },
+                      '& strong': { fontWeight: 600, color: 'text.primary' },
+                      '& em': { fontStyle: 'italic', color: 'text.secondary' },
+                      '& p': { margin: '0 0 1.2em 0', lineHeight: 1.7, '&:last-child': { marginBottom: 0 }, '&:first-of-type': { marginTop: 0 } },
+                      '& br': { lineHeight: 1.7 },
+                      fontSize: '0.95rem',
+                      lineHeight: 1.7,
+                      color: 'text.primary',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'break-word',
+                      maxHeight: '400px',
+                      overflowY: 'auto',
+                      padding: '8px 0',
+                      '&::-webkit-scrollbar': { width: '6px' },
+                      '&::-webkit-scrollbar-track': { background: '#f1f1f1', borderRadius: '3px' },
+                      '&::-webkit-scrollbar-thumb': { background: '#c1c1c1', borderRadius: '3px', '&:hover': { background: '#a1a1a1' } }
+                    }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: selectedNotification.contentHtml || 
+                             (selectedNotification.content ? processMarkdownLinks(selectedNotification.content) : "<em style='color: #999;'>No content available</em>") 
+                    }}
+                  />
+                </Paper>
+
+                {/* Recipients Section */}
+                {selectedNotification.recipients && selectedNotification.recipients.length > 0 && (
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <T variant="subtitle1" gutterBottom>
+                      Recipients ({selectedNotification.recipients.length})
+                    </T>
+                    <Divider sx={{ mb: 2 }} />
+                    <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
+                      {selectedNotification.recipients.slice(0, 10).map((recipient, index) => (
+                        <ListItem key={index}>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: 'primary.light' }}>
+                              <Email fontSize="small" />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={recipient.name}
+                            secondary={
+                              <>
+                                {recipient.email}
+                                {recipient.registration && (
+                                  <span style={{ display: 'block' }}>
+                                    Reg: {recipient.registration}
+                                  </span>
+                                )}
+                              </>
+                            }
+                          />
+                        </ListItem>
+                      ))}
+                      {selectedNotification.recipients.length > 10 && (
+                        <ListItem>
+                          <ListItemText
+                            primary={`... and ${selectedNotification.recipients.length - 10} more recipients`}
+                            sx={{ textAlign: 'center', fontStyle: 'italic' }}
+                          />
+                        </ListItem>
+                      )}
+                    </List>
+                  </Paper>
+                )}
+              </Stack>
+            </Bx>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <B onClick={() => setDetailsOpen(false)}>Close</B>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onClose={() => !actionLoading && setDeleteConfirmOpen(false)}>
+        <DialogTitle>
+          Permanently Delete Notification?
+        </DialogTitle>
+        <DialogContent>
+          <T variant="body1">
+            This will permanently delete the notification and all associated data. This action cannot be undone.
+          </T>
+          {deletingId && (
+            <Bx sx={{ mt: 2, p: 2, bgcolor: 'rgba(255, 0, 0, 0.1)', borderRadius: 1 }}>
+              <T variant="body2" color="text.secondary">
+                <strong>Notification:</strong> {notifications.find(n => n.id === deletingId)?.title}
+              </T>
+            </Bx>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <B onClick={() => setDeleteConfirmOpen(false)} disabled={actionLoading}>
+            Cancel
+          </B>
+          <B 
+            color="error" 
+            variant="contained"
+            onClick={handleDeleteConfirm}
+            disabled={actionLoading}
+            startIcon={<DeleteForever />}
+          >
+            Delete Permanently
+          </B>
+        </DialogActions>
+      </Dialog>
+
+      {/* Action Result Snackbar */}
+      <Snackbar
+        open={actionAlert.open}
+        autoHideDuration={5000}
+        onClose={() => setActionAlert({ ...actionAlert, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setActionAlert({ ...actionAlert, open: false })} 
+          severity={actionAlert.severity}
+          variant="filled"
+        >
+          {actionAlert.message}
+        </Alert>
+      </Snackbar>
+    </Bx>
+  );
+}
