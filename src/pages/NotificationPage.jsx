@@ -174,7 +174,7 @@ import {
                   size="small"
                   onClick={handleMarkAllAsRead}
                   startIcon={<MarkEmailRead />}
-                  sx={{ ml: 1 }}
+                  sx={{ ml: 1 , bgcolor: '#45a049' }}
                 >
                   Mark All Read
                 </B>

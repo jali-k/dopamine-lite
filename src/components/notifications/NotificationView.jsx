@@ -70,7 +70,7 @@ import {
             <Stack direction="row" spacing={3} sx={{ mb: 3 }}>
               <Avatar 
                 sx={{ 
-                  bgcolor: 'primary.main',
+                  bgcolor: '#45a049',
                   width: 56,
                   height: 56
                 }}
@@ -163,6 +163,15 @@ import {
                 variant="outlined"
                 onClick={onBack}
                 startIcon={<ArrowBack />}
+                sx={{ 
+                  color: '#45a049',
+                  borderColor: '#45a049',
+                  '&:hover': {
+                    bgcolor: '#45a049',
+                    color: '#fff',
+                    borderColor: '#45a049',
+                  }
+                }}
               >
                 Back to Notifications
               </B>

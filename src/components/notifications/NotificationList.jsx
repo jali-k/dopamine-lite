@@ -113,7 +113,7 @@ import {
               <Stack direction="row" spacing={2}>
                 <Avatar 
                   sx={{ 
-                    bgcolor: notification.isRead ? 'grey.300' : 'primary.main',
+                    bgcolor: notification.isRead ? 'grey.300' : '#45a049',
                     width: 48,
                     height: 48
                   }}
