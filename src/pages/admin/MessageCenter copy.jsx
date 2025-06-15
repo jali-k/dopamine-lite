@@ -198,7 +198,7 @@ import {
         setSendingStatus({ sending: true, progress: 0, total: students.length });
         
         // Get the current user's email
-        const senderEmail = "admin@sddopamine.com";
+        const senderEmail = "payments@sddopamine.com";
     
         // Create a message in the messageQueue collection to trigger the Cloud Function
         const messageQueueRef = collection(fireDB, "messageQueue");
@@ -208,7 +208,7 @@ import {
           htmlBody: messageBody.replace(/\n/g, '<br>'), // Add an HTML version with <br> tags for email clients
           recipients: students,
           sentBy: senderEmail,
-          fromEmail: "payments@em6045.sddopamine.com", // Your SendGrid verified sender
+          fromEmail: "payments@sddopamine.com", // Your SendGrid verified sender
           status: "queued",
           queuedAt: serverTimestamp(),
           progress: 0,

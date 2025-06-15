@@ -23,7 +23,10 @@ import {
   CardActions,
   Paper,
   Chip,
-  Alert
+  Alert,
+  CircularProgress,
+  Divider,
+  IconButton
 } from "@mui/material";
 import ScienceIcon from '@mui/icons-material/Science';
 import BiotechIcon from '@mui/icons-material/Biotech';
@@ -31,6 +34,10 @@ import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturi
 import ErrorIcon from '@mui/icons-material/Error';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import StopIcon from '@mui/icons-material/Stop';
+import CloudIcon from '@mui/icons-material/Cloud';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { collection, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
@@ -65,6 +72,19 @@ export default function AdmFileView() {
   const [enrichedTuts, setEnrichedTuts] = useState([]);
   const [statusLoading, setStatusLoading] = useState(false);
 
+  // NEW: EC2 Instance State Management
+  const [instanceState, setInstanceState] = useState({
+    state: 'unknown', // 'running', 'stopped', 'pending', 'stopping', 'unknown'
+    public_ip: null,
+    public_dns: null,
+    loading: true,
+    actionLoading: false, // When start/stop button is clicked
+    error: null,
+    retryAttempt: 0, // Track current retry attempt
+    maxRetries: 3, // Maximum retry attempts
+    isRetrying: false // When manual retry is in progress
+  });
+
   const { isAdmin } = useUser();
 
   const [tuts, loading] = useCollectionData(tutorialref);
@@ -73,7 +93,231 @@ export default function AdmFileView() {
 
   const navigator = useNavigate();
 
-  // Helper function to get video status info
+  // API endpoint for EC2 control
+  const EC2_API_ENDPOINT = "https://blkr53ji2k.execute-api.us-east-1.amazonaws.com/default/uploader_ec2_controller";
+
+  // NEW: Function to fetch EC2 instance status with retry logic
+  const fetchInstanceStatus = async (isRetry = false, retryAttempt = 0) => {
+    try {
+      if (isRetry) {
+        setInstanceState(prev => ({
+          ...prev,
+          isRetrying: true,
+          retryAttempt: retryAttempt
+        }));
+      }
+
+      const response = await fetch(EC2_API_ENDPOINT, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      console.log('response', response);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      setInstanceState(prev => ({
+        ...prev,
+        state: data.state,
+        public_ip: data.public_ip || null,
+        public_dns: data.public_dns || null,
+        loading: false,
+        isRetrying: false,
+        error: null,
+        retryAttempt: 0
+      }));
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching instance status:', error);
+      
+      // If this is an initial load and we haven't exceeded max retries, try again
+      if (!isRetry && retryAttempt < instanceState.maxRetries) {
+        console.log(`Retry attempt ${retryAttempt + 1} of ${instanceState.maxRetries}`);
+        setTimeout(() => {
+          fetchInstanceStatus(false, retryAttempt + 1);
+        }, 2000 * (retryAttempt + 1)); // Exponential backoff: 2s, 4s, 6s
+        
+        setInstanceState(prev => ({
+          ...prev,
+          retryAttempt: retryAttempt + 1,
+          error: `Connection failed. Retrying... (${retryAttempt + 1}/${prev.maxRetries})`
+        }));
+      } else {
+        // Max retries exceeded or manual retry failed
+        setInstanceState(prev => ({
+          ...prev,
+          loading: false,
+          isRetrying: false,
+          error: error.message,
+          retryAttempt: 0
+        }));
+      }
+      throw error;
+    }
+  };
+
+  // NEW: Manual retry function
+  const retryFetchStatus = async () => {
+    setInstanceState(prev => ({
+      ...prev,
+      error: null,
+      isRetrying: true
+    }));
+    
+    try {
+      await fetchInstanceStatus(true);
+    } catch (error) {
+      // Error already handled in fetchInstanceStatus
+    }
+  };
+
+  // NEW: Function to control EC2 instance (start/stop)
+  const controlInstance = async (action) => {
+    if (action !== 'start' && action !== 'stop') {
+      console.error('Invalid action. Use "start" or "stop"');
+      return;
+    }
+
+    setInstanceState(prev => ({
+      ...prev,
+      actionLoading: true,
+      error: null
+    }));
+
+    try {
+      const response = await fetch(EC2_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Start polling to check status changes
+      pollInstanceStatus(action === 'start' ? 'running' : 'stopped');
+      
+    } catch (error) {
+      console.error(`Error ${action}ing instance:`, error);
+      setInstanceState(prev => ({
+        ...prev,
+        actionLoading: false,
+        error: error.message
+      }));
+    }
+  };
+
+  // NEW: Polling function to wait for instance state change
+  const pollInstanceStatus = async (targetState, maxAttempts = 30) => {
+    let attempts = 0;
+    
+    const poll = async () => {
+      try {
+        const data = await fetchInstanceStatus();
+        
+        // If we reached the target state, stop polling
+        if (data.state === targetState) {
+          setInstanceState(prev => ({
+            ...prev,
+            actionLoading: false
+          }));
+          return;
+        }
+        
+        attempts++;
+        
+        // If we haven't reached max attempts, continue polling
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 3000); // Poll every 3 seconds
+        } else {
+          // Max attempts reached, stop loading but don't error
+          setInstanceState(prev => ({
+            ...prev,
+            actionLoading: false
+          }));
+        }
+      } catch (error) {
+        setInstanceState(prev => ({
+          ...prev,
+          actionLoading: false,
+          error: error.message
+        }));
+      }
+    };
+    
+    poll();
+  };
+
+  // NEW: Initial load of instance status with retry logic
+  useEffect(() => {
+    // Initial fetch with retry logic
+    fetchInstanceStatus();
+  }, []);
+
+  // Separate effect for periodic refresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Simple periodic refresh - let the component state determine if it should actually fetch
+      if (instanceState.state !== 'unknown' && !instanceState.loading && !instanceState.isRetrying && !instanceState.actionLoading) {
+        fetchInstanceStatus();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [instanceState.loading, instanceState.isRetrying, instanceState.actionLoading, instanceState.state]);
+
+  // NEW: Function to get status color and info
+  const getInstanceStatusInfo = (state) => {
+    switch (state) {
+      case 'running':
+        return {
+          color: 'success',
+          icon: <CheckCircleIcon />,
+          label: 'Running',
+          description: 'Instance is ready for uploads'
+        };
+      case 'stopped':
+        return {
+          color: 'error',
+          icon: <StopIcon />,
+          label: 'Stopped',
+          description: 'Instance is stopped - uploads unavailable'
+        };
+      case 'pending':
+        return {
+          color: 'warning',
+          icon: <HourglassEmptyIcon />,
+          label: 'Starting',
+          description: 'Instance is starting up...'
+        };
+      case 'stopping':
+        return {
+          color: 'warning',
+          icon: <HourglassEmptyIcon />,
+          label: 'Stopping',
+          description: 'Instance is shutting down...'
+        };
+      default:
+        return {
+          color: 'default',
+          icon: <CloudIcon />,
+          label: 'Unknown',
+          description: 'Unable to determine instance status'
+        };
+    }
+  };
+
+  // Helper function to get video status info (existing code)
   const getVideoStatusInfo = (videoStatus, errorMessage = null, failedAt = null) => {
     switch (videoStatus) {
       case 'processing':
@@ -112,7 +356,7 @@ export default function AdmFileView() {
     }
   };
 
-  // Fetch video statuses for each tutorial
+  // Fetch video statuses for each tutorial (existing code)
   useEffect(() => {
     const fetchVideoStatuses = async () => {
       if (!tuts || tuts.length === 0) return;
@@ -121,14 +365,12 @@ export default function AdmFileView() {
       try {
         const enrichedTutorials = await Promise.all(
           tuts.map(async (tut) => {
-            // If tutorial has a handler, check if it exists in videos collection
             if (tut.handler) {
               try {
                 const videoDocRef = doc(fireDB, "videos", tut.handler);
                 const videoDoc = await getDoc(videoDocRef);
                 
                 if (videoDoc.exists()) {
-                  // Handler exists AND found in videos collection = New video with conversion
                   const videoData = videoDoc.data();
                   return {
                     ...tut,
@@ -143,7 +385,6 @@ export default function AdmFileView() {
                     )
                   };
                 } else {
-                  // Handler exists but NOT found in videos collection = Legacy video
                   return {
                     ...tut,
                     videoStatus: null,
@@ -153,7 +394,6 @@ export default function AdmFileView() {
                 }
               } catch (error) {
                 console.error(`Error fetching video status for ${tut.handler}:`, error);
-                // Error fetching - treat as legacy
                 return {
                   ...tut,
                   videoStatus: null,
@@ -163,7 +403,6 @@ export default function AdmFileView() {
               }
             }
             
-            // No handler - this is also a legacy video
             return {
               ...tut,
               videoStatus: null,
@@ -176,7 +415,6 @@ export default function AdmFileView() {
         setEnrichedTuts(enrichedTutorials);
       } catch (error) {
         console.error('Error enriching tutorials with video status:', error);
-        // Fallback to treating all as legacy videos
         setEnrichedTuts(tuts.map(tut => ({ 
           ...tut, 
           videoStatus: null, 
@@ -191,6 +429,7 @@ export default function AdmFileView() {
     fetchVideoStatuses();
   }, [tuts]);
 
+  // Existing functions (unchanged)
   const dbemails = [
     ...new Set(
       editableemails
@@ -265,12 +504,10 @@ export default function AdmFileView() {
 
   const handleDeleteFolder = async () => {
     try {
-      // Delete all tutorials in the folder
       enrichedTuts.forEach((tut) => {
         deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
       });
 
-      // Delete all emails
       snapshot.forEach(async (doc) => {
         try {
           await deleteDoc(doc.ref);
@@ -279,7 +516,6 @@ export default function AdmFileView() {
         }
       });
 
-      // Delete the folder itself
       await deleteDoc(doc(fireDB, "folders", params.fname));
 
       console.log(`Folder ${params.fname} deleted`);
@@ -289,6 +525,7 @@ export default function AdmFileView() {
     }
   };
 
+  // Loading screens
   if (loading) {
     return <Loading text="Loading Tutorials" />;
   }
@@ -297,6 +534,9 @@ export default function AdmFileView() {
   }
   if (statusLoading) {
     return <Loading text="Loading Video Status" />;
+  }
+  if (instanceState.loading && instanceState.retryAttempt === 0) {
+    return <Loading text="Connecting to AWS Server" />;
   }
   if (!isAdmin) {
     return (
@@ -322,6 +562,8 @@ export default function AdmFileView() {
       </NavLink>
     );
   }
+
+  const statusInfo = getInstanceStatusInfo(instanceState.state);
 
   return (
     <Container
@@ -370,7 +612,164 @@ export default function AdmFileView() {
           </T>
         </Paper>
 
-        {/* Video Status Summary */}
+        {/* NEW: EC2 Instance Status Card */}
+        <Card 
+          variant="outlined" 
+          sx={{ 
+            mb: 2,
+            border: 2,
+            borderColor: instanceState.error ? 'error.main' : 
+                        statusInfo.color === 'success' ? 'success.main' : 
+                        statusInfo.color === 'error' ? 'error.main' : 'warning.main',
+            bgcolor: instanceState.error ? 'error.light' :
+                     statusInfo.color === 'success' ? 'success.light' : 
+                     statusInfo.color === 'error' ? 'error.light' : 'warning.light',
+            '& .MuiCardContent-root': {
+              '&:last-child': { pb: 2 }
+            }
+          }}
+        >
+          <CardContent>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <CloudIcon sx={{ fontSize: 28, color: statusInfo.color + '.main' }} />
+                <Bx>
+                  <T variant="h6" sx={{ fontWeight: 'bold' }}>
+                    Upload Server Status
+                  </T>
+                  <T variant="body2" color="text.secondary">
+                    {statusInfo.description}
+                  </T>
+                </Bx>
+              </Stack>
+              
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Chip
+                  icon={instanceState.loading || instanceState.isRetrying ? 
+                    <CircularProgress size={16} /> : statusInfo.icon}
+                  label={instanceState.loading ? 'Loading...' : 
+                         instanceState.isRetrying ? 'Retrying...' : 
+                         instanceState.retryAttempt > 0 && instanceState.error ? 
+                         `Retry ${instanceState.retryAttempt}/${instanceState.maxRetries}` : statusInfo.label}
+                  color={statusInfo.color}
+                  sx={{ fontWeight: 'bold' }}
+                />
+                
+                {/* Refresh button */}
+                <IconButton 
+                  size="small" 
+                  onClick={retryFetchStatus}
+                  disabled={instanceState.loading || instanceState.isRetrying}
+                  sx={{ 
+                    bgcolor: 'action.hover',
+                    '&:hover': { bgcolor: 'action.selected' }
+                  }}
+                  title="Refresh status"
+                >
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            </Stack>
+
+            {/* Instance Details */}
+            {instanceState.public_ip && (
+              <Bx sx={{ mb: 2 }}>
+                <T variant="body2" color="text.secondary">
+                  <strong>Public IP:</strong> {instanceState.public_ip}
+                </T>
+                {instanceState.public_dns && (
+                  <T variant="body2" color="text.secondary">
+                    <strong>DNS:</strong> {instanceState.public_dns}
+                  </T>
+                )}
+              </Bx>
+            )}
+
+            {/* Automatic retry progress indicator */}
+            {instanceState.retryAttempt > 0 && instanceState.loading && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <CircularProgress size={16} />
+                  <T variant="body2">
+                    Connecting to AWS server... (Attempt {instanceState.retryAttempt}/{instanceState.maxRetries})
+                  </T>
+                </Stack>
+              </Alert>
+            )}
+
+            {/* Error Display with Retry Button */}
+            {instanceState.error && (
+              <Alert 
+                severity="error" 
+                sx={{ mb: 2 }}
+                action={
+                  <B
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    startIcon={instanceState.isRetrying ? 
+                      <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                    onClick={retryFetchStatus}
+                    disabled={instanceState.isRetrying}
+                    sx={{ ml: 1 }}
+                  >
+                    {instanceState.isRetrying ? 'Retrying...' : 'Retry'}
+                  </B>
+                }
+              >
+                <T variant="body2">
+                  <strong>Connection Error:</strong> {instanceState.error}
+                </T>
+                {instanceState.retryAttempt > 0 && !instanceState.isRetrying && (
+                  <T variant="body2" sx={{ mt: 0.5, fontSize: '0.75rem' }}>
+                    Failed after {instanceState.retryAttempt} automatic retry attempts. 
+                    Click retry to try again manually.
+                  </T>
+                )}
+              </Alert>
+            )}
+
+            {/* Control Buttons */}
+            <Divider sx={{ my: 2 }} />
+            <Stack direction="row" spacing={2} justifyContent="center">
+              <B
+                variant="contained"
+                color="success"
+                startIcon={instanceState.actionLoading && instanceState.state !== 'running' ? 
+                  <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+                onClick={() => controlInstance('start')}
+                disabled={instanceState.actionLoading || instanceState.state === 'running' || instanceState.state === 'pending'}
+                sx={{ minWidth: 120 }}
+              >
+                {instanceState.actionLoading && instanceState.state !== 'running' ? 'Starting...' : 'Start Server'}
+              </B>
+              
+              <B
+                variant="contained"
+                color="error"
+                startIcon={instanceState.actionLoading && instanceState.state !== 'stopped' ? 
+                  <CircularProgress size={16} color="inherit" /> : <StopIcon />}
+                onClick={() => controlInstance('stop')}
+                disabled={instanceState.actionLoading || instanceState.state === 'stopped' || instanceState.state === 'stopping'}
+                sx={{ minWidth: 120 }}
+              >
+                {instanceState.actionLoading && instanceState.state !== 'stopped' ? 'Stopping...' : 'Stop Server'}
+              </B>
+            </Stack>
+
+            {/* Warning for uploads */}
+            {instanceState.state !== 'running' && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                <T variant="body2">
+                  <strong>Notice:</strong> Video uploads are disabled when the server is not running. 
+                  Start the server to enable video uploads.
+                </T>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Video Status Summary (existing code) */}
         {enrichedTuts.length > 0 && (
           <Card variant="outlined" sx={{ mb: 2 }}>
             <CardContent>
@@ -396,7 +795,7 @@ export default function AdmFileView() {
           </Card>
         )}
 
-        {/* Tutorials Grid */}
+        {/* Tutorials Grid (existing code) */}
         <Card variant="outlined" sx={{ mb: 2, bgcolor: 'background.paper' }}>
           <CardContent>
             <Grid container spacing={2} columns={12}>
@@ -414,7 +813,6 @@ export default function AdmFileView() {
                     >
                       <VCad tut={{ ...tut, fpath: params.fname }} />
                       
-                      {/* Video Status Display */}
                       <Bx sx={{ p: 2, pt: 1 }}>
                         <Stack direction="row" alignItems="center" spacing={1} mb={1}>
                           <Chip
@@ -425,7 +823,6 @@ export default function AdmFileView() {
                           />
                         </Stack>
                         
-                        {/* Error Details */}
                         {tut.statusInfo.status === 'error' && (
                           <Alert severity="error" sx={{ mb: 1 }}>
                             <T variant="body2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
@@ -444,7 +841,6 @@ export default function AdmFileView() {
                           </Alert>
                         )}
                         
-                        {/* Processing Status */}
                         {tut.statusInfo.status === 'processing' && (
                           <Alert severity="info" sx={{ mb: 1 }}>
                             <T variant="body2">
@@ -500,10 +896,10 @@ export default function AdmFileView() {
           </CardContent>
         </Card>
 
-        {/* Authorized Users Accordion */}
+        {/* Authorized Users Accordion (existing code) */}
         <AuthorizedUsersAccordion emails={emails} />
 
-        {/* Edit Access Accordion */}
+        {/* Edit Access Accordion (existing code) */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <T variant="h6">Edit Access</T>
@@ -544,7 +940,7 @@ export default function AdmFileView() {
           </AccordionDetails>
         </Accordion>
 
-        {/* Delete Folder Button */}
+        {/* Delete Folder Button (existing code) */}
         <B
           fullWidth
           color="error"
@@ -555,23 +951,45 @@ export default function AdmFileView() {
         </B>
       </Bx>
 
-      {/* Add Tutorial FAB */}
-      <Fab
-        color="secondary"
-        sx={{
-          position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          zIndex: 1000,
-        }}
-        onClick={() => {
-          navigator("add");
-        }}
-      >
-        <Add />
-      </Fab>
+      {/* MODIFIED: Add Tutorial FAB - Now conditionally shown */}
+      {instanceState.state === 'running' && (
+        <Fab
+          color="secondary"
+          sx={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            navigator("add");
+          }}
+        >
+          <Add />
+        </Fab>
+      )}
 
-      {/* Folder Delete Confirmation Dialog */}
+      {/* NEW: Disabled FAB with tooltip when server is not running */}
+      {instanceState.state !== 'running' && (
+        <Fab
+          disabled
+          sx={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            zIndex: 1000,
+            bgcolor: 'grey.300',
+            '&:hover': {
+              bgcolor: 'grey.400'
+            }
+          }}
+          title="Start the server to enable video uploads"
+        >
+          <Add />
+        </Fab>
+      )}
+
+      {/* Folder Delete Confirmation Dialog (existing code) */}
       <Dialog
         open={openDeleteFolderConfirm}
         onClose={() => setOpenDeleteFolderConfirm(false)}

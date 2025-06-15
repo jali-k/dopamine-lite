@@ -58,7 +58,8 @@ export default function PDFFileView() {
       formData.append("pdf", file);
   
       // Send file and email to Django service
-      const uploadResponse = await fetch("http://54.172.123.83/api/edit-pdf/", {
+      const uploadResponse = await fetch("", {
+      // const uploadResponse = await fetch("http://54.172.123.83/api/edit-pdf/", {
         method: "POST",
         body: formData,
       });
