@@ -38,11 +38,13 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import CloudIcon from '@mui/icons-material/Cloud';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { collection, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import { collection, deleteDoc, doc, setDoc, getDoc, getDocs, query, limit } from "firebase/firestore";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { fireDB } from "../../firebaseconfig";
 import { useCollectionData } from "react-firebase-hooks/firestore";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 import VCad from "../components/VCad";
@@ -57,46 +59,267 @@ import { Add } from "@mui/icons-material";
 import { jhsfg } from "../../af";
 import AuthorizedUsersAccordion from "../components/AuthorizedUsersAccordion ";
 
+// Cache for admin data
+const adminDataCache = new Map();
+const ADMIN_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes (extended for large email lists)
+
+const getCachedAdminData = (key) => {
+  const cached = adminDataCache.get(key);
+  if (cached && Date.now() - cached.timestamp < ADMIN_CACHE_DURATION) {
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedAdminData = (key, data) => {
+  adminDataCache.set(key, { data, timestamp: Date.now() });
+};
+
 export default function AdmFileView() {
   const params = useParams();
   const tutorialref = collection(fireDB, "folders", params.fname, "tutorials");
-  const emailListref = collection(
-    fireDB,
-    "folders",
-    params.fname,
-    "emailslist"
-  );
+  const emailListref = collection(fireDB, "folders", params.fname, "emailslist");
 
   const [editableemails, setEditableEmails] = useState("");
   const [openDeleteFolderConfirm, setOpenDeleteFolderConfirm] = useState(false);
   const [enrichedTuts, setEnrichedTuts] = useState([]);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  // NEW: EC2 Instance State Management
+  // NEW: Enhanced loading states for email operations
+  const [addingEmails, setAddingEmails] = useState(false);
+  const [deletingEmails, setDeletingEmails] = useState(false);
+
+  // NEW: Optimized email state
+  const [emails, setEmails] = useState([]);
+  const [emailsLoading, setEmailsLoading] = useState(true);
+
+  // EC2 Instance State Management
   const [instanceState, setInstanceState] = useState({
-    state: 'unknown', // 'running', 'stopped', 'pending', 'stopping', 'unknown'
+    state: 'unknown',
     public_ip: null,
     public_dns: null,
     loading: true,
-    actionLoading: false, // When start/stop button is clicked
+    actionLoading: false,
     error: null,
-    retryAttempt: 0, // Track current retry attempt
-    maxRetries: 3, // Maximum retry attempts
-    isRetrying: false // When manual retry is in progress
+    retryAttempt: 0,
+    maxRetries: 3,
+    isRetrying: false
   });
 
   const { isAdmin } = useUser();
-
   const [tuts, loading] = useCollectionData(tutorialref);
-  const [emails, emailLoading, error, snapshot] =
-    useCollectionData(emailListref);
-
   const navigator = useNavigate();
 
   // API endpoint for EC2 control
   const EC2_API_ENDPOINT = "https://blkr53ji2k.execute-api.us-east-1.amazonaws.com/default/uploader_ec2_controller";
 
-  // NEW: Function to fetch EC2 instance status with retry logic
+  // NEW: Enhanced email processing with safety checks
+  const processEmailInput = useCallback((rawInput) => {
+    if (!rawInput || typeof rawInput !== 'string') return [];
+
+    const rawEmails = rawInput
+      .replace(/[,;]/g, '\n')
+      .split('\n')
+      .map(email => {
+        return email
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '')
+          .replace(/['"]/g, '')
+          .replace(/[<>]/g, '');
+      })
+      .filter(email => {
+        return email && 
+               email.length > 0 && 
+               email.includes('@') &&
+               email.indexOf('@') > 0 &&
+               email.lastIndexOf('@') === email.indexOf('@') &&
+               email.length > 3;
+      });
+
+    return [...new Set(rawEmails)];
+  }, []);
+
+  // NEW: Enhanced email validation
+  const validateEmail = useCallback((email) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email) && email.length >= 5 && email.length <= 254;
+  }, []);
+
+  // NEW: Optimized data fetching for emails - FIXED to fetch ALL emails
+  const fetchEmails = useCallback(async () => {
+    try {
+      setEmailsLoading(true);
+      
+      // Check cache first
+      const cacheKey = `admin_emails_${params.fname}`;
+      const cachedData = getCachedAdminData(cacheKey);
+      
+      if (cachedData) {
+        setEmails(cachedData);
+        setEmailsLoading(false);
+        return;
+      }
+
+      // FIXED: Remove limit to fetch ALL emails (even 2000+)
+      console.log('Fetching all emails for admin view...');
+      
+      // Add timeout for large datasets
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: Large email list is taking too long to load')), 30000);
+      });
+      
+      const fetchPromise = getDocs(emailListref);
+      
+      const emailsSnapshot = await Promise.race([fetchPromise, timeoutPromise]);
+      const emailsData = emailsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      console.log(`Successfully fetched ${emailsData.length} emails for ${params.fname}`);
+      setCachedAdminData(cacheKey, emailsData);
+      setEmails(emailsData);
+      
+    } catch (error) {
+      console.error("Error fetching emails:", error);
+      // Set empty array on error but don't break the app
+      setEmails([]);
+      
+      // Show user-friendly error (could be expanded to show error message in UI)
+      if (error.message.includes('Timeout')) {
+        console.warn('Large email list took too long to load. Some features may be limited.');
+      }
+    } finally {
+      setEmailsLoading(false);
+    }
+  }, [params.fname, emailListref]);
+
+  // NEW: Memoized processed emails
+  const dbemails = useMemo(() => {
+    return processEmailInput(editableemails);
+  }, [editableemails, processEmailInput]);
+
+  // NEW: Enhanced addEmailsToDB with visual effects
+  const addEmailsToDB = useCallback(async () => {
+    setAddingEmails(true);
+    
+    try {
+      const processedEmails = processEmailInput(editableemails);
+      const validEmails = processedEmails.filter(email => validateEmail(email));
+      const invalidEmails = processedEmails.filter(email => !validateEmail(email));
+
+      if (invalidEmails.length > 0) {
+        const errorMessage = `Invalid emails found: ${invalidEmails.join(', ')}`;
+        setEditableEmails(prev => prev + `\n\n❌ ${errorMessage}`);
+        
+        setTimeout(() => {
+          setEditableEmails(prev => 
+            prev.replace(/\n\n❌.*$/, '')
+          );
+        }, 3000);
+      }
+
+      if (validEmails.length === 0) {
+        setEditableEmails("❌ No valid emails to add. Please check your input.");
+        setTimeout(() => setEditableEmails(""), 2000);
+        return;
+      }
+
+      const existingEmailAddresses = emails.map(e => e.email);
+      const newEmails = validEmails.filter(email => !existingEmailAddresses.includes(email));
+      const duplicateEmails = validEmails.filter(email => existingEmailAddresses.includes(email));
+
+      if (duplicateEmails.length > 0) {
+        console.log(`Skipping duplicate emails: ${duplicateEmails.join(', ')}`);
+      }
+
+      if (newEmails.length === 0) {
+        setEditableEmails("❌ All emails already exist in the system.");
+        setTimeout(() => setEditableEmails(""), 2000);
+        return;
+      }
+
+      const promises = newEmails.map(email => 
+        setDoc(doc(emailListref, email), {
+          email: email,
+          addedAt: new Date(),
+          addedBy: "admin"
+        })
+      );
+
+      await Promise.all(promises);
+      
+      let successMessage = `✅ Successfully added ${newEmails.length} email(s)`;
+      if (duplicateEmails.length > 0) {
+        successMessage += `, skipped ${duplicateEmails.length} duplicate(s)`;
+      }
+      
+      setEditableEmails(successMessage);
+      setTimeout(() => setEditableEmails(""), 2000);
+
+      const newEmailObjects = newEmails.map(email => ({ 
+        email, 
+        id: email,
+        addedAt: new Date()
+      }));
+      setEmails(prev => [...prev, ...newEmailObjects]);
+      
+      adminDataCache.delete(`admin_emails_${params.fname}`);
+      
+    } catch (err) {
+      setEditableEmails("❌ An error occurred while adding emails. Please try again.");
+      console.error("Error adding emails:", err);
+      setTimeout(() => setEditableEmails(""), 3000);
+    } finally {
+      setAddingEmails(false);
+    }
+  }, [editableemails, processEmailInput, validateEmail, emails, params.fname, emailListref]);
+
+  // NEW: Enhanced deleteEmailsfromDB with visual effects
+  const deleteEmailsfromDB = useCallback(async () => {
+    setDeletingEmails(true);
+    
+    try {
+      const processedEmails = processEmailInput(editableemails);
+      
+      if (processedEmails.includes("delete_all") || processedEmails.includes("deleteall")) {
+        const deletePromises = emails.map(email => 
+          deleteDoc(doc(emailListref, email.id))
+        );
+        await Promise.all(deletePromises);
+        setEmails([]);
+        setEditableEmails(`✅ Deleted all ${emails.length} emails`);
+      } else {
+        const emailsToDelete = emails.filter(email => processedEmails.includes(email.email));
+        
+        if (emailsToDelete.length === 0) {
+          setEditableEmails("❌ No matching emails found to delete");
+          setTimeout(() => setEditableEmails(""), 2000);
+          return;
+        }
+        
+        const deletePromises = emailsToDelete.map(email => 
+          deleteDoc(doc(emailListref, email.id))
+        );
+        await Promise.all(deletePromises);
+        setEmails(prev => prev.filter(email => !processedEmails.includes(email.email)));
+        setEditableEmails(`✅ Deleted ${emailsToDelete.length} email(s)`);
+      }
+      
+      setTimeout(() => setEditableEmails(""), 2000);
+      adminDataCache.delete(`admin_emails_${params.fname}`);
+      
+    } catch (err) {
+      setEditableEmails("❌ An error occurred while deleting emails");
+      console.error("Error deleting emails:", err);
+      setTimeout(() => setEditableEmails(""), 3000);
+    } finally {
+      setDeletingEmails(false);
+    }
+  }, [editableemails, processEmailInput, emails, params.fname, emailListref]);
+
+  // EC2 Instance functions (unchanged)
   const fetchInstanceStatus = async (isRetry = false, retryAttempt = 0) => {
     try {
       if (isRetry) {
@@ -137,12 +360,11 @@ export default function AdmFileView() {
     } catch (error) {
       console.error('Error fetching instance status:', error);
       
-      // If this is an initial load and we haven't exceeded max retries, try again
       if (!isRetry && retryAttempt < instanceState.maxRetries) {
         console.log(`Retry attempt ${retryAttempt + 1} of ${instanceState.maxRetries}`);
         setTimeout(() => {
           fetchInstanceStatus(false, retryAttempt + 1);
-        }, 2000 * (retryAttempt + 1)); // Exponential backoff: 2s, 4s, 6s
+        }, 2000 * (retryAttempt + 1));
         
         setInstanceState(prev => ({
           ...prev,
@@ -150,7 +372,6 @@ export default function AdmFileView() {
           error: `Connection failed. Retrying... (${retryAttempt + 1}/${prev.maxRetries})`
         }));
       } else {
-        // Max retries exceeded or manual retry failed
         setInstanceState(prev => ({
           ...prev,
           loading: false,
@@ -163,7 +384,6 @@ export default function AdmFileView() {
     }
   };
 
-  // NEW: Manual retry function
   const retryFetchStatus = async () => {
     setInstanceState(prev => ({
       ...prev,
@@ -178,7 +398,6 @@ export default function AdmFileView() {
     }
   };
 
-  // NEW: Function to control EC2 instance (start/stop)
   const controlInstance = async (action) => {
     if (action !== 'start' && action !== 'stop') {
       console.error('Invalid action. Use "start" or "stop"');
@@ -204,7 +423,6 @@ export default function AdmFileView() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Start polling to check status changes
       pollInstanceStatus(action === 'start' ? 'running' : 'stopped');
       
     } catch (error) {
@@ -217,7 +435,6 @@ export default function AdmFileView() {
     }
   };
 
-  // NEW: Polling function to wait for instance state change
   const pollInstanceStatus = async (targetState, maxAttempts = 30) => {
     let attempts = 0;
     
@@ -225,7 +442,6 @@ export default function AdmFileView() {
       try {
         const data = await fetchInstanceStatus();
         
-        // If we reached the target state, stop polling
         if (data.state === targetState) {
           setInstanceState(prev => ({
             ...prev,
@@ -236,11 +452,9 @@ export default function AdmFileView() {
         
         attempts++;
         
-        // If we haven't reached max attempts, continue polling
         if (attempts < maxAttempts) {
-          setTimeout(poll, 3000); // Poll every 3 seconds
+          setTimeout(poll, 3000);
         } else {
-          // Max attempts reached, stop loading but don't error
           setInstanceState(prev => ({
             ...prev,
             actionLoading: false
@@ -258,25 +472,6 @@ export default function AdmFileView() {
     poll();
   };
 
-  // NEW: Initial load of instance status with retry logic
-  useEffect(() => {
-    // Initial fetch with retry logic
-    fetchInstanceStatus();
-  }, []);
-
-  // Separate effect for periodic refresh
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simple periodic refresh - let the component state determine if it should actually fetch
-      if (instanceState.state !== 'unknown' && !instanceState.loading && !instanceState.isRetrying && !instanceState.actionLoading) {
-        fetchInstanceStatus();
-      }
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [instanceState.loading, instanceState.isRetrying, instanceState.actionLoading, instanceState.state]);
-
-  // NEW: Function to get status color and info
   const getInstanceStatusInfo = (state) => {
     switch (state) {
       case 'running':
@@ -317,7 +512,6 @@ export default function AdmFileView() {
     }
   };
 
-  // Helper function to get video status info (existing code)
   const getVideoStatusInfo = (videoStatus, errorMessage = null, failedAt = null) => {
     switch (videoStatus) {
       case 'processing':
@@ -356,7 +550,24 @@ export default function AdmFileView() {
     }
   };
 
-  // Fetch video statuses for each tutorial (existing code)
+  // Initialize data fetching
+  useEffect(() => {
+    fetchInstanceStatus();
+    fetchEmails();
+  }, [fetchEmails]);
+
+  // Periodic refresh for instance status
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (instanceState.state !== 'unknown' && !instanceState.loading && !instanceState.isRetrying && !instanceState.actionLoading) {
+        fetchInstanceStatus();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [instanceState.loading, instanceState.isRetrying, instanceState.actionLoading, instanceState.state]);
+
+  // Fetch video statuses
   useEffect(() => {
     const fetchVideoStatuses = async () => {
       if (!tuts || tuts.length === 0) return;
@@ -429,61 +640,7 @@ export default function AdmFileView() {
     fetchVideoStatuses();
   }, [tuts]);
 
-  // Existing functions (unchanged)
-  const dbemails = [
-    ...new Set(
-      editableemails
-        .replaceAll(",", "\n")
-        .split("\n")
-        .filter((email) => email !== "")
-        .map((email) => email.trim().toLowerCase().replace(/\s+/g, ""))
-    ),
-  ];
-
-  const addEmailsToDB = async () => {
-    dbemails.forEach(async (email) => {
-      try {
-        if (!isValidEmail(email)) {
-          console.log("Invalid Email");
-          return;
-        }
-        await setDoc(doc(emailListref, email), {
-          email: email,
-        });
-      } catch (err) {
-        setEditableEmails("An error occured while adding emails");
-        console.log(err);
-      }
-    });
-    setEditableEmails("");
-  };
-
-  const deleteEmailsfromDB = async () => {
-    if (dbemails.includes("DELETE_ALL")) {
-      snapshot.forEach(async (doc) => {
-        try {
-          await deleteDoc(doc.ref);
-        } catch (err) {
-          console.log(err);
-        }
-      });
-      console.log("All emails deleted");
-      return;
-    }
-    snapshot.forEach(async (doc) => {
-      if (dbemails.includes(doc.data().email)) {
-        try {
-          await deleteDoc(doc.ref);
-        } catch (err) {
-          setEditableEmails("An error occured while deleting emails");
-          console.log(err);
-        }
-      }
-    });
-
-    setEditableEmails("");
-  };
-
+  // Other functions (unchanged)
   const deleteIndividualTutorial = async (tut) => {
     try {
       await deleteTutorial(params.fname, tut.title, null, tut.thumbnail);
@@ -508,9 +665,9 @@ export default function AdmFileView() {
         deleteTutorial(params.fname, tut.title, tut.video, tut.thumbnail);
       });
 
-      snapshot.forEach(async (doc) => {
+      emails.forEach(async (email) => {
         try {
-          await deleteDoc(doc.ref);
+          await deleteDoc(doc(emailListref, email.id));
         } catch (err) {
           console.log(err);
         }
@@ -529,8 +686,8 @@ export default function AdmFileView() {
   if (loading) {
     return <Loading text="Loading Tutorials" />;
   }
-  if (emailLoading) {
-    return <Loading text="Checking Emails" />;
+  if (emailsLoading) {
+    return <Loading text="Loading All Authorized Emails (This may take a moment for large lists)" />;
   }
   if (statusLoading) {
     return <Loading text="Loading Video Status" />;
@@ -612,7 +769,7 @@ export default function AdmFileView() {
           </T>
         </Paper>
 
-        {/* NEW: EC2 Instance Status Card */}
+        {/* EC2 Instance Status Card */}
         <Card 
           variant="outlined" 
           sx={{ 
@@ -655,7 +812,6 @@ export default function AdmFileView() {
                   sx={{ fontWeight: 'bold' }}
                 />
                 
-                {/* Refresh button */}
                 <IconButton 
                   size="small" 
                   onClick={retryFetchStatus}
@@ -671,7 +827,6 @@ export default function AdmFileView() {
               </Stack>
             </Stack>
 
-            {/* Instance Details */}
             {instanceState.public_ip && (
               <Bx sx={{ mb: 2 }}>
                 <T variant="body2" color="text.secondary">
@@ -685,7 +840,6 @@ export default function AdmFileView() {
               </Bx>
             )}
 
-            {/* Automatic retry progress indicator */}
             {instanceState.retryAttempt > 0 && instanceState.loading && (
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
@@ -697,7 +851,6 @@ export default function AdmFileView() {
               </Alert>
             )}
 
-            {/* Error Display with Retry Button */}
             {instanceState.error && (
               <Alert 
                 severity="error" 
@@ -729,7 +882,6 @@ export default function AdmFileView() {
               </Alert>
             )}
 
-            {/* Control Buttons */}
             <Divider sx={{ my: 2 }} />
             <Stack direction="row" spacing={2} justifyContent="center">
               <B
@@ -757,7 +909,6 @@ export default function AdmFileView() {
               </B>
             </Stack>
 
-            {/* Warning for uploads */}
             {instanceState.state !== 'running' && (
               <Alert severity="warning" sx={{ mt: 2 }}>
                 <T variant="body2">
@@ -769,7 +920,7 @@ export default function AdmFileView() {
           </CardContent>
         </Card>
 
-        {/* Video Status Summary (existing code) */}
+        {/* Video Status Summary */}
         {enrichedTuts.length > 0 && (
           <Card variant="outlined" sx={{ mb: 2 }}>
             <CardContent>
@@ -795,7 +946,7 @@ export default function AdmFileView() {
           </Card>
         )}
 
-        {/* Tutorials Grid (existing code) */}
+        {/* Tutorials Grid */}
         <Card variant="outlined" sx={{ mb: 2, bgcolor: 'background.paper' }}>
           <CardContent>
             <Grid container spacing={2} columns={12}>
@@ -896,51 +1047,173 @@ export default function AdmFileView() {
           </CardContent>
         </Card>
 
-        {/* Authorized Users Accordion (existing code) */}
-        <AuthorizedUsersAccordion emails={emails} />
+        {/* Authorized Users Accordion with email count */}
+        <Card variant="outlined" sx={{ mb: 2 }}>
+          <CardContent>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+              <T variant="h6">Authorized Users</T>
+              <Chip 
+                label={`${emails.length} Total Users`}
+                color="info"
+                variant="outlined"
+                sx={{ fontWeight: 'bold' }}
+              />
+            </Stack>
+            <AuthorizedUsersAccordion emails={emails} />
+          </CardContent>
+        </Card>
 
-        {/* Edit Access Accordion (existing code) */}
+        {/* ENHANCED: Edit Access Accordion with UI Effects */}
         <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <T variant="h6">Edit Access</T>
+          <AccordionSummary 
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              bgcolor: 'rgba(255, 152, 0, 0.05)',
+              '&:hover': {
+                bgcolor: 'rgba(255, 152, 0, 0.1)',
+              }
+            }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <PersonAddIcon sx={{ color: '#ff9800' }} />
+              <T variant="h6" sx={{ color: '#ff9800' }}>
+                Edit Access
+              </T>
+              {(addingEmails || deletingEmails) && (
+                <CircularProgress 
+                  size={20} 
+                  sx={{ 
+                    color: '#ff9800',
+                    ml: 1
+                  }} 
+                />
+              )}
+            </Stack>
           </AccordionSummary>
           <AccordionDetails
             sx={{
               display: "flex",
               flexDirection: "column",
               gap: 2,
+              bgcolor: 'rgba(255, 152, 0, 0.02)',
             }}
           >
+            <T variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Enter email addresses separated by commas, semicolons, or new lines. 
+              Type "DELETE_ALL" to remove all emails. All emails are automatically cleaned and validated.
+              <br />
+              <strong>Currently managing {emails.length} authorized users.</strong>
+            </T>
             <Tf
               fullWidth
               multiline
               minRows={3}
               maxRows={5}
               variant="outlined"
-              placeholder="Use comma or new line separated emails to give or revoke access to specific users. Type DELETE_ALL to remove all emails and give free access."
+              placeholder="john.doe@gmail.com, jane.smith@yahoo.com&#10;bob@example.com&#10;DELETE_ALL (to remove all)"
               value={editableemails}
               onChange={(e) => setEditableEmails(e.target.value)}
+              disabled={addingEmails || deletingEmails}
+              helperText={
+                addingEmails ? "Adding emails..." :
+                deletingEmails ? "Deleting emails..." :
+                dbemails.length > 0 ? `${dbemails.length} valid email(s) ready to process` : "Enter emails above"
+              }
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  fontFamily: 'monospace',
+                  fontSize: '0.9rem',
+                  '&.Mui-disabled': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                  }
+                }
+              }}
             />
             <Stack direction="row" spacing={1} justifyContent="flex-end">
               <B
                 variant="contained"
                 color="success"
                 onClick={addEmailsToDB}
+                disabled={dbemails.length === 0 || addingEmails || deletingEmails}
+                startIcon={
+                  addingEmails ? (
+                    <CircularProgress size={16} sx={{ color: 'white' }} />
+                  ) : (
+                    <PersonAddIcon />
+                  )
+                }
+                sx={{
+                  minWidth: '120px',
+                  position: 'relative',
+                  transition: 'all 0.3s ease-in-out',
+                  '&:disabled': {
+                    opacity: addingEmails ? 0.8 : 0.6,
+                  },
+                  ...(addingEmails && {
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    boxShadow: '0 0 20px rgba(76, 175, 80, 0.4)',
+                  })
+                }}
               >
-                Add
+                {addingEmails ? 'Adding...' : `Add (${dbemails.length})`}
               </B>
               <B
                 variant="contained"
                 color="error"
                 onClick={deleteEmailsfromDB}
+                disabled={dbemails.length === 0 || addingEmails || deletingEmails}
+                startIcon={
+                  deletingEmails ? (
+                    <CircularProgress size={16} sx={{ color: 'white' }} />
+                  ) : (
+                    <PersonRemoveIcon />
+                  )
+                }
+                sx={{
+                  minWidth: '120px',
+                  position: 'relative',
+                  transition: 'all 0.3s ease-in-out',
+                  '&:disabled': {
+                    opacity: deletingEmails ? 0.8 : 0.6,
+                  },
+                  ...(deletingEmails && {
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    boxShadow: '0 0 20px rgba(244, 67, 54, 0.4)',
+                  })
+                }}
               >
-                Remove
+                {deletingEmails ? 'Removing...' : `Remove (${dbemails.length})`}
               </B>
             </Stack>
+            
+            {/* Progress indicator */}
+            {(addingEmails || deletingEmails) && (
+              <Bx
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 2,
+                  bgcolor: addingEmails ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
+                  borderRadius: 2,
+                  border: `1px solid ${addingEmails ? 'rgba(76, 175, 80, 0.3)' : 'rgba(244, 67, 54, 0.3)'}`,
+                }}
+              >
+                <CircularProgress 
+                  size={20} 
+                  sx={{ 
+                    color: addingEmails ? '#4caf50' : '#f44336'
+                  }} 
+                />
+                <T variant="body2" sx={{ color: addingEmails ? '#4caf50' : '#f44336' }}>
+                  {addingEmails ? 'Processing email additions...' : 'Processing email deletions...'}
+                </T>
+              </Bx>
+            )}
           </AccordionDetails>
         </Accordion>
 
-        {/* Delete Folder Button (existing code) */}
+        {/* Delete Folder Button */}
         <B
           fullWidth
           color="error"
@@ -951,7 +1224,7 @@ export default function AdmFileView() {
         </B>
       </Bx>
 
-      {/* MODIFIED: Add Tutorial FAB - Now conditionally shown */}
+      {/* Add Tutorial FAB - Conditionally shown */}
       {instanceState.state === 'running' && (
         <Fab
           color="secondary"
@@ -969,7 +1242,7 @@ export default function AdmFileView() {
         </Fab>
       )}
 
-      {/* NEW: Disabled FAB with tooltip when server is not running */}
+      {/* Disabled FAB when server is not running */}
       {instanceState.state !== 'running' && (
         <Fab
           disabled
@@ -989,7 +1262,7 @@ export default function AdmFileView() {
         </Fab>
       )}
 
-      {/* Folder Delete Confirmation Dialog (existing code) */}
+      {/* Folder Delete Confirmation Dialog */}
       <Dialog
         open={openDeleteFolderConfirm}
         onClose={() => setOpenDeleteFolderConfirm(false)}
@@ -1015,6 +1288,24 @@ export default function AdmFileView() {
           </B>
         </DialogActions>
       </Dialog>
+
+      {/* CSS for animations */}
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.02);
+            opacity: 0.9;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </Container>
   );
 }
