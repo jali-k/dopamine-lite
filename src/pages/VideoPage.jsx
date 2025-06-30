@@ -99,6 +99,7 @@ export default function VideoPage() {
 
     // Check video status from videos collection
     const isNewVideo = await checkVideoStatus(tutData.handler);
+    const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
     
     if (isNewVideo) {
       console.log("Using new EC2-converted video with handler:", tutData.handler);
@@ -106,7 +107,7 @@ export default function VideoPage() {
       setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
       
       // For new EC2-converted videos, use master.m3u8
-      const url = `https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
+      const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
       setVideoUrl(url);
       console.log("Generated URL for new EC2-converted video:", url);
     } else {
@@ -115,7 +116,7 @@ export default function VideoPage() {
       setVideoFolderId(null);
       
       // For legacy videos, use index.m3u8
-      const url = `https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
+      const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
       setVideoUrl(url);
       console.log("Generated URL for legacy video:", url);
     }
