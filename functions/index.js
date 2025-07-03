@@ -1,17 +1,184 @@
-// This file should be created in your Firebase Cloud Functions directory
+// Firebase Cloud Functions
 // functions/index.js
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const sgMail = require("@sendgrid/mail");
+const axios = require("axios");
+const NodeCache = require('node-cache');
+const cors = require("cors");
 
 admin.initializeApp();
 
 // Initialize SendGrid with your API key
 // You'll need to set this in your Firebase environment using:
 // firebase functions:config:set sendgrid.apikey="YOUR_SENDGRID_API_KEY"
-const sendgridApiKey = functions.config().sendgrid.apikey;
-sgMail.setApiKey(sendgridApiKey);
+// const sendgridApiKey = functions.config().sendgrid.apikey;
+// sgMail.setApiKey(sendgridApiKey);
+
+// Constants for getPresignedUrl function
+const allowedDomains = ["https://dopamineapplite.com", "https://dev.d39hs0u14r6hzo.amplifyapp.com", "https://dopamine-lite-v1-dev.firebaseapp.com", "https://dopamine-lite-v1-dev.web.app" ];
+const SHIFT = 3;
+const API_GATEWAY_URL = "https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl";
+const CHECK_KEY = "#RTDFGhrt^756HG^#*756GDF";
+const secretCode ="HET349DGHFRT#5$hY^GFS6*tH4*HW&";
+const processedCache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
+
+// CORS configuration for getPresignedUrl
+const corsHandler = cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedDomains.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+});
+
+// Helper function for decoding essence
+const decodeTheEssence = (encodedStr, secretCode) => {
+  let decoded = '';
+
+  // Decode by shifting each character back
+  for (let i = 0; i < encodedStr.length; i++) {
+    const char = encodedStr[i];
+    if (/[a-zA-Z]/.test(char)) {
+      const base = char >= 'a' ? 'a'.charCodeAt(0) : 'A'.charCodeAt(0);
+      decoded += String.fromCharCode(((char.charCodeAt(0) - base - SHIFT + 26) % 26) + base);
+    } else if (/\d/.test(char)) {
+      decoded += (parseInt(char, 10) - SHIFT + 10) % 10; // Reverse shift digits
+    } else {
+      decoded += char; // Leave non-alphanumeric characters unchanged
+    }
+  }
+
+  // Extract the timestamp (first 13 characters)
+  const timestamp = decoded.slice(0, 13);
+
+  // Remove the timestamp and secret code from the decoded string
+  const base64Email = decoded.slice(13 + secretCode.length);
+
+  // Base64 decode the email
+  const email = Buffer.from(base64Email, 'base64').toString('utf-8');
+
+  return { timestamp, email };
+};
+
+// Helper function for making requests with retry
+async function makeRequestWithRetry(url, params, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await axios.get(url, { params });
+      return response.data;
+    } catch (error) {
+      console.error(`Attempt ${attempt} failed:`, error.message);
+      if (attempt === retries) {
+        throw new Error("All retry attempts failed");
+      }
+      // Optional: Delay between retries
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+/**
+ * Cloud Function to get presigned URLs for video access
+ * This function handles CORS, validates requests, and proxies to AWS API Gateway
+ */
+exports.devgetPresignedUrl = functions
+  .runWith({ timeoutSeconds: 300 }) // 5 minutes timeout
+  .https.onRequest(async (req, res) => {
+    corsHandler(req, res, async () => {
+      try {
+        // Extract headers and body
+        const origin = req.headers.origin;
+        const userIp = req.headers["x-appengine-user-ip"];
+        const city = req.headers["x-appengine-city"];
+        const country = req.headers["x-appengine-country"];
+        const email  = req.headers["email"];
+        const theensemble = req.headers["theensemble"];
+
+        console.log(`Request from IP: ${userIp}, City: ${city}, Country: ${country} Origin: ${origin}, Email: ${email}, TheEnsemble: ${theensemble}`);
+
+        // Validate origin and keys
+        if (!allowedDomains.includes(origin) || !email || !theensemble) {
+          console.error("Validation failed:", `Request from IP: ${userIp}, City: ${city}, Country: ${country} Origin: ${origin}, Email: ${email}, TheEnsemble: ${theensemble} Header: ${JSON.stringify(req.headers)}`);
+          return res
+            .status(403)
+            .send({ error: "Forbidden: Access denied. This incident will be logged for further investigation." });
+        }
+
+        // Check if the request is already processed
+        if (processedCache.has(theensemble)) {
+          console.error("Replayed Ensemble:", `Request from IP: ${userIp}, City: ${city}, Country: ${country} Origin: ${origin}, Email: ${email}, TheEnsemble: ${theensemble} Header: ${JSON.stringify(req.headers)}`);
+          return res
+            .status(403)
+            .send({ error: "Forbidden: Access denied. This incident will be logged for further investigation." });
+        }
+
+        // Decode the encoded data
+        const { timestamp, email:decodeemail } = decodeTheEssence(theensemble, secretCode);
+
+        // Validate the timestamp
+        const currentTime = Date.now();
+        if (currentTime - parseInt(timestamp, 10) > 60 * 1000 || decodeemail !== email) {
+          console.error("Late request:", `Request from IP: ${userIp}, timeStamp: ${timestamp}, City: ${city}, Country: ${country} Origin: ${origin}, Email: ${email}, Decode Email: ${decodeemail} TheEnsemble: ${theensemble} Header: ${JSON.stringify(req.headers)}`);
+          return res
+            .status(403)
+            .send({ error: "Forbidden: Access denied. This incident will be logged for further investigation." });
+        }
+
+        // Cache the encoded data to prevent replay
+        processedCache.set(theensemble, true);
+
+        // Extract query parameters
+        // Changed the expiration of manifest from 3600 to 28800 (8 hours) on 27/04/2025
+        const { manifest_key: manifestKey, folder, expiration = 28800 } = req.query;
+
+        if (!manifestKey || !folder) {
+          return res
+            .status(400)
+            .send({ error: "Missing required query parameters: manifest_key, folder." });
+        }
+
+        // Determine if this is a new converted video (starts with videos/)
+        const isNewConvertedVideo = folder.startsWith('videos/');
+        
+        console.log(`Processing ${isNewConvertedVideo ? 'new converted' : 'legacy'} video for folder: ${folder}, manifest: ${manifestKey}`);
+
+        // Prepare parameters for API Gateway request
+        let params;
+        
+        if (isNewConvertedVideo && manifestKey === 'master.m3u8') {
+          // New converted video with master playlist
+          params = {
+            manifest_key: manifestKey,
+            folder,
+            expiration: 28800,
+            video_type: 'new_converted'
+          };
+        } else {
+          // Legacy video or quality-specific playlist
+          params = {
+            manifest_key: manifestKey,
+            segment_keys: "index0.ts,index1.ts",
+            folder,
+            expiration: 28800,
+            video_type: 'legacy'
+          };
+        }
+
+        console.log('Sending params to Lambda:', params);
+
+        // Call API Gateway with retries
+        const result = await makeRequestWithRetry(API_GATEWAY_URL, params);
+        res.status(200).send(result);
+      } catch (error) {
+        console.error("Error processing request:", error.message);
+        res.status(500).send({ error: "Internal server error" });
+      }
+    });
+  });
 
 /**
  * Cloud Function to send bulk emails to students
@@ -176,7 +343,7 @@ exports.sendBulkEmails = functions.firestore
         
         // Add a small delay between batches to respect rate limits
         if (i + BATCH_SIZE < messageData.recipients.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
       
