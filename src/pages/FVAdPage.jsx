@@ -21,7 +21,7 @@ import { collection } from "firebase/firestore";
 import { fireDB } from "../../firebaseconfig";
 import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom"; // Added useLocation import
 import { useUser } from "../contexts/UserProvider";
 
 // Custom styled tab component
@@ -42,7 +42,14 @@ const StyledTab = ({ icon, ...props }) => (
 );
 
 export default function FVAdPage() {
-  const [activeTab, setActiveTab] = useState(0);
+  const location = useLocation(); // Add location hook
+  
+  // Determine initial tab based on URL - same logic as FVStuPage
+  const getInitialTab = () => {
+    return location.pathname.includes('/pdf') ? 1 : 0;
+  };
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab()); // Update to use URL detection
 
   const videoFoldersRef = collection(fireDB, "folders");
   const pdfFoldersRef = collection(fireDB, "pdfFolders");
@@ -55,6 +62,11 @@ export default function FVAdPage() {
   });
 
   const { isAdmin } = useUser();
+
+  // Update tab when URL changes - same as FVStuPage
+  React.useEffect(() => {
+    setActiveTab(getInitialTab());
+  }, [location.pathname]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -81,8 +93,6 @@ export default function FVAdPage() {
       </NavLink>
     );
   }
-
-
 
   const renderFolderGrid = (folders, type) => (
     <Grid

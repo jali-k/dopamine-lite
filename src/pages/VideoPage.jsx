@@ -9,12 +9,15 @@ import {
   Stack,
   CircularProgress,
   Alert,
-  AlertTitle
+  AlertTitle,
+  Chip
 } from "@mui/material";
 import {
   BiotechOutlined as BiotechIcon,
   CalendarToday as CalendarIcon,
   Description as DescriptionIcon,
+  Construction as ConstructionIcon,
+  HighQuality as HighQualityIcon
 } from '@mui/icons-material';
 import Appbar from "../components/Appbar";
 import { fireDB } from "../../firebaseconfig";
@@ -43,6 +46,12 @@ export default function VideoPage() {
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [showRetryWarning, setShowRetryWarning] = useState(false);
   const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
+  
+  // New state variables for video source handling
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [isConvertedVideo, setIsConvertedVideo] = useState(false);
+  const [videoFolderId, setVideoFolderId] = useState(null);
+  const [isVideoUrlSet, setIsVideoUrlSet] = useState(false); // Added flag to prevent duplicate calls
 
   const emailListref = collection(
     fireDB,
@@ -58,75 +67,119 @@ export default function VideoPage() {
   const [securityCheck, setSecurityCheck] = useState(true);
   const [progress, setProgress] = useState(0);
 
-  // async function getHandler() {
-  //   const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
-  //   if (securityCheckComplete) {
-  //     console.log("Inside get handler");
-  //     console.log("Security check already complete");
-  //   }
-  //   try {
-  //     const docSnap = await getDoc(docRef);
-  //     if (docSnap.exists()) {
-  //       setHandler(docSnap.data().handler);
-  //       setInitialLoadAttempted(true);
-  //     } else {
-  //       console.log("No such document!");
-  //       setHasLoadError(true);
-  //       setShowErrorDialog(true);
-  //       setInitialLoadAttempted(true);
-  //     }
-  //   } catch (err) {
-  //     console.log(err);
-  //     setHasLoadError(true);
-  //     setShowErrorDialog(true);
-  //     setInitialLoadAttempted(true);
-  //   }
-  // }
-
-  async function getHandler(maxRetries = 3, retryDelay = 1000) {
-  const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
-  let attempt = 0;
-
-  while (attempt < maxRetries) {
+  // Function to check video status from videos collection
+  const checkVideoStatus = async (tutorialHandler) => {
     try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setHandler(docSnap.data().handler);
-        setInitialLoadAttempted(true);
-        setHasLoadError(false); // Reset error state on success
-        return; // Exit on success
+      console.log("Checking video status for handler:", tutorialHandler);
+      const videoDocRef = doc(fireDB, "videos", tutorialHandler);
+      const videoDocSnap = await getDoc(videoDocRef);
+      
+      if (videoDocSnap.exists()) {
+        const videoData = videoDocSnap.data();
+        console.log("Video document data:", videoData);
+        return videoData.status === 'completed';
       } else {
-        console.log("No such document!");
+        console.log("No video document found for handler:", tutorialHandler);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking video status:", error);
+      return false;
+    }
+  };
+
+  // Function to determine the correct video URL based on video status
+  const determineVideoUrl = async (tutData) => {
+    console.log("Determining video URL. Document data:", tutData);
+    
+    if (!tutData.handler) {
+      console.log("No handler available, cannot determine video URL");
+      return;
+    }
+
+    // Check video status from videos collection
+    const isNewVideo = await checkVideoStatus(tutData.handler);
+    const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
+    
+    if (isNewVideo) {
+      console.log("Using new EC2-converted video with handler:", tutData.handler);
+      setIsConvertedVideo(true);
+      setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
+      
+      // For new EC2-converted videos, use master.m3u8
+      const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
+      setVideoUrl(url);
+      console.log("Generated URL for new EC2-converted video:", url);
+    } else {
+      console.log("Using legacy video with handler:", tutData.handler);
+      setIsConvertedVideo(false);
+      setVideoFolderId(null);
+      
+      // For legacy videos, use index.m3u8
+      const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
+      setVideoUrl(url);
+      console.log("Generated URL for legacy video:", url);
+    }
+  };
+
+  // Improved handler fetching - only fetch once
+  async function getHandler(maxRetries = 3, retryDelay = 1000) {
+    const docRef = doc(fireDB, "folders", params.fname, "tutorials", params.lname);
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const tutData = docSnap.data();
+          console.log("Document data retrieved:", tutData);
+          
+          // Only proceed if we have a handler
+          if (tutData.handler) {
+            setHandler(tutData.handler);
+            setInitialLoadAttempted(true);
+            setHasLoadError(false);
+            
+            // Set video URL only once
+            await determineVideoUrl(tutData);
+            setIsVideoUrlSet(true);
+            
+            return; // Exit on success
+          } else {
+            console.log("No handler found in document");
+            throw new Error("No handler available");
+          }
+        } else {
+          console.log("No such document!");
+          throw new Error("Document not found");
+        }
+      } catch (err) {
+        console.log(`Attempt ${attempt + 1} failed:`, err);
         attempt++;
         if (attempt === maxRetries) {
+          console.log("Max retries reached");
           setHasLoadError(true);
           setShowErrorDialog(true);
           setInitialLoadAttempted(true);
         }
       }
-    } catch (err) {
-      console.log(`Attempt ${attempt + 1} failed:`, err);
-      attempt++;
-      if (attempt === maxRetries) {
-        console.log("Max retries reached");
-        setHasLoadError(true);
-        setShowErrorDialog(true);
-        setInitialLoadAttempted(true);
+      
+      // Wait before retrying
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
     }
-    // Wait before retrying
-    if (attempt < maxRetries) {
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-    }
   }
-}
 
+  // Single useEffect for initial handler fetch
   useEffect(() => {
     getHandler();
-  }, []);
+  }, []); // Only run once on mount
 
- useEffect(() => {
-    if (!handler || hasLoadError || showRetryWarning) return; // Add showRetryWarning check
+  // Security check useEffect - properly waits for handler and video URL
+  useEffect(() => {
+    // Wait for handler AND ensure video URL is set
+    if (!handler || !isVideoUrlSet || hasLoadError || showRetryWarning) return;
 
     const interval = setInterval(() => {
       setProgress((prevProgress) => {
@@ -143,12 +196,14 @@ export default function VideoPage() {
         }
         return nextProgress;
       });
-    }, 300);
+    }, 80);
 
     return () => clearInterval(interval);
-  }, [handler, hasLoadError, showRetryWarning]); // Add showRetryWarning dependency
+  }, [handler, isVideoUrlSet, hasLoadError, showRetryWarning]); // Added isVideoUrlSet dependency
 
   const handleVideoError = (error) => {
+    console.log("Video error detected:", error);
+    
     if (!securityCheckComplete) {
       if (error?.type === 'retry') {
         setRetryAttempt(error.attempt);
@@ -253,6 +308,67 @@ export default function VideoPage() {
       }}
     >
       <Appbar />
+      
+           {/* Multi-Quality Video Feature Banner */}
+           <Alert 
+        severity="success" 
+        icon={<BiotechIcon />}
+        sx={{
+          borderRadius: 0,
+          background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(102, 187, 106, 0.08) 100%)',
+          border: '1px solid rgba(46, 125, 50, 0.3)',
+          borderLeft: 'none',
+          borderRight: 'none',
+          '& .MuiAlert-icon': {
+            color: '#2e7d32',
+            fontSize: '28px'
+          },
+          '& .MuiAlert-message': {
+            width: '100%'
+          }
+        }}
+      >
+        <AlertTitle sx={{ mb: 1, fontWeight: 700, color: '#1b5e20', fontSize: '1.1rem' }}>
+          🎉 New Feature: Multi-Quality Video Streaming Now Available!
+        </AlertTitle>
+        <Typography variant="body2" sx={{ color: '#2e7d32', mb: 0.5, fontWeight: 500 }}>
+          Experience adaptive streaming with multiple video quality options for new videos:
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📉 Lower data usage with quality selection
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            ⚡ Faster loading times
+          </Typography>
+          <Typography variant="body2" sx={{ 
+            color: '#1b5e20', 
+            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
+            px: 1.5, 
+            py: 0.5, 
+            borderRadius: 1,
+            fontWeight: 500
+          }}>
+            📶 Adapt quality to your connection strength
+          </Typography>
+        </Box>
+      </Alert>
+      
+      
       <Box
         sx={{
           p: 2,
@@ -277,9 +393,28 @@ export default function VideoPage() {
           }}
         >
           <BiotechIcon sx={{ fontSize: 32, color: Colors.green }} />
-          <Typography variant="h4">
-            {tut.title} - {tut.lesson}
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <Typography variant="h4">
+              {tut.title} - {tut.lesson}
+            </Typography>
+            {isConvertedVideo && (
+                 <Chip
+               
+                 icon={<HighQualityIcon />}
+                 label="Multi-Quality"
+                 size="small"
+                 sx={{
+                   backgroundColor: '#4caf50',
+                   color: 'white',
+                   width: 'fit-content',
+                   border: '1px solid #4caf50',
+                   '& .MuiChip-icon': {
+                     color: 'white'
+                   }
+                 }}
+               />
+            )}
+          </Box>
         </Paper>
 
         {/* Video Player Card */}
@@ -292,11 +427,9 @@ export default function VideoPage() {
           }}
         >
           <CardContent sx={{ p: 0 }}>
-            {handler && vurl ? (
+            {handler && videoUrl ? (
               <CVPL
-
-                url={'https://us-central1-dopamine-lite-b61bf.cloudfunctions.net/getPresignedUrl?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=' + handler + '&expiration=28800'}
-
+                url={videoUrl}
                 watermark={user.email}
                 canPlay={!securityCheck && progress === 100}
                 onError={handleVideoError}
@@ -332,6 +465,8 @@ export default function VideoPage() {
                   {tut.description}
                 </Typography>
               </Stack>
+              
+              
             </Stack>
           </CardContent>
         </Card>

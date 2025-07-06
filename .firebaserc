@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "dopamine-lite-b61bf"
+    "development": "dopamine-lite-v1-dev",
+    "production": "dopamine-lite-b61bf"
   }
 }

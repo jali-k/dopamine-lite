@@ -2,6 +2,7 @@ import React from 'react';
 import { Container, Grid, Typography, Box, Tabs, Tab } from '@mui/material';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import { useLocation } from 'react-router-dom'; // Add this import
 import FButton from "../components/FButton";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { collection } from "firebase/firestore";
@@ -10,7 +11,19 @@ import Loading from "../components/Loading";
 import Appbar from "../components/Appbar";
 
 export default function FVStuPage() {
-  const [activeTab, setActiveTab] = React.useState(0);
+  const location = useLocation(); // Add this line
+  
+  // Determine initial tab based on URL
+  const getInitialTab = () => {
+    return location.pathname.includes('/pdf') ? 1 : 0;
+  };
+  
+  const [activeTab, setActiveTab] = React.useState(getInitialTab()); // Update this line
+
+  // Update tab when URL changes
+  React.useEffect(() => {
+    setActiveTab(getInitialTab());
+  }, [location.pathname]); // Add this useEffect
 
   const videoFoldersRef = collection(fireDB, "folders");
   const pdfFoldersRef = collection(fireDB, "pdfFolders");

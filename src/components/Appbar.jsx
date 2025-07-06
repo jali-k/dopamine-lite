@@ -1,9 +1,17 @@
+// src/components/Appbar.jsx - Updated with both badges
 import {
   Home,
   NavigateNext,
   Person as PersonIcon,
   Email as EmailIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  Message as MessageIcon,
+  VideoLibrary as VideoLibraryIcon,
+  Description as DescriptionIcon,
+  Dashboard as DashboardIcon,
+  AlternateEmail as AlternateEmailIcon,
+  Notifications as NotificationsIcon,
+  NotificationsActive as NotificationsActiveIcon // Add this import
 } from "@mui/icons-material";
 import {
   AppBar,
@@ -26,10 +34,11 @@ import { signOut } from "../../af";
 import { useState } from "react";
 import appIcon from '../assets/icon.jpg';
 import { Colors } from "../themes/colours";
-
+import NotificationBadge from "./notifications/NotificationBadge";
+import PersonalizedNotificationBadge from "./personalizednotifications/PersonalizedNotificationBadge"; // NEW
 
 export default function Appbar() {
-  const { user } = useUser();
+  const { user, isAdmin } = useUser();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -71,7 +80,6 @@ export default function Appbar() {
               sx={{
                 width: 32,
                 height: 32,
-                // filter: 'brightness(0) invert(1)', // Makes the icon white
                 opacity: 0.9
               }}
             />
@@ -82,38 +90,47 @@ export default function Appbar() {
                 fontWeight: 600,
                 letterSpacing: '0.5px',
                 fontFamily: 'Quicksand, Arial, sans-serif',
-                color: Colors.white100, // Ensuring text is white
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)', // Adding subtle shadow for better visibility
+                color: Colors.white100,
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)',
                 opacity: 0.95
               }}
             >
               Dopamine Lite
             </Typography>
           </Stack>
-          <IconButton
-            onClick={handleClick}
-            sx={{
-              border: '2px solid rgba(255, 255, 255, 0.2)',
-              padding: '4px',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                border: '2px solid rgba(255, 255, 255, 0.5)',
-              }
-            }}
-          >
-            <Avatar
-              src={user.photoURL}
+          
+          {/* Right side with BOTH notification badges and user avatar */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            {/* Regular Notification Badge (Bell) */}
+            <NotificationBadge />
+            
+            {/* NEW: Personalized Notification Badge (Message) */}
+            <PersonalizedNotificationBadge />
+            
+            <IconButton
+              onClick={handleClick}
               sx={{
-                width: 32,
-                height: 32,
-                boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                border: '2px solid rgba(255, 255, 255, 0.2)',
+                padding: '4px',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  border: '2px solid rgba(255, 255, 255, 0.5)',
+                }
               }}
-            />
-          </IconButton>
+            >
+              <Avatar
+                src={user.photoURL}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                }}
+              />
+            </IconButton>
+          </Stack>
         </Toolbar>
       </AppBar>
 
-      {/* Rest of the component remains the same */}
       <Menu
         anchorEl={anchorEl}
         open={open}
@@ -179,23 +196,136 @@ export default function Appbar() {
           </Typography>
         </MenuItem>
         
-        <MenuItem
-          component={Link}
-          to="/admin"
-          sx={{
-            py: 1.5,
-            '&:hover': {
-              bgcolor: 'primary.light',
-            }
-          }}
-        >
-          <ListItemIcon>
-            <PersonIcon fontSize="small" sx={{ color: Colors.green }} />
-          </ListItemIcon>
-          <Typography variant="body2" color="text.secondary">
-            Admin Panel
-          </Typography>
-        </MenuItem>
+        {isAdmin && (
+          <>
+            <MenuItem
+              component={Link}
+              to="/admin"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <DashboardIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Admin Dashboard
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/video"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <VideoLibraryIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Video Tutorials
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/pdf"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <DescriptionIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                PDF Documents
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/messages"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <MessageIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Message Center
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/notifications"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <NotificationsIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Notification Center
+              </Typography>
+            </MenuItem>
+            
+            {/* NEW: Add Personalized Notifications to admin menu */}
+            <MenuItem
+              component={Link}
+              to="/admin/personalizednotifications"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <NotificationsActiveIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Personalized Notifications
+              </Typography>
+            </MenuItem>
+            
+            <MenuItem
+              component={Link}
+              to="/admin/email-validator"
+              sx={{
+                py: 1.5,
+                '&:hover': {
+                  bgcolor: 'primary.light',
+                }
+              }}
+            >
+              <ListItemIcon>
+                <AlternateEmailIcon fontSize="small" sx={{ color: Colors.green }} />
+              </ListItemIcon>
+              <Typography variant="body2" color="text.secondary">
+                Email Validator
+              </Typography>
+            </MenuItem>
+          </>
+        )}
 
         <Divider />
 
