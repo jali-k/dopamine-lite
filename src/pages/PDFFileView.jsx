@@ -257,7 +257,7 @@ const handlePdfSubmissionAdvanced = useCallback(async (pdf) => {
       throw new Error(`Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
     }
 
-    setProcessingStep('Submitting to processing queue...');
+    setProcessingStep('Waiting in the queue...');
     const pdfBlob = await pdfResponse.blob();
 
     const formData = new FormData();
@@ -291,7 +291,7 @@ const handlePdfSubmissionAdvanced = useCallback(async (pdf) => {
     const jobData = await submitResponse.json();
     const jobId = jobData.job_id;
 
-    setProcessingStep('Processing document...');
+    setProcessingStep('Fetching the document...');
 
     // Poll for job completion
     const pollForCompletion = async () => {
@@ -309,7 +309,7 @@ const handlePdfSubmissionAdvanced = useCallback(async (pdf) => {
           const statusData = await statusResponse.json();
           
           if (statusData.status === 'COMPLETED') {
-            setProcessingStep('Downloading processed file...');
+            setProcessingStep('Downloading the document...');
             
             // Download the processed file
             const downloadResponse = await fetch(`${GMARK_BASE}/api/download/${jobId}/`);
@@ -333,7 +333,7 @@ const handlePdfSubmissionAdvanced = useCallback(async (pdf) => {
             throw new Error(statusData.error_message || 'Processing failed');
             
           } else if (statusData.status === 'PROCESSING') {
-            setProcessingStep('Processing document... (this may take a moment)');
+            setProcessingStep('Fetching the document... (this may take a moment)');
             
           } else {
             setProcessingStep('Waiting in queue...');
