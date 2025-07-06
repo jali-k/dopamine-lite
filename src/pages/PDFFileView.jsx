@@ -51,6 +51,8 @@ const setCachedData = (key, data) => {
 };
 
 export default function PDFFileView() {
+  const GMARK_BASE = "https://gmark.sddopamine.com";
+  const LOCAL_BASE = "http://127.0.0.1:8000";
   const params = useParams();
   const { user, isAdmin } = useUser();
 
@@ -235,94 +237,145 @@ export default function PDFFileView() {
   }, [params.fname, user.email, checkUserAuthorization]);
 
   // Memoized PDF submission handler
-  const handlePdfSubmissionAdvanced = useCallback(async (pdf) => {
-    try {
-      setIsProcessing(true);
-      setProcessingPdf(pdf);
-      setProcessingStep('Preparing document...');
-      setProcessResult(null);
+// Update the handlePdfSubmissionAdvanced function in your PDFFileView.jsx
 
-      if (!pdf.url) {
-        throw new Error("PDF file URL is missing");
-      }
+const handlePdfSubmissionAdvanced = useCallback(async (pdf) => {
+  try {
+    setIsProcessing(true);
+    setProcessingPdf(pdf);
+    setProcessingStep('Preparing document...');
+    setProcessResult(null);
 
-      setProcessingStep('Downloading PDF file...');
-      const pdfResponse = await fetch(pdf.url);
-
-      if (!pdfResponse.ok) {
-        throw new Error(`Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
-      }
-
-      setProcessingStep('Processing document...');
-      const pdfBlob = await pdfResponse.blob();
-
-      const formData = new FormData();
-      formData.append('pdf_file', pdfBlob, `${pdf.title}.pdf`);
-      
-      const metadata = {
-        enable_watermark: true,
-        enable_qr_code: true,
-        enable_font_stego: true,
-        watermark_text: user.email,
-        email: user.email,
-        secret_message: user.email,
-        cover_text: coverText
-      };
-
-      Object.entries(metadata).forEach(([key, value]) => {
-        formData.append(key, value);
-      });
-
-      setProcessingStep('Generating PDF...');
-      const apiResponse = await fetch('https://gmark.sddopamine.com/api/all/', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        throw new Error(`API Error ${apiResponse.status}: ${errorText}`);
-      }
-
-      setProcessingStep('Finalizing download...');
-      const contentType = apiResponse.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
-        const result = await apiResponse.json();
-        setProcessResult({ type: 'success', message: 'PDF has been processed successfully!' });
-      } else if (contentType && contentType.includes('application/pdf')) {
-        const pdfBlob = await apiResponse.blob();
-        const url = window.URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${pdf.title}.pdf`;
-        link.click();
-        window.URL.revokeObjectURL(url);
-        setProcessResult({ type: 'success', message: 'PDF downloaded successfully!' });
-      } else {
-        const text = await apiResponse.text();
-        setProcessResult({ type: 'success', message: 'PDF loaded successfully!' });
-      }
-
-      setTimeout(() => {
-        setIsProcessing(false);
-        setProcessingStep('');
-        setProcessingPdf(null);
-        setProcessResult(null);
-      }, 2000);
-      
-    } catch (error) {
-      console.error("Error processing PDF:", error);
-      setProcessResult({ type: 'error', message: error.message });
-      
-      setTimeout(() => {
-        setIsProcessing(false);
-        setProcessingStep('');
-        setProcessingPdf(null);
-        setProcessResult(null);
-      }, 3000);
+    if (!pdf.url) {
+      throw new Error("PDF file URL is missing");
     }
-  }, [user.email, coverText]);
+
+    setProcessingStep('Downloading PDF file...');
+    const pdfResponse = await fetch(pdf.url);
+
+    if (!pdfResponse.ok) {
+      throw new Error(`Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
+    }
+
+    setProcessingStep('Submitting to processing queue...');
+    const pdfBlob = await pdfResponse.blob();
+
+    const formData = new FormData();
+    formData.append('pdf_file', pdfBlob, `${pdf.title}.pdf`);
+    
+    const metadata = {
+      enable_watermark: true,
+      enable_qr_code: true,
+      enable_font_stego: true,
+      watermark_text: user.email,
+      email: user.email,
+      secret_message: user.email,
+      cover_text: coverText
+    };
+
+    Object.entries(metadata).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    // Submit job to async endpoint
+    const submitResponse = await fetch(`${GMARK_BASE}/api/async/all/`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!submitResponse.ok) {
+      const errorText = await submitResponse.text();
+      throw new Error(`Submit Error ${submitResponse.status}: ${errorText}`);
+    }
+
+    const jobData = await submitResponse.json();
+    const jobId = jobData.job_id;
+
+    setProcessingStep('Processing document...');
+
+    // Poll for job completion
+    const pollForCompletion = async () => {
+      let attempts = 0;
+      const maxAttempts = 60; // 2 minutes max (60 * 2 seconds)
+      
+      while (attempts < maxAttempts) {
+        try {
+          const statusResponse = await fetch(`${GMARK_BASE}/api/status/${jobId}/`);
+          
+          if (!statusResponse.ok) {
+            throw new Error(`Status check failed: ${statusResponse.status}`);
+          }
+          
+          const statusData = await statusResponse.json();
+          
+          if (statusData.status === 'COMPLETED') {
+            setProcessingStep('Downloading processed file...');
+            
+            // Download the processed file
+            const downloadResponse = await fetch(`${GMARK_BASE}/api/download/${jobId}/`);
+
+            if (!downloadResponse.ok) {
+              throw new Error(`Download failed: ${downloadResponse.status}`);
+            }
+            
+            const processedBlob = await downloadResponse.blob();
+            const url = window.URL.createObjectURL(processedBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${pdf.title}.pdf`;
+            link.click();
+            window.URL.revokeObjectURL(url);
+            
+            setProcessResult({ type: 'success', message: 'PDF downloaded successfully!' });
+            break;
+            
+          } else if (statusData.status === 'FAILED') {
+            throw new Error(statusData.error_message || 'Processing failed');
+            
+          } else if (statusData.status === 'PROCESSING') {
+            setProcessingStep('Processing document... (this may take a moment)');
+            
+          } else {
+            setProcessingStep('Waiting in queue...');
+          }
+          
+          // Wait 2 seconds before next poll
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          attempts++;
+          
+        } catch (error) {
+          throw error;
+        }
+      }
+      
+      if (attempts >= maxAttempts) {
+        throw new Error('Processing timeout - please try again later');
+      }
+    };
+
+    await pollForCompletion();
+
+    // Show success for 2 seconds then hide dialog
+    setTimeout(() => {
+      setIsProcessing(false);
+      setProcessingStep('');
+      setProcessingPdf(null);
+      setProcessResult(null);
+    }, 2000);
+    
+  } catch (error) {
+    console.error("Error processing PDF:", error);
+    setProcessResult({ type: 'error', message: error.message });
+    
+    // Show error for 3 seconds then hide dialog
+    setTimeout(() => {
+      setIsProcessing(false);
+      setProcessingStep('');
+      setProcessingPdf(null);
+      setProcessResult(null);
+    }, 3000);
+  }
+}, [user.email, coverText]);
 
   // Memoized utility functions
   const formatFileSize = useMemo(() => (bytes) => {
