@@ -497,6 +497,34 @@ export default function VideoUPPage() {
     });
   };
 
+  const getUploadBaseUrl = () => {
+    // First check if environment variables are explicitly set
+    const uploadUrl = import.meta.env.VITE_UPLOAD_BASE_URL;
+    if (uploadUrl) {
+      console.log(`🌐 Using upload URL from env: ${uploadUrl}`);
+      return uploadUrl;
+    }
+    
+    // Fallback: detect environment based on various indicators
+    const isDevelopment = 
+      import.meta.env.VITE_ENVIRONMENT === 'development' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.includes('localhost') ||
+      window.location.hostname.includes('dev') ||  // if your dev domain contains 'dev'
+      window.location.port === '3000' ||  // typical React dev server port
+      window.location.port === '5173';    // typical Vite dev server port
+    
+    const baseUrl = isDevelopment 
+      ? "http://44.219.87.48/api"          // Development IP
+      : "https://upload.sddopamine.com/api"; // Production URL
+    
+    console.log(`🌐 Auto-detected environment: ${isDevelopment ? 'development' : 'production'}`);
+    console.log(`🌐 Using upload URL: ${baseUrl}`);
+    
+    return baseUrl;
+  };
+
   // Enhanced video upload with chunked upload support and speed tracking
   const uploadVideoToEC2 = async (videoFile) => {
     if (!videoFile) return null;
@@ -511,6 +539,8 @@ export default function VideoUPPage() {
     
     // Set total size for tracking
     setTotalSize(videoFile.size);
+
+    const ec2BaseUrl = getUploadBaseUrl();
     
     console.log("Video file details:", {
       fileName: videoFile.name,
@@ -551,7 +581,7 @@ export default function VideoUPPage() {
     };
     
     try {
-      const ec2BaseUrl = "https://upload.sddopamine.com/api";
+      // const ec2BaseUrl = "https://upload.sddopamine.com/api";
       let uploadedChunks = 0;
       const startTime = Date.now();
       

@@ -111,7 +111,8 @@ export default function AdmFileView() {
   const navigator = useNavigate();
 
   // API endpoint for EC2 control
-  const EC2_API_ENDPOINT = "https://blkr53ji2k.execute-api.us-east-1.amazonaws.com/default/uploader_ec2_controller";
+  // const EC2_API_ENDPOINT = "https://blkr53ji2k.execute-api.us-east-1.amazonaws.com/default/uploader_ec2_controller";
+  const EC2_API_ENDPOINT = import.meta.env.VITE_EC2_API_ENDPOINT;
 
   // NEW: Enhanced email processing with safety checks
   const processEmailInput = useCallback((rawInput) => {
