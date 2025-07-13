@@ -54,6 +54,9 @@ export default function EmailValidatorPage() {
   const [file, setFile] = useState(null);
   const [data, setData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
+  const [originalColumns, setOriginalColumns] = useState([]);
+  const [emailColumn, setEmailColumn] = useState(null);
+  const [nameColumn, setNameColumn] = useState(null);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [validated, setValidated] = useState(false);
@@ -74,6 +77,7 @@ export default function EmailValidatorPage() {
     invalid: 0,
     commonErrors: {}
   });
+  const [statusFilter, setStatusFilter] = useState("all");
   
   const fileInputRef = useRef(null);
 
@@ -108,7 +112,11 @@ export default function EmailValidatorPage() {
     setErrors([]);
     setData([]);
     setOriginalData([]);
+    setOriginalColumns([]);
+    setEmailColumn(null);
+    setNameColumn(null);
     setSearchTerm("");
+    setStatusFilter("all"); // Reset status filter
     setPage(0);
 
     Papa.parse(selectedFile, {
@@ -127,22 +135,28 @@ export default function EmailValidatorPage() {
 
         // Process the data
         try {
+          const headers = results.meta.fields || [];
+          setOriginalColumns(headers);
+          
+          // Find the name and email columns - be flexible with column names
+          const nameKey = headers.find(
+            (key) => key.toLowerCase().includes("name")
+          ) || headers[0]; // Default to first column if no name column
+          
+          const emailKey = headers.find(
+            (key) => key.toLowerCase().includes("email")
+          ) || headers[1]; // Default to second column if no email column
+
+          if (!nameKey || !emailKey) {
+            throw new Error(
+              "CSV must contain at least two columns for name and email"
+            );
+          }
+
+          setNameColumn(nameKey);
+          setEmailColumn(emailKey);
+
           const parsedData = results.data.map((row, index) => {
-            // Find the name and email columns - be flexible with column names
-            const nameKey = Object.keys(row).find(
-              (key) => key.toLowerCase().includes("name")
-            ) || Object.keys(row)[0]; // Default to first column if no name column
-            
-            const emailKey = Object.keys(row).find(
-              (key) => key.toLowerCase().includes("email")
-            ) || Object.keys(row)[1]; // Default to second column if no email column
-
-            if (!nameKey || !emailKey) {
-              throw new Error(
-                "CSV must contain at least two columns for name and email"
-              );
-            }
-
             const name = row[nameKey]?.trim() || "";
             const email = row[emailKey]?.trim() || "";
 
@@ -154,6 +168,7 @@ export default function EmailValidatorPage() {
               status: "pending", // pending, valid, fixable, invalid
               errorType: null,
               suggestion: null,
+              originalRow: { ...row }, // Store the entire original row
             };
           });
 
@@ -186,26 +201,98 @@ export default function EmailValidatorPage() {
     setValidating(true);
     setProgress(0);
     
-    // Define common email validation issues and their fixes
+    // Define comprehensive domain typos and their fixes
     const commonDomainTypos = {
+      // Gmail variations
       'gmail.con': 'gmail.com',
-      'gmial.com': 'gmail.com',
-      'gamil.com': 'gmail.com',
       'gmail.co': 'gmail.com',
-      'gmal.com': 'gmail.com',
       'gmail.cm': 'gmail.com',
+      'gmail.om': 'gmail.com',
+      'gmail.c': 'gmail.com',
+      'gmial.com': 'gmail.com',
+      'gmai.com': 'gmail.com',
+      'gamil.com': 'gmail.com',
+      'gmal.com': 'gmail.com',
+      'gmil.com': 'gmail.com',
+      'gamail.com': 'gmail.com',
+      'gmails.com': 'gmail.com',
+      'gmail.coom': 'gmail.com',
+      'gmail.comm': 'gmail.com',
+      'gmaill.com': 'gmail.com',
+      'ggmail.com': 'gmail.com',
+      'g-mail.com': 'gmail.com',
+      'gmaio.com': 'gmail.com',
+      'gmail.co.uk': 'gmail.com', // Common mistake
+      'gmail.net': 'gmail.com',
+      'gmail.org': 'gmail.com',
+      
+      // Yahoo variations
       'yahoo.con': 'yahoo.com',
+      'yahoo.co': 'yahoo.com',
+      'yahoo.cm': 'yahoo.com',
+      'yahoo.om': 'yahoo.com',
       'yaho.com': 'yahoo.com',
       'yahooo.com': 'yahoo.com',
+      'yahho.com': 'yahoo.com',
       'ymail.com': 'yahoo.com',
+      'yahoo.coom': 'yahoo.com',
+      'yahoo.comm': 'yahoo.com',
+      'yahoo.net': 'yahoo.com',
+      'yahoo.org': 'yahoo.com',
+      'yhoo.com': 'yahoo.com',
+      'yahoo.co.uk': 'yahoo.co.uk', // This is actually valid
+      
+      // Hotmail variations
       'hotmal.com': 'hotmail.com',
       'hotmial.com': 'hotmail.com',
       'hotmai.com': 'hotmail.com',
       'hotmail.con': 'hotmail.com',
+      'hotmail.co': 'hotmail.com',
+      'hotmail.cm': 'hotmail.com',
+      'hotmil.com': 'hotmail.com',
+      'hotmmail.com': 'hotmail.com',
+      'homail.com': 'hotmail.com',
+      'hotmail.coom': 'hotmail.com',
+      'hotmail.comm': 'hotmail.com',
+      'hotmail.net': 'hotmail.com',
+      'hotmail.org': 'hotmail.com',
+      
+      // Outlook variations
       'outlok.com': 'outlook.com',
       'outloo.com': 'outlook.com',
       'outlook.co': 'outlook.com',
-      'outlook.con': 'outlook.com'
+      'outlook.con': 'outlook.com',
+      'outlook.cm': 'outlook.com',
+      'outlook.om': 'outlook.com',
+      'outlookk.com': 'outlook.com',
+      'outllook.com': 'outlook.com',
+      'outlook.coom': 'outlook.com',
+      'outlook.comm': 'outlook.com',
+      'outlook.net': 'outlook.com',
+      'outlook.org': 'outlook.com',
+      
+      // Other common providers
+      'aol.con': 'aol.com',
+      'aol.co': 'aol.com',
+      'comcast.net': 'comcast.net', // Valid
+      'verizon.net': 'verizon.net', // Valid
+      'att.net': 'att.net', // Valid
+      'live.con': 'live.com',
+      'live.co': 'live.com',
+      'msn.con': 'msn.com',
+      'msn.co': 'msn.com',
+      'icloud.con': 'icloud.com',
+      'icloud.co': 'icloud.com',
+      'me.con': 'me.com',
+      'me.co': 'me.com',
+      
+      // Generic TLD mistakes
+      '.con': '.com',
+      '.co': '.com',
+      '.cm': '.com',
+      '.om': '.com',
+      '.coom': '.com',
+      '.comm': '.com',
     };
 
     // Create batch processing for large files
@@ -301,6 +388,37 @@ export default function EmailValidatorPage() {
                 suggestion = `${parts[0]}@${domain}.com`;
               }
             }
+            
+            // Check for common TLD typos at the end
+            else {
+              let foundTldTypo = false;
+              for (const [typo, correct] of Object.entries(commonDomainTypos)) {
+                if (typo.startsWith('.') && domain.endsWith(typo)) {
+                  isValid = false;
+                  errorType = "tld_typo";
+                  suggestion = `${parts[0]}@${domain.replace(new RegExp(typo.replace('.', '\\.') + '$'), correct)}`;
+                  foundTldTypo = true;
+                  break;
+                }
+              }
+              
+              // Additional sophisticated domain checking
+              if (!foundTldTypo) {
+                // Check for domains that are close to popular ones using Levenshtein-like comparison
+                const popularDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com'];
+                
+                for (const popularDomain of popularDomains) {
+                  const distance = getEditDistance(domain, popularDomain);
+                  // If the domain is very close to a popular one (1-2 character difference)
+                  if (distance <= 2 && distance > 0) {
+                    isValid = false;
+                    errorType = "domain_similarity";
+                    suggestion = `${parts[0]}@${popularDomain}`;
+                    break;
+                  }
+                }
+              }
+            }
           }
         }
         
@@ -335,17 +453,7 @@ export default function EmailValidatorPage() {
         setValidated(true);
         
         // Compute final stats
-        const validCount = validatedData.filter(row => row.status === "valid").length;
-        const fixableCount = validatedData.filter(row => row.status === "fixable").length;
-        const invalidCount = validatedData.filter(row => row.status === "invalid").length;
-        
-        setStats({
-          total: totalRows,
-          valid: validCount,
-          fixable: fixableCount,
-          invalid: invalidCount,
-          commonErrors: errorStats.commonErrors
-        });
+        updateStats(validatedData);
         
         setStatsDialog(true);
       }
@@ -353,6 +461,61 @@ export default function EmailValidatorPage() {
     
     // Start processing from the first batch
     processBatch(0);
+  };
+
+  // Helper function to calculate and update stats from current data
+  const updateStats = (currentData) => {
+    const validCount = currentData.filter(row => row.status === "valid").length;
+    const fixableCount = currentData.filter(row => row.status === "fixable").length;
+    const invalidCount = currentData.filter(row => row.status === "invalid").length;
+    
+    // Calculate common errors
+    const commonErrors = {};
+    currentData.forEach(row => {
+      if (row.errorType) {
+        if (!commonErrors[row.errorType]) {
+          commonErrors[row.errorType] = 1;
+        } else {
+          commonErrors[row.errorType]++;
+        }
+      }
+    });
+    
+    const newStats = {
+      total: currentData.length,
+      valid: validCount,
+      fixable: fixableCount,
+      invalid: invalidCount,
+      commonErrors
+    };
+    
+    setStats(newStats);
+    return newStats;
+  };
+
+  // Simple edit distance function for domain similarity checking
+  const getEditDistance = (str1, str2) => {
+    const matrix = [];
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[str2.length][str1.length];
   };
 
   const handleEdit = (row) => {
@@ -382,18 +545,27 @@ export default function EmailValidatorPage() {
           errorType = "invalid_format";
         }
         
+        // Update the original row data with the new email
+        const updatedOriginalRow = { ...row.originalRow };
+        if (emailColumn) {
+          updatedOriginalRow[emailColumn] = email;
+        }
+        
         return {
           ...row,
           email,
           status,
           errorType,
-          suggestion
+          suggestion,
+          originalRow: updatedOriginalRow
         };
       }
       return row;
     });
     
     setData(updatedData);
+    updateStats(updatedData); // Update stats in real-time
+    updateStats(updatedData); // Update stats in real-time
     setEditingRow(null);
     setEditValue("");
   };
@@ -408,12 +580,19 @@ export default function EmailValidatorPage() {
     
     const updatedData = data.map(item => {
       if (item.id === row.id) {
+        // Update the original row data with the suggested email
+        const updatedOriginalRow = { ...item.originalRow };
+        if (emailColumn) {
+          updatedOriginalRow[emailColumn] = row.suggestion;
+        }
+        
         return {
           ...item,
           email: row.suggestion,
           status: "valid",
           errorType: null,
-          suggestion: null
+          suggestion: null,
+          originalRow: updatedOriginalRow
         };
       }
       return item;
@@ -425,37 +604,52 @@ export default function EmailValidatorPage() {
   const handleFixAll = () => {
     const updatedData = data.map(row => {
       if (row.status === "fixable" && row.suggestion) {
+        // Update the original row data with the suggested email
+        const updatedOriginalRow = { ...row.originalRow };
+        if (emailColumn) {
+          updatedOriginalRow[emailColumn] = row.suggestion;
+        }
+        
         return {
           ...row,
           email: row.suggestion,
           status: "valid",
           errorType: null,
-          suggestion: null
+          suggestion: null,
+          originalRow: updatedOriginalRow
         };
       }
       return row;
     });
     
     setData(updatedData);
+    updateStats(updatedData); // Update stats in real-time
     
     setSuccessMessage("Applied all suggested fixes");
     setAlertOpen(true);
   };
 
   const handleResetAll = () => {
-    setData(JSON.parse(JSON.stringify(originalData)));
-    validateEmails(originalData);
+    const originalDataCopy = JSON.parse(JSON.stringify(originalData));
+    setData(originalDataCopy);
+    validateEmails(originalDataCopy);
     
     setSuccessMessage("Reset to original data");
     setAlertOpen(true);
   };
 
   const handleDownload = () => {
-    // Prepare data for download (convert back to format with just name and email)
-    const csvData = data.map(row => ({
-      name: row.name,
-      email: row.email
-    }));
+    // Prepare data for download - preserve ALL original columns and update the email column
+    const csvData = data.map(row => {
+      const updatedRow = { ...row.originalRow };
+      
+      // Update the email column with the validated/fixed email
+      if (emailColumn) {
+        updatedRow[emailColumn] = row.email;
+      }
+      
+      return updatedRow;
+    });
     
     // Convert to CSV
     const csv = Papa.unparse(csvData);
@@ -470,7 +664,7 @@ export default function EmailValidatorPage() {
     link.click();
     document.body.removeChild(link);
     
-    setSuccessMessage("CSV downloaded successfully");
+    setSuccessMessage("CSV downloaded successfully with all original columns preserved");
     setAlertOpen(true);
   };
 
@@ -483,13 +677,19 @@ export default function EmailValidatorPage() {
     setPage(0);
   };
 
-  // Filter data based on search term
-  const filteredData = data.filter(row => 
-    row.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    row.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (row.originalEmail && row.originalEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (row.status && row.status.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Filter data based on search term and status filter
+  const filteredData = data.filter(row => {
+    // Apply search filter
+    const matchesSearch = row.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      row.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (row.originalEmail && row.originalEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (row.status && row.status.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Apply status filter
+    const matchesStatus = statusFilter === "all" || row.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   // Calculate pagination
   const paginatedData = filteredData.slice(
@@ -505,6 +705,8 @@ export default function EmailValidatorPage() {
       case "multiple_at": return "Multiple @ symbols";
       case "contains_www": return "Contains www (invalid in emails)";
       case "domain_typo": return "Domain typo";
+      case "tld_typo": return "TLD typo (e.g., .con instead of .com)";
+      case "domain_similarity": return "Domain similar to popular provider";
       case "invalid_tld": return "Invalid/missing domain extension";
       case "empty": return "Empty email";
       default: return "Unknown error";
@@ -549,7 +751,7 @@ export default function EmailValidatorPage() {
             Email Validator
           </T>
           <T variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Upload a CSV file with names and emails to validate and correct email addresses.
+            Upload a CSV file with names and emails to validate and correct email addresses. All original columns will be preserved in the download.
           </T>
           
           {/* File Upload Section */}
@@ -587,11 +789,34 @@ export default function EmailValidatorPage() {
                   Upload CSV File
                 </T>
                 <T variant="body2" color="text.secondary">
-                  CSV should include columns for name and email
+                  CSV should include columns for name and email. All columns will be preserved.
                 </T>
               </Bx>
             </Grid>
           </Grid>
+          
+          {/* Column Information */}
+          {originalColumns.length > 0 && (
+            <Bx sx={{ mb: 3 }}>
+              <T variant="h6" gutterBottom>
+                Detected Columns ({originalColumns.length})
+              </T>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {originalColumns.map((column, index) => (
+                  <Chip
+                    key={index}
+                    label={column}
+                    color={column === emailColumn ? "primary" : column === nameColumn ? "secondary" : "default"}
+                    variant={column === emailColumn || column === nameColumn ? "filled" : "outlined"}
+                    size="small"
+                  />
+                ))}
+              </Stack>
+              <T variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Email column: <strong>{emailColumn}</strong> | Name column: <strong>{nameColumn}</strong>
+              </T>
+            </Bx>
+          )}
           
           {/* Loading Indicator */}
           {loading && (
@@ -640,12 +865,26 @@ export default function EmailValidatorPage() {
                     label={`${stats.fixable} Fixable`}
                     color="warning"
                     variant="outlined"
+                    clickable={stats.fixable > 0}
+                    onClick={stats.fixable > 0 ? () => {
+                      setStatusFilter("fixable");
+                      setPage(0);
+                      setSearchTerm("");
+                    } : undefined}
+                    sx={stats.fixable > 0 ? { cursor: 'pointer' } : {}}
                   />
                   <Chip 
                     icon={<ErrorIcon />}
                     label={`${stats.invalid} Invalid`}
                     color="error"
                     variant="outlined"
+                    clickable={stats.invalid > 0}
+                    onClick={stats.invalid > 0 ? () => {
+                      setStatusFilter("invalid");
+                      setPage(0);
+                      setSearchTerm("");
+                    } : undefined}
+                    sx={stats.invalid > 0 ? { cursor: 'pointer' } : {}}
                   />
                 </Stack>
                 
@@ -683,6 +922,74 @@ export default function EmailValidatorPage() {
                   </B>
                 </Stack>
               </Stack>
+              
+              {/* Status Filter Tabs */}
+              <Paper sx={{ p: 2, mb: 3 }} variant="outlined">
+                <T variant="h6" gutterBottom>
+                  Filter by Status
+                </T>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <B
+                    variant={statusFilter === "all" ? "contained" : "outlined"}
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setPage(0); // Reset to first page when filtering
+                    }}
+                    size="small"
+                  >
+                    All ({stats.total})
+                  </B>
+                  <B
+                    variant={statusFilter === "valid" ? "contained" : "outlined"}
+                    color="success"
+                    onClick={() => {
+                      setStatusFilter("valid");
+                      setPage(0);
+                    }}
+                    size="small"
+                    disabled={stats.valid === 0}
+                  >
+                    Valid ({stats.valid})
+                  </B>
+                  <B
+                    variant={statusFilter === "fixable" ? "contained" : "outlined"}
+                    color="warning"
+                    onClick={() => {
+                      setStatusFilter("fixable");
+                      setPage(0);
+                      if (stats.fixable > 0) {
+                        setSearchTerm(""); // Clear search to show all fixable emails
+                      }
+                    }}
+                    size="small"
+                    disabled={stats.fixable === 0}
+                  >
+                    Fixable ({stats.fixable})
+                  </B>
+                  <B
+                    variant={statusFilter === "invalid" ? "contained" : "outlined"}
+                    color="error"
+                    onClick={() => {
+                      setStatusFilter("invalid");
+                      setPage(0);
+                      if (stats.invalid > 0) {
+                        setSearchTerm(""); // Clear search to show all invalid emails
+                      }
+                    }}
+                    size="small"
+                    disabled={stats.invalid === 0}
+                  >
+                    Invalid ({stats.invalid})
+                  </B>
+                </Stack>
+                <T variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {statusFilter === "all" 
+                    ? `Showing all ${filteredData.length} emails`
+                    : `Showing ${filteredData.length} ${statusFilter} emails`
+                  }
+                  {searchTerm && ` matching "${searchTerm}"`}
+                </T>
+              </Paper>
               
               {/* Search Box */}
               <Tf
@@ -799,8 +1106,25 @@ export default function EmailValidatorPage() {
                       <TableRow>
                         <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
                           <T variant="body1" color="text.secondary">
-                            {searchTerm ? "No matching results" : "No data available"}
+                            {searchTerm 
+                              ? `No ${statusFilter === "all" ? "" : statusFilter + " "}emails matching "${searchTerm}"`
+                              : statusFilter === "all" 
+                                ? "No data available"
+                                : `No ${statusFilter} emails found`
+                            }
                           </T>
+                          {statusFilter !== "all" && (
+                            <T variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                              <B 
+                                variant="text" 
+                                size="small" 
+                                onClick={() => setStatusFilter("all")}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show all emails
+                              </B>
+                            </T>
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
@@ -878,6 +1202,8 @@ export default function EmailValidatorPage() {
                       {errorType === "multiple_at" && "Email contains multiple @ symbols"}
                       {errorType === "contains_www" && "Email contains 'www' which is invalid in email addresses"}
                       {errorType === "domain_typo" && "Common typo in email domain (e.g., gmail.con instead of gmail.com)"}
+                      {errorType === "tld_typo" && "Common typo in top-level domain (e.g., .con instead of .com)"}
+                      {errorType === "domain_similarity" && "Domain is similar to a popular email provider"}
                       {errorType === "invalid_tld" && "Invalid or missing top-level domain (e.g., .com, .org)"}
                       {errorType === "empty" && "Email field is empty"}
                     </TableCell>
