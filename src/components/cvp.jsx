@@ -215,9 +215,13 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
     try {
       console.log("🍪 Getting cookie for video access...");
       
-      // Use environment variable if available, otherwise use default
-      const cookieServiceUrl = import.meta.env.VITE_COOKIE_SERVICE_URL || 
-                              'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie';
+      // Use proxy URL for development to avoid CORS issues
+      const isDevelopment = import.meta.env.VITE_ENVIRONMENT === 'development';
+      const cookieServiceUrl = isDevelopment 
+        ? '/api/cookie' // Use proxy in development
+        : (import.meta.env.VITE_COOKIE_SERVICE_URL || 'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie');
+      
+      console.log("🔗 Using cookie service URL:", cookieServiceUrl);
       
       const cookieResponse = await axios.get(cookieServiceUrl, {
         params: {
