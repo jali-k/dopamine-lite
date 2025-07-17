@@ -215,22 +215,38 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
     try {
       console.log("🍪 Getting cookie for video access...");
       
-      const cookieResponse = await axios.get(
-        'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie',
-        {
-          params: {
-            watermark_text: watermark,
-            folder: `videos/${videoHandler}`
-          },
-          withCredentials: true // Important for cookie handling
-        }
-      );
+      // Use environment variable if available, otherwise use default
+      const cookieServiceUrl = import.meta.env.VITE_COOKIE_SERVICE_URL || 
+                              'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie';
+      
+      const cookieResponse = await axios.get(cookieServiceUrl, {
+        params: {
+          folder: `videos/${videoHandler}`
+        },
+        withCredentials: true, // Important for cookie handling
+        timeout: 10000 // 10 second timeout
+      });
       
       console.log("✅ Cookie obtained successfully");
       return cookieResponse;
     } catch (error) {
       console.error('❌ Error getting cookie:', error);
-      throw error;
+      
+      // Provide more specific error information
+      if (error.code === 'ERR_NETWORK') {
+        console.error('🌐 Network error: Cookie service is not accessible');
+        console.error('💡 This might be due to:');
+        console.error('   - Service is down or misconfigured');
+        console.error('   - CORS issues from localhost');
+        console.error('   - Network connectivity problems');
+        throw new Error('Cookie service is currently unavailable. Please try again later.');
+      } else if (error.response) {
+        console.error('📡 Server responded with error:', error.response.status, error.response.data);
+        throw new Error(`Cookie service error: ${error.response.status}`);
+      } else {
+        console.error('⚠️ Unknown error occurred');
+        throw new Error('Failed to obtain access cookie');
+      }
     }
   };
 
@@ -284,7 +300,8 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
         headers: {
           'Accept': 'application/vnd.apple.mpegurl',
           'Cache-Control': 'no-cache'
-        }
+        },
+        timeout: 10000 // 10 second timeout
       });
       
       const manifestContent = manifestResponse.data;
@@ -376,8 +393,72 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
       }
     } catch (error) {
       console.error('❌ Error in cookie-based manifest fetching:', error);
-      setLoading(false);
-      onError?.({ type: 'manifest' });
+      console.log('🔄 Attempting fallback to legacy authentication...');
+      
+      // Fallback to legacy authentication
+      try {
+        const BASE_URL = import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
+        const fallbackUrl = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${videoHandler}&expiration=28800`;
+        
+        console.log('🔐 Fallback URL:', fallbackUrl);
+        
+        // Use legacy fetchManifest with fallback URL
+        const response = await fetchWithRetry(fallbackUrl, 3, 1000, onError);
+        const data = response.data;
+        const modifiedManifest = data.modified_m3u8_content;
+
+        if (Hls.isSupported()) {
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+          }
+
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 90,
+          });
+          
+          hlsRef.current = hls;
+
+          const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
+          const blobUrl = URL.createObjectURL(blob);
+
+          hls.loadSource(blobUrl);
+          hls.attachMedia(vdrf.current);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            console.log('✅ Fallback manifest parsed successfully');
+            setLoading(false);
+            if (canPlay) {
+              vdrf.current.play();
+            }
+          });
+
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('HLS Error in fallback:', data);
+            setLoading(false);
+            if (data.fatal) {
+              onError?.({ type: 'manifest' });
+            }
+          });
+        }
+        
+        console.log('✅ Successfully fell back to legacy authentication');
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError);
+        setLoading(false);
+        
+        // Provide more context about the error
+        const errorMessage = error.message || 'Cookie service unavailable';
+        const fallbackErrorMessage = fallbackError.message || 'Legacy authentication failed';
+        
+        onError?.({ 
+          type: 'manifest',
+          message: `Video access failed: ${errorMessage}. Fallback error: ${fallbackErrorMessage}`,
+          originalError: error,
+          fallbackError: fallbackError
+        });
+      }
     }
   };
 
