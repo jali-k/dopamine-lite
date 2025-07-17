@@ -16,7 +16,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import DescriptionIcon from '@mui/icons-material/Description';
 import Appbar from "../components/Appbar";
 import { fireDB, fireStorage } from "../../firebaseconfig";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, getDoc } from "firebase/firestore";
 import {
   useCollectionData as uCD,
   useDocumentData,
@@ -36,6 +36,8 @@ export default function ADVideoPage() {
   const tutsref = collection(fireDB, "folders", params.fname, "tutorials");
   const lessonref = doc(fireDB, tutsref.path, params.lname);
   const [vurl, setvurl] = useState("");
+  const [isConvertedVideo, setIsConvertedVideo] = useState(false);
+  const [videoHandler, setVideoHandler] = useState("");
 
   const { user, isAdmin } = useUser();
 
@@ -43,24 +45,60 @@ export default function ADVideoPage() {
 
   const nv = uNV();
 
+  // Function to check if video is converted (new system)
+  const checkVideoStatus = async (tutorialHandler) => {
+    try {
+      console.log("Checking video status for handler:", tutorialHandler);
+      const videoDocRef = doc(fireDB, "videos", tutorialHandler);
+      const videoDocSnap = await getDoc(videoDocRef);
+      
+      if (videoDocSnap.exists()) {
+        const videoData = videoDocSnap.data();
+        console.log("Video document data:", videoData);
+        return videoData.status === 'completed';
+      } else {
+        console.log("No video document found for handler:", tutorialHandler);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking video status:", error);
+      return false;
+    }
+  };
+
   uE(() => {
-    async function geturl() {
-      if (tut) {
-        const vref = ref(
-          fireStorage,
-          `videos/${params.fname}/${params.lname}/${tut.video}`
-        );
-        await getDownloadURL(vref)
-          .then((url) => {
+    async function determineVideoType() {
+      if (tut && tut.handler) {
+        setVideoHandler(tut.handler);
+        
+        // Check if this is a new converted video
+        const isNewVideo = await checkVideoStatus(tut.handler);
+        
+        if (isNewVideo) {
+          console.log("Admin viewing new converted video:", tut.handler);
+          setIsConvertedVideo(true);
+          // For new videos, we don't need to set vurl as we'll use cookie auth
+        } else {
+          console.log("Admin viewing legacy video:", tut.handler);
+          setIsConvertedVideo(false);
+          
+          // Legacy video - use Firebase storage
+          const vref = ref(
+            fireStorage,
+            `videos/${params.fname}/${params.lname}/${tut.video}`
+          );
+          
+          try {
+            const url = await getDownloadURL(vref);
             setvurl(url);
-          })
-          .catch((err) => {
-            console.log(err);
-          });
+          } catch (err) {
+            console.log("Error getting legacy video URL:", err);
+          }
+        }
       }
     }
 
-    geturl();
+    determineVideoType();
   }, [tut, loading, params.fname, params.lname]);
 
   if (loading) {
@@ -103,7 +141,9 @@ export default function ADVideoPage() {
       </NavLink>
     );
   }
-  if (vurl === null) {
+  
+  // For new videos, we don't wait for vurl since we use cookie auth
+  if (!isConvertedVideo && vurl === null) {
     return <Loading text="Loading Video" />;
   }
   return (
@@ -161,8 +201,14 @@ export default function ADVideoPage() {
           }}
         >
           <CardContent sx={{ p: 0 }}>
-            {vurl ? (
-              <CVPL url={vurl} watermark={user.email} />
+            {videoHandler ? (
+              <CVPL
+                url={isConvertedVideo ? null : vurl}
+                videoHandler={isConvertedVideo ? videoHandler : null}
+                useCookieAuth={isConvertedVideo}
+                watermark={user.email}
+                canPlay={true} // Admin can always play
+              />
             ) : (
               <Box sx={{
                 width: "100%",

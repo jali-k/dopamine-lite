@@ -31,6 +31,7 @@ import Loading from "../components/Loading";
 import { useEffect, useState } from "react";
 import { useUser } from "../contexts/UserProvider";
 import CVPL from "../components/cvp";
+import { determineVideoAccessMethod, getVideoPlayerProps } from "../utils/videoAccess";
 import VideoErrorDialog from "../components/VideoErrorDialog";
 import SecurityCheckUI from "../components/SecurityCheck";
 import { Colors } from "../themes/colours";
@@ -47,11 +48,10 @@ export default function VideoPage() {
   const [showRetryWarning, setShowRetryWarning] = useState(false);
   const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
   
-  // New state variables for video source handling
-  const [videoUrl, setVideoUrl] = useState(null);
+  // New state variables for video access
+  const [videoAccessMethod, setVideoAccessMethod] = useState(null);
+  const [isVideoUrlSet, setIsVideoUrlSet] = useState(false);
   const [isConvertedVideo, setIsConvertedVideo] = useState(false);
-  const [videoFolderId, setVideoFolderId] = useState(null);
-  const [isVideoUrlSet, setIsVideoUrlSet] = useState(false); // Added flag to prevent duplicate calls
 
   const emailListref = collection(
     fireDB,
@@ -97,29 +97,17 @@ export default function VideoPage() {
       return;
     }
 
-    // Check video status from videos collection
-    const isNewVideo = await checkVideoStatus(tutData.handler);
-    const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
+    // Use centralized video access method
+    const accessMethod = await determineVideoAccessMethod(tutData);
+    setVideoAccessMethod(accessMethod);
     
-    if (isNewVideo) {
-      console.log("Using new EC2-converted video with handler:", tutData.handler);
-      setIsConvertedVideo(true);
-      setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
-      
-      // For new EC2-converted videos, use master.m3u8
-      const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
-      setVideoUrl(url);
-      console.log("Generated URL for new EC2-converted video:", url);
-    } else {
-      console.log("Using legacy video with handler:", tutData.handler);
-      setIsConvertedVideo(false);
-      setVideoFolderId(null);
-      
-      // For legacy videos, use index.m3u8
-      const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
-      setVideoUrl(url);
-      console.log("Generated URL for legacy video:", url);
-    }
+    // Set the converted video flag based on access method
+    const isNewVideo = accessMethod.method === 'cookie';
+    setIsConvertedVideo(isNewVideo);
+    
+    console.log("Video access method determined:", accessMethod);
+    console.log("Is converted video:", isNewVideo);
+    console.log("Video type:", isNewVideo ? "NEW (Cookie-based)" : "LEGACY (Presigned URL)");
   };
 
   // Improved handler fetching - only fetch once
@@ -399,20 +387,19 @@ export default function VideoPage() {
             </Typography>
             {isConvertedVideo && (
                  <Chip
-               
-                 icon={<HighQualityIcon />}
-                 label="Multi-Quality"
-                 size="small"
-                 sx={{
-                   backgroundColor: '#4caf50',
-                   color: 'white',
-                   width: 'fit-content',
-                   border: '1px solid #4caf50',
-                   '& .MuiChip-icon': {
-                     color: 'white'
-                   }
-                 }}
-               />
+                   icon={<HighQualityIcon />}
+                   label="Multi-Quality"
+                   size="small"
+                   sx={{
+                     backgroundColor: '#4caf50',
+                     color: 'white',
+                     width: 'fit-content',
+                     border: '1px solid #4caf50',
+                     '& .MuiChip-icon': {
+                       color: 'white'
+                     }
+                   }}
+                 />
             )}
           </Box>
         </Paper>
@@ -427,11 +414,9 @@ export default function VideoPage() {
           }}
         >
           <CardContent sx={{ p: 0 }}>
-            {handler && videoUrl ? (
+            {handler ? (
               <CVPL
-                url={videoUrl}
-                watermark={user.email}
-                canPlay={!securityCheck && progress === 100}
+                {...getVideoPlayerProps(videoAccessMethod, user.email, !securityCheck && progress === 100)}
                 onError={handleVideoError}
               />
             ) : (

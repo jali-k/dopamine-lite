@@ -33,7 +33,7 @@ import {
 import { jhsfg } from "../../af";
 import { Buffer } from 'buffer';
 
-export default function CVPL({ watermark, url, canPlay, onError }) {
+export default function CVPL({ watermark, url, canPlay, onError, videoHandler, useCookieAuth = false }) {
   const fhandle = uFSC();
   const vdrf = uR(null);
   const slrf = uR(null);
@@ -210,6 +210,30 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     return encoded;
   };
 
+  // New cookie-based authentication system
+  const getCookieForVideoAccess = async (videoHandler) => {
+    try {
+      console.log("🍪 Getting cookie for video access...");
+      
+      const cookieResponse = await axios.get(
+        'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie',
+        {
+          params: {
+            watermark_text: watermark,
+            folder: `videos/${videoHandler}`
+          },
+          withCredentials: true // Important for cookie handling
+        }
+      );
+      
+      console.log("✅ Cookie obtained successfully");
+      return cookieResponse;
+    } catch (error) {
+      console.error('❌ Error getting cookie:', error);
+      throw error;
+    }
+  };
+
   const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
     const email = watermark;
@@ -241,6 +265,119 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     } else {
       hlsRef.current.nextLevel = qualityIndex;
       console.log(`Switched to quality level ${qualityIndex}: ${qualityLevels[qualityIndex]?.height}p`);
+    }
+  };
+
+  const fetchManifestWithCookies = async (videoHandler) => {
+    try {
+      console.log("🎬 Starting cookie-based video access...");
+      
+      // Step 1: Get cookie for video access
+      await getCookieForVideoAccess(videoHandler);
+      
+      // Step 2: Fetch manifest using cookie
+      const manifestUrl = `https://d567mwlvwucmc.cloudfront.net/videos/${videoHandler}/master.m3u8`;
+      console.log("📥 Fetching manifest from:", manifestUrl);
+      
+      const manifestResponse = await axios.get(manifestUrl, {
+        withCredentials: true,
+        headers: {
+          'Accept': 'application/vnd.apple.mpegurl',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      const manifestContent = manifestResponse.data;
+      console.log("✅ Manifest fetched successfully");
+      
+      // Step 3: Process the manifest with HLS
+      if (Hls.isSupported()) {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+        }
+
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          xhrSetup: function (xhr, url) {
+            // Ensure cookies are sent with segment requests
+            xhr.withCredentials = true;
+          }
+        });
+        
+        hlsRef.current = hls;
+
+        // Create blob URL for the manifest
+        const blob = new Blob([manifestContent], { type: 'application/x-mpegURL' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        hls.loadSource(blobUrl);
+        hls.attachMedia(vdrf.current);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('✅ Manifest parsed, available levels:', hls.levels);
+          
+          const levels = hls.levels.map((level, index) => ({
+            index,
+            height: level.height,
+            width: level.width,
+            bitrate: level.bitrate,
+            name: `${level.height}p`
+          }));
+          
+          setQualityLevels(levels);
+          setLoading(false);
+          
+          if (canPlay) {
+            vdrf.current.play();
+          }
+        });
+
+        hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+          console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS Error:', data);
+          setLoading(false);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, try to recover');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, try to recover');
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                onError?.({ type: 'manifest' });
+                break;
+            }
+          }
+        });
+
+      } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // For Safari and other browsers that support HLS natively
+        vdrf.current.src = manifestUrl;
+        vdrf.current.addEventListener('loadedmetadata', () => {
+          setLoading(false);
+          if (canPlay) {
+            vdrf.current.play();
+          }
+        });
+
+        vdrf.current.addEventListener('error', () => {
+          setLoading(false);
+          onError?.({ type: 'manifest' });
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error in cookie-based manifest fetching:', error);
+      setLoading(false);
+      onError?.({ type: 'manifest' });
     }
   };
 
@@ -341,18 +478,40 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
   }, [canPlay]);
 
   uE(() => {
-    fetchManifest();
-    console.log("Fetching...");
-    const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000);
+    if (useCookieAuth && videoHandler) {
+      // Use new cookie-based authentication
+      fetchManifestWithCookies(videoHandler);
+      console.log("🍪 Using cookie-based authentication for video:", videoHandler);
+      
+      // Refresh cookie every 4 hours (cookies expire after 8 hours)
+      const intervalId = setInterval(() => {
+        console.log("🔄 Refreshing cookie...");
+        fetchManifestWithCookies(videoHandler);
+      }, 4 * 60 * 60 * 1000);
 
-    return () => {
-      clearInterval(intervalId);
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, [url]);
+      return () => {
+        clearInterval(intervalId);
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      };
+    } else if (url) {
+      // Use legacy authentication system
+      fetchManifest();
+      console.log("🔐 Using legacy authentication for URL:", url);
+      
+      const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000);
+
+      return () => {
+        clearInterval(intervalId);
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      };
+    }
+  }, [url, videoHandler, useCookieAuth]);
 
   uE(() => {
     if (vdrf.current) {
