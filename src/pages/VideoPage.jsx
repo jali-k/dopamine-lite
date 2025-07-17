@@ -90,24 +90,25 @@ export default function VideoPage() {
 
   // Function to determine the correct video URL based on video status
   const determineVideoUrl = async (tutData) => {
-    console.log("Determining video URL. Document data:", tutData);
+    console.log("📹 Determining video URL. Document data:", tutData);
     
     if (!tutData.handler) {
-      console.log("No handler available, cannot determine video URL");
+      console.log("❌ No handler available, cannot determine video URL");
       return;
     }
 
     // Use centralized video access method
     const accessMethod = await determineVideoAccessMethod(tutData);
+    console.log("🎯 Video access method determined:", accessMethod);
+    
     setVideoAccessMethod(accessMethod);
     
     // Set the converted video flag based on access method
     const isNewVideo = accessMethod.method === 'cookie';
     setIsConvertedVideo(isNewVideo);
     
-    console.log("Video access method determined:", accessMethod);
-    console.log("Is converted video:", isNewVideo);
-    console.log("Video type:", isNewVideo ? "NEW (Cookie-based)" : "LEGACY (Presigned URL)");
+    console.log("🔄 State updated - Is converted video:", isNewVideo);
+    console.log("📊 Video type:", isNewVideo ? "NEW (Cookie-based)" : "LEGACY (Presigned URL)");
   };
 
   // Improved handler fetching - only fetch once
@@ -414,13 +415,26 @@ export default function VideoPage() {
           }}
         >
           <CardContent sx={{ p: 0 }}>
-            {handler ? (
+            {handler && videoAccessMethod && isVideoUrlSet ? (
               <CVPL
                 {...getVideoPlayerProps(videoAccessMethod, user.email, !securityCheck && progress === 100)}
                 onError={handleVideoError}
               />
             ) : (
-              <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
+              <Box 
+                sx={{ 
+                  width: "100%", 
+                  aspectRatio: "16/9", 
+                  bgcolor: "black",
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {handler && !videoAccessMethod && (
+                  <CircularProgress size={40} sx={{ color: 'white' }} />
+                )}
+              </Box>
             )}
           </CardContent>
         </Card>

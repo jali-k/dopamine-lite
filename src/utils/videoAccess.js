@@ -27,8 +27,10 @@ export const checkVideoStatus = async (tutorialHandler) => {
 };
 
 export const determineVideoAccessMethod = async (tutorialData) => {
+  console.log("🔍 Determining video access method for:", tutorialData);
+  
   if (!tutorialData || !tutorialData.handler) {
-    console.warn("No handler available for video");
+    console.warn("❌ No handler available for video");
     return {
       method: 'none',
       handler: null,
@@ -61,6 +63,17 @@ export const determineVideoAccessMethod = async (tutorialData) => {
 };
 
 export const getVideoPlayerProps = (accessMethod, userEmail, canPlay = true) => {
+  if (!accessMethod) {
+    console.warn("No access method provided to getVideoPlayerProps");
+    return {
+      url: null,
+      videoHandler: null,
+      useCookieAuth: false,
+      watermark: userEmail,
+      canPlay: false
+    };
+  }
+
   switch (accessMethod.method) {
     case 'cookie':
       return {
