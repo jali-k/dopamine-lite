@@ -228,7 +228,11 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
           folder: `videos/${videoHandler}`
         },
         withCredentials: true, // Important for cookie handling
-        timeout: 10000 // 10 second timeout
+        timeout: 15000, // Increased timeout
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
       });
       
       console.log("✅ Cookie obtained successfully");
@@ -237,19 +241,20 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
       console.error('❌ Error getting cookie:', error);
       
       // Provide more specific error information
-      if (error.code === 'ERR_NETWORK') {
-        console.error('🌐 Network error: Cookie service is not accessible');
-        console.error('💡 This might be due to:');
-        console.error('   - Service is down or misconfigured');
-        console.error('   - CORS issues from localhost');
-        console.error('   - Network connectivity problems');
-        throw new Error('Cookie service is currently unavailable. Please try again later.');
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
+        console.error('🌐 CORS/Network error: Cookie service is not accessible from this domain');
+        console.error('💡 The cookie service needs CORS configuration for:', window.location.origin);
+        console.error('🔧 Current domain:', window.location.hostname);
+        throw new Error(`Cookie service CORS error: Service not configured for domain ${window.location.hostname}`);
       } else if (error.response) {
         console.error('📡 Server responded with error:', error.response.status, error.response.data);
-        throw new Error(`Cookie service error: ${error.response.status}`);
+        throw new Error(`Cookie service error: ${error.response.status} - ${error.response.statusText}`);
+      } else if (error.code === 'ECONNABORTED') {
+        console.error('⏱️ Request timeout');
+        throw new Error('Cookie service timeout - service may be slow or unavailable');
       } else {
-        console.error('⚠️ Unknown error occurred');
-        throw new Error('Failed to obtain access cookie');
+        console.error('⚠️ Unknown error occurred:', error.message);
+        throw new Error(`Failed to obtain access cookie: ${error.message}`);
       }
     }
   };
@@ -295,18 +300,52 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
       // Step 1: Get cookie for video access
       await getCookieForVideoAccess(videoHandler);
       
-      // Step 2: Fetch manifest using cookie
+      // Step 2: Try to fetch manifest - CloudFront CORS workaround
       const manifestUrl = `https://d567mwlvwucmc.cloudfront.net/videos/${videoHandler}/master.m3u8`;
       console.log("📥 Fetching manifest from:", manifestUrl);
       
-      const manifestResponse = await axios.get(manifestUrl, {
-        withCredentials: true,
-        headers: {
-          'Accept': 'application/vnd.apple.mpegurl',
-          'Cache-Control': 'no-cache'
-        },
-        timeout: 10000 // 10 second timeout
-      });
+      // CloudFront CORS workaround: Use fetch API with no-cors mode
+      let manifestResponse;
+      try {
+        console.log("Cookies:", document.cookie);
+        // First try normal axios request
+        manifestResponse = await axios.get(manifestUrl, {
+          withCredentials: true,
+          headers: {
+            'Cookie': document.cookie,
+            'Accept': 'application/vnd.apple.mpegurl',
+            'Cache-Control': 'no-cache'
+          },
+          timeout: 15000
+        });
+      } catch (corsError) {
+        console.log("🔄 CORS error details:", corsError.message);
+        console.log("🔄 CORS error response:", corsError.response);
+        
+        // Alternative: Try fetch with detailed logging
+        try {
+          const fetchResponse = await fetch(manifestUrl, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/vnd.apple.mpegurl'
+            }
+          });
+          
+          console.log("🔍 Fetch response status:", fetchResponse.status);
+          console.log("🔍 Fetch response headers:", Array.from(fetchResponse.headers.entries()));
+          
+          if (fetchResponse.ok) {
+            const manifestContent = await fetchResponse.text();
+            manifestResponse = { data: manifestContent };
+          } else {
+            throw new Error(`Fetch failed with status: ${fetchResponse.status}`);
+          }
+        } catch (fetchError) {
+          console.log("❌ Fetch also failed:", fetchError.message);
+          throw fetchError;
+        }
+      }
       
       const manifestContent = manifestResponse.data;
       console.log("✅ Manifest fetched successfully");
