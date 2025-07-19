@@ -236,6 +236,7 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
       });
       
       console.log("✅ Cookie obtained successfully");
+      console.log("🍪 Cookie response:", cookieResponse.data);
       return cookieResponse;
     } catch (error) {
       console.error('❌ Error getting cookie:', error);
@@ -299,6 +300,7 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
       
       // Step 1: Get cookie for video access
       await getCookieForVideoAccess(videoHandler);
+      console.log("📥 Fetching manifest from:", manifestUrl);
       
       // Step 2: Try to fetch manifest - CloudFront CORS workaround
       const manifestUrl = `https://d567mwlvwucmc.cloudfront.net/videos/${videoHandler}/master.m3u8`;
