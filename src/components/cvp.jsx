@@ -244,12 +244,10 @@ const getCookieForVideoAccess = async (videoHandler) => {
     const parsedCookies = parseCookieResponse(cookieString);
     console.log("📝 Parsed cookies:", parsedCookies);
     
-    // Set cookies in browser for automatic inclusion
-    setCookiesInBrowser(parsedCookies, '.cloudfront.net');
-    
-    // Also return the parsed cookies for manual use if needed
+    // Also return the raw cookie string and parsed cookies
     return {
       ...cookieResponse,
+      rawCookieString: cookieString,
       parsedCookies
     };
     
@@ -308,6 +306,109 @@ const parseCookieResponse = (cookieString) => {
   return cookies;
 };
 
+// Setup HLS with manifest content
+const setupHlsWithManifest = async (manifestContent, parsedCookies, videoHandler) => {
+  if (Hls.isSupported()) {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+    }
+
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      backBufferLength: 90,
+      xhrSetup: function (xhr, url) {
+        // For segment requests, try to add signed parameters
+        if (url.includes('.ts') || url.includes('.m4s')) {
+          const signedUrl = buildSignedUrl(url, parsedCookies);
+          if (signedUrl !== url) {
+            // Replace the URL with signed version
+            const urlParts = signedUrl.split('?');
+            if (urlParts.length > 1) {
+              const baseUrl = urlParts[0];
+              const queryString = urlParts[1];
+              xhr.open('GET', signedUrl, true);
+              return;
+            }
+          }
+        }
+        // Default behavior
+        xhr.withCredentials = true;
+      }
+    });
+    
+    hlsRef.current = hls;
+
+    // Create blob URL for the manifest
+    const blob = new Blob([manifestContent], { type: 'application/x-mpegURL' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    hls.loadSource(blobUrl);
+    hls.attachMedia(vdrf.current);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      console.log('✅ HLS Manifest parsed successfully');
+      
+      const levels = hls.levels.map((level, index) => ({
+        index,
+        height: level.height,
+        width: level.width,
+        bitrate: level.bitrate,
+        name: `${level.height}p`
+      }));
+      
+      setQualityLevels(levels);
+      setLoading(false);
+      
+      if (canPlay) {
+        vdrf.current.play();
+      }
+    });
+
+    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+      console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
+    });
+
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      console.error('HLS Error:', data);
+      setLoading(false);
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            console.log('Fatal network error encountered, try to recover');
+            hls.startLoad();
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            console.log('Fatal media error encountered, try to recover');
+            hls.recoverMediaError();
+            break;
+          default:
+            hls.destroy();
+            onError?.({ type: 'manifest' });
+            break;
+        }
+      }
+    });
+
+  } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
+    // For Safari - use blob URL
+    const blob = new Blob([manifestContent], { type: 'application/x-mpegURL' });
+    vdrf.current.src = URL.createObjectURL(blob);
+    
+    vdrf.current.addEventListener('loadedmetadata', () => {
+      setLoading(false);
+      if (canPlay) {
+        vdrf.current.play();
+      }
+    });
+
+    vdrf.current.addEventListener('error', () => {
+      setLoading(false);
+      onError?.({ type: 'manifest' });
+    });
+  }
+};
+
 // Set cookies manually in the browser
 const setCookiesInBrowser = (cookies, domain = '.cloudfront.net') => {
   const cookieOptions = `; Path=/; Domain=${domain}; Secure; SameSite=None`;
@@ -326,66 +427,185 @@ const setCookiesInBrowser = (cookies, domain = '.cloudfront.net') => {
 };
 
 
-  const fetchManifestWithCookies = async (videoHandler) => {
+// Enhanced buildSignedUrl function
+const buildSignedUrl = (baseUrl, cookies) => {
+  if (!cookies || !cookies.policy || !cookies.signature || !cookies.keyPairId) {
+    console.warn('⚠️ Missing cookie components for signed URL');
+    return baseUrl;
+  }
+  
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set('CloudFront-Policy', cookies.policy);
+    url.searchParams.set('CloudFront-Signature', cookies.signature);
+    url.searchParams.set('CloudFront-Key-Pair-Id', cookies.keyPairId);
+    
+    return url.toString();
+  } catch (error) {
+    console.error('❌ Error building signed URL:', error);
+    return baseUrl;
+  }
+};
+
+// Main function - replace your current fetchManifestWithCookies with this
+const fetchManifestWithCookies = async (videoHandler) => {
+  try {
+    console.log("🎬 Starting cookie-based video access...");
+    
+    // Step 1: Get cookies from service
+    const cookieResponse = await getCookieForVideoAccess(videoHandler);
+    const { rawCookieString, parsedCookies } = cookieResponse;
+    
+    const manifestUrl = `https://d567mwlvwucmc.cloudfront.net/videos/${videoHandler}/master.m3u8`;
+    console.log("📥 Fetching manifest from:", manifestUrl);
+    
+    // Method 1: Try manual Cookie header (like your Postman success)
     try {
-      console.log("🎬 Starting cookie-based video access...");
+      console.log("🔗 Method 1: Trying manual Cookie header...");
       
-      // Step 1: Get cookie for video access
-      const cookieResponse = await getCookieForVideoAccess(videoHandler);
-      const {parsedCookies} = cookieResponse;
-      // console.log("📥 Fetching manifest from:", manifestUrl);
+      const response = await fetch(manifestUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.apple.mpegurl',
+          'Cache-Control': 'no-cache',
+          'Cookie': rawCookieString  // Exactly like Postman
+        },
+        credentials: 'omit' // Don't use browser cookies since we're setting manually
+      });
       
-      // Step 2: Try to fetch manifest - CloudFront CORS workaround
-      const manifestUrl = `https://d567mwlvwucmc.cloudfront.net/videos/${videoHandler}/master.m3u8`;
-      console.log("📥 Fetching manifest from:", manifestUrl);
-      
-      // CloudFront CORS workaround: Use fetch API with no-cors mode
-      let manifestResponse;
-      try {
-        // console.log("Cookies:", document.cookie);
-        // First try normal axios request
-        manifestResponse = await axios.get(manifestUrl, {
-          withCredentials: true,
-          headers: {
-        
-            'Accept': 'application/vnd.apple.mpegurl',
-            'Cache-Control': 'no-cache'
-          },
-          timeout: 15000
-        });
-      } catch (corsError) {
-        console.log("🔄 CORS error details:", corsError.message);
-        console.log("🔄 CORS error response:", corsError.response);
-        
-        // Alternative: Try fetch with detailed logging
-        try {
-          const fetchResponse = await fetch(manifestUrl, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Accept': 'application/vnd.apple.mpegurl'
-            }
-          });
-          
-          console.log("🔍 Fetch response status:", fetchResponse.status);
-          console.log("🔍 Fetch response headers:", Array.from(fetchResponse.headers.entries()));
-          
-          if (fetchResponse.ok) {
-            const manifestContent = await fetchResponse.text();
-            manifestResponse = { data: manifestContent };
-          } else {
-            throw new Error(`Fetch failed with status: ${fetchResponse.status}`);
-          }
-        } catch (fetchError) {
-          console.log("❌ Fetch also failed:", fetchError.message);
-          throw fetchError;
-        }
+      if (response.ok) {
+        const manifestContent = await response.text();
+        console.log("✅ Method 1 SUCCESS: Manual Cookie header worked!");
+        await setupHlsWithManifest(manifestContent, parsedCookies, videoHandler);
+        return;
+      } else {
+        console.log(`❌ Method 1 FAILED: Status ${response.status}`);
+        throw new Error(`Manual cookie failed: ${response.status}`);
       }
       
-      const manifestContent = manifestResponse.data;
-      console.log("✅ Manifest fetched successfully");
+    } catch (manualCookieError) {
+      console.log("🔄 Method 1 blocked, trying Method 2...");
       
-      // Step 3: Process the manifest with HLS
+      // Method 2: Try signed URL approach
+      try {
+        console.log("🔗 Method 2: Trying signed URL...");
+        
+        const signedUrl = buildSignedUrl(manifestUrl, parsedCookies);
+        console.log("🔗 Built signed URL:", signedUrl.substring(0, 100) + "...");
+        
+        const signedResponse = await fetch(signedUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/vnd.apple.mpegurl'
+          },
+          credentials: 'omit' // No cookies needed with signed URL
+        });
+        
+        if (signedResponse.ok) {
+          const manifestContent = await signedResponse.text();
+          console.log("✅ Method 2 SUCCESS: Signed URL worked!");
+          await setupHlsWithManifest(manifestContent, parsedCookies, videoHandler);
+          return;
+        } else {
+          console.log(`❌ Method 2 FAILED: Status ${signedResponse.status}`);
+          throw new Error(`Signed URL failed: ${signedResponse.status}`);
+        }
+        
+      } catch (signedUrlError) {
+        console.log("🔄 Method 2 failed, trying Method 3...");
+        
+        // Method 3: Let HLS.js handle it directly
+        try {
+          console.log("🔗 Method 3: Direct HLS.js with signed URL...");
+          
+          if (Hls.isSupported()) {
+            if (hlsRef.current) {
+              hlsRef.current.destroy();
+            }
+
+            const hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: false,
+              backBufferLength: 90,
+              xhrSetup: function (xhr, url) {
+                console.log("🔧 HLS xhr setup for:", url.substring(0, 50) + "...");
+                
+                // For all requests, try to create signed URLs
+                const signedUrl = buildSignedUrl(url, parsedCookies);
+                if (signedUrl !== url) {
+                  console.log("🔗 Using signed URL for:", url.substring(0, 50) + "...");
+                  xhr.open('GET', signedUrl, true);
+                  return;
+                }
+                
+                // Fallback to normal request
+                xhr.withCredentials = false;
+              }
+            });
+            
+            hlsRef.current = hls;
+
+            // Use signed URL directly with HLS
+            const signedManifestUrl = buildSignedUrl(manifestUrl, parsedCookies);
+            hls.loadSource(signedManifestUrl);
+            hls.attachMedia(vdrf.current);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              console.log('✅ Method 3 SUCCESS: HLS direct load worked!');
+              
+              const levels = hls.levels.map((level, index) => ({
+                index,
+                height: level.height,
+                width: level.width,
+                bitrate: level.bitrate,
+                name: `${level.height}p`
+              }));
+              
+              setQualityLevels(levels);
+              setLoading(false);
+              
+              if (canPlay) {
+                vdrf.current.play();
+              }
+            });
+
+            hls.on(Hls.Events.ERROR, (event, data) => {
+              console.error('HLS Error in Method 3:', data);
+              setLoading(false);
+              if (data.fatal) {
+                console.log('💀 Method 3 FAILED: Fatal HLS error, trying fallback...');
+                throw new Error('HLS fatal error');
+              }
+            });
+
+            return; // Don't continue to fallback
+            
+          } else {
+            throw new Error('HLS not supported');
+          }
+          
+        } catch (hlsDirectError) {
+          console.log("❌ Method 3 FAILED:", hlsDirectError.message);
+          throw hlsDirectError;
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ All cookie methods failed:', error);
+    console.log('🔄 Attempting fallback to legacy authentication...');
+    
+    // Fallback to legacy authentication
+    try {
+      const BASE_URL = import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
+      const fallbackUrl = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${videoHandler}&expiration=28800`;
+      
+      console.log('🔐 Fallback URL:', fallbackUrl);
+      
+      const response = await fetchWithRetry(fallbackUrl, 3, 1000, onError);
+      const data = response.data;
+      const modifiedManifest = data.modified_m3u8_content;
+
       if (Hls.isSupported()) {
         if (hlsRef.current) {
           hlsRef.current.destroy();
@@ -395,150 +615,48 @@ const setCookiesInBrowser = (cookies, domain = '.cloudfront.net') => {
           enableWorker: true,
           lowLatencyMode: false,
           backBufferLength: 90,
-          xhrSetup: function (xhr, url) {
-            // Ensure cookies are sent with segment requests
-            xhr.withCredentials = true;
-          }
         });
         
         hlsRef.current = hls;
 
-        // Create blob URL for the manifest
-        const blob = new Blob([manifestContent], { type: 'application/x-mpegURL' });
+        const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
         const blobUrl = URL.createObjectURL(blob);
 
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('✅ Manifest parsed, available levels:', hls.levels);
-          
-          const levels = hls.levels.map((level, index) => ({
-            index,
-            height: level.height,
-            width: level.width,
-            bitrate: level.bitrate,
-            name: `${level.height}p`
-          }));
-          
-          setQualityLevels(levels);
+          console.log('✅ Legacy fallback successful');
           setLoading(false);
-          
           if (canPlay) {
             vdrf.current.play();
           }
-        });
-
-        hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-          console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS Error:', data);
+          console.error('HLS Error in fallback:', data);
           setLoading(false);
           if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Fatal network error encountered, try to recover');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('Fatal media error encountered, try to recover');
-                hls.recoverMediaError();
-                break;
-              default:
-                hls.destroy();
-                onError?.({ type: 'manifest' });
-                break;
-            }
+            onError?.({ type: 'manifest' });
           }
-        });
-
-      } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
-        // For Safari and other browsers that support HLS natively
-        vdrf.current.src = manifestUrl;
-        vdrf.current.addEventListener('loadedmetadata', () => {
-          setLoading(false);
-          if (canPlay) {
-            vdrf.current.play();
-          }
-        });
-
-        vdrf.current.addEventListener('error', () => {
-          setLoading(false);
-          onError?.({ type: 'manifest' });
         });
       }
-    } catch (error) {
-      console.error('❌ Error in cookie-based manifest fetching:', error);
-      console.log('🔄 Attempting fallback to legacy authentication...');
       
-      // Fallback to legacy authentication
-      try {
-        const BASE_URL = import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
-        const fallbackUrl = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${videoHandler}&expiration=28800`;
-        
-        console.log('🔐 Fallback URL:', fallbackUrl);
-        
-        // Use legacy fetchManifest with fallback URL
-        const response = await fetchWithRetry(fallbackUrl, 3, 1000, onError);
-        const data = response.data;
-        const modifiedManifest = data.modified_m3u8_content;
-
-        if (Hls.isSupported()) {
-          if (hlsRef.current) {
-            hlsRef.current.destroy();
-          }
-
-          const hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: false,
-            backBufferLength: 90,
-          });
-          
-          hlsRef.current = hls;
-
-          const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
-          const blobUrl = URL.createObjectURL(blob);
-
-          hls.loadSource(blobUrl);
-          hls.attachMedia(vdrf.current);
-
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            console.log('✅ Fallback manifest parsed successfully');
-            setLoading(false);
-            if (canPlay) {
-              vdrf.current.play();
-            }
-          });
-
-          hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error('HLS Error in fallback:', data);
-            setLoading(false);
-            if (data.fatal) {
-              onError?.({ type: 'manifest' });
-            }
-          });
-        }
-        
-        console.log('✅ Successfully fell back to legacy authentication');
-      } catch (fallbackError) {
-        console.error('❌ Fallback also failed:', fallbackError);
-        setLoading(false);
-        
-        // Provide more context about the error
-        const errorMessage = error.message || 'Cookie service unavailable';
-        const fallbackErrorMessage = fallbackError.message || 'Legacy authentication failed';
-        
-        onError?.({ 
-          type: 'manifest',
-          message: `Video access failed: ${errorMessage}. Fallback error: ${fallbackErrorMessage}`,
-          originalError: error,
-          fallbackError: fallbackError
-        });
-      }
+      console.log('✅ Successfully used legacy authentication');
+      
+    } catch (fallbackError) {
+      console.error('❌ Legacy fallback also failed:', fallbackError);
+      setLoading(false);
+      
+      onError?.({ 
+        type: 'manifest',
+        message: `All authentication methods failed. Cookie error: ${error.message}. Legacy error: ${fallbackError.message}`,
+        originalError: error,
+        fallbackError: fallbackError
+      });
     }
-  };
+  }
+};
 
   const fetchManifest = async () => {
     try {
