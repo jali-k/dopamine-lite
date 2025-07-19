@@ -210,56 +210,54 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
     return encoded;
   };
 
-  // New cookie-based authentication system
-  const getCookieForVideoAccess = async (videoHandler) => {
-    try {
-      console.log("🍪 Getting cookie for video access...");
-      
-      // Use proxy URL for development to avoid CORS issues
-      const isDevelopment = import.meta.env.VITE_ENVIRONMENT === 'development';
-      const cookieServiceUrl = isDevelopment 
-        ? '/api/cookie' // Use proxy in development
-        : (import.meta.env.VITE_COOKIE_SERVICE_URL || 'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie');
-      
-      console.log("🔗 Using cookie service URL:", cookieServiceUrl);
-      
-      const cookieResponse = await axios.get(cookieServiceUrl, {
-        params: {
-          folder: `videos/${videoHandler}`
-        },
-        withCredentials: true, // Important for cookie handling
-        timeout: 15000, // Increased timeout
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log("✅ Cookie obtained successfully");
-      console.log("🍪 Cookie response:", cookieResponse.data);
-      return cookieResponse;
-    } catch (error) {
-      console.error('❌ Error getting cookie:', error);
-      
-      // Provide more specific error information
-      if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
-        console.error('🌐 CORS/Network error: Cookie service is not accessible from this domain');
-        console.error('💡 The cookie service needs CORS configuration for:', window.location.origin);
-        console.error('🔧 Current domain:', window.location.hostname);
-        throw new Error(`Cookie service CORS error: Service not configured for domain ${window.location.hostname}`);
-      } else if (error.response) {
-        console.error('📡 Server responded with error:', error.response.status, error.response.data);
-        throw new Error(`Cookie service error: ${error.response.status} - ${error.response.statusText}`);
-      } else if (error.code === 'ECONNABORTED') {
-        console.error('⏱️ Request timeout');
-        throw new Error('Cookie service timeout - service may be slow or unavailable');
-      } else {
-        console.error('⚠️ Unknown error occurred:', error.message);
-        throw new Error(`Failed to obtain access cookie: ${error.message}`);
-      }
-    }
-  };
 
+// Updated getCookieForVideoAccess function
+const getCookieForVideoAccess = async (videoHandler) => {
+  try {
+    console.log("🍪 Getting cookie for video access...");
+    
+    const isDevelopment = import.meta.env.VITE_ENVIRONMENT === 'development';
+    const cookieServiceUrl = isDevelopment 
+      ? '/api/cookie'
+      : (import.meta.env.VITE_COOKIE_SERVICE_URL || 'https://ccky2rw6e.execute-api.us-east-1.amazonaws.com/default/generate_cookie');
+    
+    console.log("🔗 Using cookie service URL:", cookieServiceUrl);
+    
+    const cookieResponse = await axios.get(cookieServiceUrl, {
+      params: {
+        folder: `videos/${videoHandler}`
+      },
+      timeout: 15000,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log("✅ Cookie response received");
+    
+    // Parse the cookie string from response
+    const cookieString = cookieResponse.data.Cookie || cookieResponse.data;
+    console.log("🍪 Raw cookie string:", cookieString);
+    
+    // Extract individual cookies
+    const parsedCookies = parseCookieResponse(cookieString);
+    console.log("📝 Parsed cookies:", parsedCookies);
+    
+    // Set cookies in browser for automatic inclusion
+    setCookiesInBrowser(parsedCookies, '.cloudfront.net');
+    
+    // Also return the parsed cookies for manual use if needed
+    return {
+      ...cookieResponse,
+      parsedCookies
+    };
+    
+  } catch (error) {
+    console.error('❌ Error getting cookie:', error);
+    throw error;
+  }
+};
   const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
     let retries = 0;
     const email = watermark;
@@ -294,13 +292,48 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
     }
   };
 
+  // Parse the concatenated cookie string and set individual cookies
+const parseCookieResponse = (cookieString) => {
+  const cookies = {};
+  
+  // Split by the cookie names to extract individual values
+  const policyMatch = cookieString.match(/CloudFront-Policy=([^;]+)/);
+  const signatureMatch = cookieString.match(/CloudFront-Signature=([^;]+)/);
+  const keyPairMatch = cookieString.match(/CloudFront-Key-Pair-Id=([^;]+)/);
+  
+  if (policyMatch) cookies.policy = policyMatch[1];
+  if (signatureMatch) cookies.signature = signatureMatch[1];
+  if (keyPairMatch) cookies.keyPairId = keyPairMatch[1];
+  
+  return cookies;
+};
+
+// Set cookies manually in the browser
+const setCookiesInBrowser = (cookies, domain = '.cloudfront.net') => {
+  const cookieOptions = `; Path=/; Domain=${domain}; Secure; SameSite=None`;
+  
+  if (cookies.policy) {
+    document.cookie = `CloudFront-Policy=${cookies.policy}${cookieOptions}`;
+  }
+  if (cookies.signature) {
+    document.cookie = `CloudFront-Signature=${cookies.signature}${cookieOptions}`;
+  }
+  if (cookies.keyPairId) {
+    document.cookie = `CloudFront-Key-Pair-Id=${cookies.keyPairId}${cookieOptions}`;
+  }
+  
+  console.log("✅ CloudFront cookies set in browser");
+};
+
+
   const fetchManifestWithCookies = async (videoHandler) => {
     try {
       console.log("🎬 Starting cookie-based video access...");
       
       // Step 1: Get cookie for video access
-      await getCookieForVideoAccess(videoHandler);
-      console.log("📥 Fetching manifest from:", manifestUrl);
+      const cookieResponse = await getCookieForVideoAccess(videoHandler);
+      const {parsedCookies} = cookieResponse;
+      // console.log("📥 Fetching manifest from:", manifestUrl);
       
       // Step 2: Try to fetch manifest - CloudFront CORS workaround
       const manifestUrl = `https://d567mwlvwucmc.cloudfront.net/videos/${videoHandler}/master.m3u8`;
@@ -309,12 +342,12 @@ export default function CVPL({ watermark, url, canPlay, onError, videoHandler, u
       // CloudFront CORS workaround: Use fetch API with no-cors mode
       let manifestResponse;
       try {
-        console.log("Cookies:", document.cookie);
+        // console.log("Cookies:", document.cookie);
         // First try normal axios request
         manifestResponse = await axios.get(manifestUrl, {
           withCredentials: true,
           headers: {
-            'Cookie': document.cookie,
+        
             'Accept': 'application/vnd.apple.mpegurl',
             'Cache-Control': 'no-cache'
           },
