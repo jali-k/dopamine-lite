@@ -158,7 +158,7 @@ export default function EmailValidatorPage() {
 
           const parsedData = results.data.map((row, index) => {
             const name = row[nameKey]?.trim() || "";
-            const email = row[emailKey]?.trim() || "";
+            const email = row[emailKey]?.trim().toLowerCase() || "";
 
             return {
               id: index,
@@ -308,7 +308,7 @@ export default function EmailValidatorPage() {
       
       for (let i = startIndex; i < endIndex; i++) {
         const row = validatedData[i];
-        const email = row.email;
+        const email = row.email.toLowerCase(); // Ensure email is lowercase
         
         // Skip empty emails
         if (!email) {
@@ -333,10 +333,34 @@ export default function EmailValidatorPage() {
         if (!/@/.test(email)) {
           isValid = false;
           errorType = "missing_at";
-          // Try to guess where @ should be
-          const parts = email.split('.');
-          if (parts.length >= 2) {
-            suggestion = `${parts[0]}@${parts.slice(1).join('.')}`;
+          // Try to guess where @ should be - improved logic
+          if (email.includes('gmail') || email.includes('yahoo') || email.includes('hotmail') || 
+              email.includes('outlook') || email.includes('aol') || email.includes('icloud')) {
+            // Find common email providers and insert @ before them
+            const providers = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com'];
+            for (const provider of providers) {
+              const providerName = provider.split('.')[0]; // e.g., 'gmail'
+              if (email.includes(providerName)) {
+                const index = email.indexOf(providerName);
+                if (index > 0) {
+                  const username = email.substring(0, index);
+                  const domain = email.substring(index);
+                  // Check if domain needs .com added
+                  if (!domain.includes('.')) {
+                    suggestion = `${username}@${providerName}.com`;
+                  } else {
+                    suggestion = `${username}@${domain}`;
+                  }
+                  break;
+                }
+              }
+            }
+          } else {
+            // Fallback to original logic for other cases
+            const parts = email.split('.');
+            if (parts.length >= 2) {
+              suggestion = `${parts[0]}@${parts.slice(1).join('.')}`;
+            }
           }
         } else if (!/.+@.+\..+/.test(email)) {
           isValid = false;
@@ -347,7 +371,7 @@ export default function EmailValidatorPage() {
         else if (/\s/.test(email)) {
           isValid = false;
           errorType = "contains_spaces";
-          suggestion = email.replace(/\s+/g, '');
+          suggestion = email.replace(/\s+/g, '').toLowerCase();
         }
         
         // Check for multiple @ symbols
@@ -362,14 +386,14 @@ export default function EmailValidatorPage() {
         else if (/www\./i.test(email)) {
           isValid = false;
           errorType = "contains_www";
-          suggestion = email.replace(/www\./gi, '');
+          suggestion = email.replace(/www\./gi, '').toLowerCase();
         }
         
         // Check for common domain typos
         else {
           const parts = email.split('@');
           if (parts.length === 2) {
-            const domain = parts[1].toLowerCase();
+            const domain = parts[1]; // Already lowercase from above
             
             if (commonDomainTypos[domain]) {
               isValid = false;
@@ -529,7 +553,7 @@ export default function EmailValidatorPage() {
     const updatedData = data.map(row => {
       if (row.id === editingRow) {
         // Check validity of the new email
-        const email = editValue.trim();
+        const email = editValue.trim().toLowerCase(); // Convert to lowercase
         let status = "valid";
         let errorType = null;
         let suggestion = null;
@@ -580,15 +604,18 @@ export default function EmailValidatorPage() {
     
     const updatedData = data.map(item => {
       if (item.id === row.id) {
+        // Ensure the suggestion is also lowercase
+        const fixedEmail = row.suggestion.toLowerCase();
+        
         // Update the original row data with the suggested email
         const updatedOriginalRow = { ...item.originalRow };
         if (emailColumn) {
-          updatedOriginalRow[emailColumn] = row.suggestion;
+          updatedOriginalRow[emailColumn] = fixedEmail;
         }
         
         return {
           ...item,
-          email: row.suggestion,
+          email: fixedEmail,
           status: "valid",
           errorType: null,
           suggestion: null,
@@ -599,20 +626,24 @@ export default function EmailValidatorPage() {
     });
     
     setData(updatedData);
+    updateStats(updatedData); // Update stats after fixing
   };
 
   const handleFixAll = () => {
     const updatedData = data.map(row => {
       if (row.status === "fixable" && row.suggestion) {
+        // Ensure the suggestion is also lowercase
+        const fixedEmail = row.suggestion.toLowerCase();
+        
         // Update the original row data with the suggested email
         const updatedOriginalRow = { ...row.originalRow };
         if (emailColumn) {
-          updatedOriginalRow[emailColumn] = row.suggestion;
+          updatedOriginalRow[emailColumn] = fixedEmail;
         }
         
         return {
           ...row,
-          email: row.suggestion,
+          email: fixedEmail,
           status: "valid",
           errorType: null,
           suggestion: null,
