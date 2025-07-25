@@ -8,14 +8,25 @@ import {
   Tab,
   Paper,
   Card,
-  CardContent
+  CardContent,
+  Button,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Chip
 } from "@mui/material";
 import ScienceIcon from '@mui/icons-material/Science';
 import BiotechIcon from '@mui/icons-material/Biotech';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import SettingsIcon from '@mui/icons-material/Settings';
+import CategoryIcon from '@mui/icons-material/Category';
+import LabelIcon from '@mui/icons-material/Label';
 import FButton from "../components/FButton";
 import CreateFModal from "../components/CreateFModal";
+import CategoryManagement from "../components/CategoryManagement";
+import FolderCategoryAssignment from "../components/FolderCategoryAssignment";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { collection } from "firebase/firestore";
 import { fireDB } from "../../firebaseconfig";
@@ -50,6 +61,13 @@ export default function FVAdPage() {
   };
   
   const [activeTab, setActiveTab] = useState(getInitialTab()); // Update to use URL detection
+  const [categoryManagementOpen, setCategoryManagementOpen] = useState(false);
+  const [folderCategoryAssignment, setFolderCategoryAssignment] = useState({
+    open: false,
+    folderName: '',
+    currentCategories: {}
+  });
+  const [anchorEl, setAnchorEl] = useState(null);
 
   const videoFoldersRef = collection(fireDB, "folders");
   const pdfFoldersRef = collection(fireDB, "pdfFolders");
@@ -70,6 +88,54 @@ export default function FVAdPage() {
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
+  };
+
+  const handleCategoryManagement = () => {
+    setCategoryManagementOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleFolderCategoryAssignment = (folderName, currentCategories = {}) => {
+    setFolderCategoryAssignment({
+      open: true,
+      folderName,
+      currentCategories
+    });
+    setAnchorEl(null);
+  };
+
+  const renderManageCategoriesButton = (file) => {
+    return (
+      <Button
+        size="small"
+        startIcon={<LabelIcon />}
+        onClick={() => handleFolderCategoryAssignment(file.fname, file.categories)}
+        sx={{ 
+          position: 'absolute',
+          top: 5,
+          right: 5,
+          fontSize: '0.6rem',
+          minHeight: '20px',
+          height: '20px',
+          bgcolor: 'white',
+          border: '1px solid #ccc',
+          color: 'primary.main',
+          px: 0.5,
+          '&:hover': {
+            bgcolor: 'primary.main',
+            color: 'white'
+          },
+          '& .MuiButton-startIcon': {
+            marginRight: '2px',
+            '& > svg': {
+              fontSize: '12px'
+            }
+          }
+        }}
+      >
+        Categories
+      </Button>
+    );
   };
 
   if (videoLoading || pdfLoading) {
@@ -115,19 +181,26 @@ export default function FVAdPage() {
             lg={2}
             key={index}
           >
-            <FButton
-              fname={file.fname}
-              to={isAdmin ? `/admin/${type}/${file.fname}` : `/${type}/${file.fname}`}
-              sx={{
-                height: '100%',
-                minHeight: '150px',
-                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
-                }
-              }}
-            />
+            <Box sx={{ position: 'relative' }}>
+              <FButton
+                fname={file.fname}
+                to={isAdmin ? `/admin/${type}/${file.fname}` : `/${type}/${file.fname}`}
+                sx={{
+                  height: '100%',
+                  minHeight: '150px',
+                  transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 4px 20px rgba(46, 125, 50, 0.15)',
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  handleFolderCategoryAssignment(file.fname, file.categories);
+                }}
+              />
+              {renderManageCategoriesButton(file)}
+            </Box>
           </Grid>
         ))
       ) : (
@@ -184,26 +257,50 @@ export default function FVAdPage() {
             bgcolor: 'background.paper'
           }}
         >
-          <Tabs
-            value={activeTab}
-            onChange={handleTabChange}
-            centered
-            variant="fullWidth"
-            TabIndicatorProps={{
-              style: {
-                backgroundColor: '#2e7d32'
-              }
-            }}
-          >
-            <StyledTab
-              icon={<VideocamIcon />}
-              label="Video Folders"
-            />
-            <StyledTab
-              icon={<PictureAsPdfIcon />}
-              label="PDF Folders"
-            />
-          </Tabs>
+          <Box display="flex" justifyContent="space-between" alignItems="center" px={2}>
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              centered
+              variant="fullWidth"
+              TabIndicatorProps={{
+                style: {
+                  backgroundColor: '#2e7d32'
+                }
+              }}
+              sx={{ flexGrow: 1 }}
+            >
+              <StyledTab
+                icon={<VideocamIcon />}
+                label="Video Folders"
+              />
+              <StyledTab
+                icon={<PictureAsPdfIcon />}
+                label="PDF Folders"
+              />
+            </Tabs>
+            
+            <Button
+              startIcon={<SettingsIcon />}
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              sx={{ ml: 2 }}
+            >
+              Manage
+            </Button>
+            
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={() => setAnchorEl(null)}
+            >
+              <MenuItem onClick={handleCategoryManagement}>
+                <ListItemIcon>
+                  <CategoryIcon />
+                </ListItemIcon>
+                <ListItemText primary="Manage Categories" />
+              </MenuItem>
+            </Menu>
+          </Box>
         </Paper>
 
         <Box
@@ -216,6 +313,21 @@ export default function FVAdPage() {
           {activeTab === 0 && renderFolderGrid(videoFolders, 'video')}
           {activeTab === 1 && renderFolderGrid(pdfFolders, 'pdf')}
         </Box>
+
+        {/* Category Management Dialog */}
+        <CategoryManagement
+          open={categoryManagementOpen}
+          onClose={() => setCategoryManagementOpen(false)}
+        />
+
+        {/* Folder Category Assignment Dialog */}
+        <FolderCategoryAssignment
+          open={folderCategoryAssignment.open}
+          onClose={() => setFolderCategoryAssignment({ open: false, folderName: '', currentCategories: {} })}
+          folderName={folderCategoryAssignment.folderName}
+          collectionName={activeTab === 0 ? 'folders' : 'pdfFolders'}
+          currentCategories={folderCategoryAssignment.currentCategories}
+        />
       </Container>
     </Box>
   );
