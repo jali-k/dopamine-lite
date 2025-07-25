@@ -87,6 +87,21 @@ const FolderCategoryAssignment = ({
     }));
   };
 
+  const handleClearCategory = (type) => {
+    setSelectedCategories(prev => ({
+      ...prev,
+      [type]: []
+    }));
+  };
+
+  const handleClearAllCategories = () => {
+    setSelectedCategories({
+      class: [],
+      month: [],
+      custom: []
+    });
+  };
+
   const handleSave = async () => {
     setLoading(true);
     try {
@@ -104,38 +119,56 @@ const FolderCategoryAssignment = ({
   };
 
   const renderCategorySelect = (type, label, categoryList) => (
-    <FormControl fullWidth margin="normal">
-      <InputLabel>{label}</InputLabel>
-      <Select
-        multiple
-        value={selectedCategories[type]}
-        onChange={(e) => handleCategoryChange(type, e)}
-        input={<OutlinedInput label={label} />}
-        renderValue={(selected) => (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {selected.map((value) => {
-              const category = categoryList.find(cat => cat.id === value);
-              return (
-                <Chip 
-                  key={value} 
-                  label={category?.name || value} 
-                  size="small" 
-                  color="primary"
-                  variant="outlined"
-                />
-              );
-            })}
-          </Box>
+    <Box>
+      <Box display="flex" alignItems="center" gap={1}>
+        <FormControl fullWidth margin="normal">
+          <InputLabel>{label}</InputLabel>
+          <Select
+            multiple
+            value={selectedCategories[type]}
+            onChange={(e) => handleCategoryChange(type, e)}
+            input={<OutlinedInput label={label} />}
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {selected.map((value) => {
+                  const category = categoryList.find(cat => cat.id === value);
+                  return (
+                    <Chip 
+                      key={value} 
+                      label={category?.name || value} 
+                      size="small" 
+                      color="primary"
+                      variant="outlined"
+                    />
+                  );
+                })}
+              </Box>
+            )}
+            MenuProps={MenuProps}
+          >
+            {categoryList.map((category) => (
+              <MenuItem key={category.id} value={category.id}>
+                {category.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        {selectedCategories[type].length > 0 && (
+          <Button
+            size="small"
+            color="secondary"
+            onClick={() => handleClearCategory(type)}
+            sx={{ 
+              mt: 1,
+              minWidth: 'auto',
+              px: 1
+            }}
+          >
+            Clear
+          </Button>
         )}
-        MenuProps={MenuProps}
-      >
-        {categoryList.map((category) => (
-          <MenuItem key={category.id} value={category.id}>
-            {category.name}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
+      </Box>
+    </Box>
   );
 
   const getTotalSelectedCount = () => {
@@ -236,6 +269,15 @@ const FolderCategoryAssignment = ({
 
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
+          {getTotalSelectedCount() > 0 && (
+            <Button 
+              onClick={handleClearAllCategories}
+              color="secondary"
+              sx={{ mr: 'auto' }}
+            >
+              Clear All Categories
+            </Button>
+          )}
           <Button 
             onClick={handleSave} 
             variant="contained" 
