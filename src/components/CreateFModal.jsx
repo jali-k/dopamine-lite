@@ -20,12 +20,15 @@ import { Timestamp, collection, doc, setDoc } from "firebase/firestore";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import Loading from "./Loading";
 import { useNavigate } from "react-router-dom";
+import FolderCategoryAssignment from "./FolderCategoryAssignment";
 
 export default function CreateFModal({ activeTab }) {
   const [open, setOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [fNameError, setFNameError] = useState("");
   const [emailList, setEmailList] = useState("");
+  const [showCategoryAssignment, setShowCategoryAssignment] = useState(false);
+  const [createdFolderName, setCreatedFolderName] = useState("");
 
   const navigator = useNavigate();
 
@@ -68,6 +71,10 @@ export default function CreateFModal({ activeTab }) {
         message: `Folder ${folderName} created successfully`,
         severity: "success",
       });
+
+      // Store the created folder name for category assignment
+      setCreatedFolderName(folderName);
+      setShowCategoryAssignment(true);
     } catch (err) {
       setSnackbar({
         show: true,
@@ -101,7 +108,8 @@ export default function CreateFModal({ activeTab }) {
         message: "Email list added successfully",
         severity: "success",
       });
-      navigator(`/admin/${isVideoTab ? "video" : "pdf"}/${folderName}/add`);
+      // Don't navigate immediately, wait for category assignment
+      // navigator(`/admin/${isVideoTab ? "video" : "pdf"}/${folderName}/add`);
     } catch (err) {
       setSnackbar({
         show: true,
@@ -114,6 +122,15 @@ export default function CreateFModal({ activeTab }) {
   const handleCancel = () => {
     setOpen(false);
     setFNameError("");
+  };
+
+  const handleCategoryAssignmentClose = () => {
+    setShowCategoryAssignment(false);
+    setCreatedFolderName("");
+    // Navigate to the folder after category assignment
+    if (createdFolderName) {
+      navigator(`/admin/${isVideoTab ? "video" : "pdf"}/${createdFolderName}/add`);
+    }
   };
 
   return (
@@ -217,6 +234,15 @@ export default function CreateFModal({ activeTab }) {
           </Fab>
         </Tooltip>
       )}
+
+      {/* Category Assignment Dialog */}
+      <FolderCategoryAssignment
+        open={showCategoryAssignment}
+        onClose={handleCategoryAssignmentClose}
+        folderName={createdFolderName}
+        collectionName={collectionName}
+        currentCategories={{}}
+      />
     </>
   );
 }
