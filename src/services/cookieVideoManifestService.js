@@ -26,13 +26,25 @@ class CookieVideoManifestService {
       
       const response = await axios.get(this.cookieApiUrl, {
         params: {
-          folder: `video/${videoHandler}`
+          folder: `videos/${videoHandler}`
         },
         timeout: 10000 // 10 second timeout
       });
 
-      if (response.data && response.data.cookie) {
-        console.log('Cookie fetched successfully');
+      // Check if response has the cookie in the expected format
+      if (response.data && response.data.Cookie) {
+        console.log('Cookie fetched successfully from response.data.Cookie');
+        return response.data.Cookie;
+      } else if (response.data && typeof response.data === 'string' && response.data.includes('Cookie:')) {
+        // Handle case where response is a string with "Cookie: [value]" format
+        const cookieMatch = response.data.match(/Cookie:\s*(.+)/);
+        if (cookieMatch && cookieMatch[1]) {
+          console.log('Cookie extracted from string response');
+          return cookieMatch[1].trim();
+        }
+      } else if (response.data && response.data.cookie) {
+        // Fallback to lowercase 'cookie' key
+        console.log('Cookie fetched successfully from response.data.cookie');
         return response.data.cookie;
       } else if (response.headers['set-cookie']) {
         // Extract cookie from set-cookie header if not in response body
@@ -41,6 +53,7 @@ class CookieVideoManifestService {
         console.log('Cookie extracted from headers');
         return cookie;
       } else {
+        console.error('No cookie found in response. Response data:', response.data);
         throw new Error('No cookie found in response');
       }
     } catch (error) {
