@@ -33,7 +33,7 @@ import {
 import { jhsfg } from "../../af";
 import { videoManifestService } from "../services/videoManifestService";
 
-export default function CVPL({ watermark, handler, url, canPlay, onError, isConvertedVideo }) {
+export default function CVPL({ watermark, handler, url, canPlay, onError, isConvertedVideo, isEncryptedVideo }) {
   const fhandle = uFSC();
   const vdrf = uR(null);
   const slrf = uR(null);
@@ -209,8 +209,14 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
       // Determine parameters based on video type
       let folder, manifestKey, videoType;
       
-      if (isConvertedVideo) {
-        // New EC2-converted videos
+      if (isEncryptedVideo) {
+        // Encrypted videos (latest)
+        folder = `encrypted/${handler}/360p`;  // Use encrypted/ prefix with 360p
+        manifestKey = 'index.m3u8';
+        videoType = 'new_converted'; // As lambda expects 'new_converted' for encrypted videos
+        console.log("Using encrypted video with handler:", handler);
+      } else if (isConvertedVideo) {
+        // New EC2-converted videos (non-encrypted)
         folder = `videos/${handler}`;  // Include videos/ prefix
         manifestKey = 'master.m3u8';
         videoType = 'new_converted';
