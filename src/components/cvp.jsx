@@ -59,13 +59,6 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   const [currentQuality, setCurrentQuality] = uS(-1); // -1 means auto
   const [settingsMenuAnchor, setSettingsMenuAnchor] = uS(null);
   
-  // Encrypted video quality settings
-  const [encryptedQuality, setEncryptedQuality] = uS('360p'); // Default to 360p
-  const [isChangingQuality, setIsChangingQuality] = uS(false); // Prevent rapid quality changes
-  const [pendingSeekTime, setPendingSeekTime] = uS(null); // Store time to seek to after quality change
-  const [wasPlayingBeforeQualityChange, setWasPlayingBeforeQualityChange] = uS(false);
-  const encryptedQualities = ['360p', '720p']; // Available qualities for encrypted videos (can be expanded)
-  
   let timeoutId;
 
   const hTUF = () => {
@@ -210,55 +203,18 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
     }
   };
 
-  // Handle encrypted video quality changes (requires re-fetching manifest)
-  const handleEncryptedQualityChange = async (newQuality) => {
-    if (!isEncryptedVideo || encryptedQuality === newQuality || isChangingQuality) return;
-    
-    console.log(`Changing encrypted video quality from ${encryptedQuality} to ${newQuality}`);
-    setIsChangingQuality(true);
-    
-    // Store current playback state before quality change
-    const currentTime = vdrf.current?.currentTime || 0;
-    const wasPlaying = !vdrf.current?.paused;
-    
-    console.log(`Storing playback state: currentTime=${currentTime}, wasPlaying=${wasPlaying}`);
-    
-    // Set pending seek time and playback state
-    setPendingSeekTime(currentTime);
-    setWasPlayingBeforeQualityChange(wasPlaying);
-    
-    // Update quality and close menu
-    setEncryptedQuality(newQuality);
-    setSettingsMenuAnchor(null);
-    
-    try {
-      // Re-fetch manifest with new quality
-      await fetchManifest(newQuality);
-    } catch (error) {
-      console.error('Error changing encrypted video quality:', error);
-      if (onError) {
-        onError({ type: 'quality_change', error });
-      }
-      // Reset states on error
-      setPendingSeekTime(null);
-      setWasPlayingBeforeQualityChange(false);
-      setIsChangingQuality(false);
-    }
-  };
-
   // VIDEO MANIFEST FETCHING SERVICE
-  const fetchManifest = async (quality = null) => {
+  const fetchManifest = async () => {
     try {
       // Determine parameters based on video type
       let folder, manifestKey, videoType;
       
       if (isEncryptedVideo) {
-        // Encrypted videos (latest) - use provided quality or default
-        const selectedQuality = quality || encryptedQuality;
-        folder = `encrypted/${handler}/${selectedQuality}`;  // Use encrypted/ prefix with dynamic quality
+        // Encrypted videos (latest) - hardcoded to 360p
+        folder = `encrypted/${handler}/360p`;  // Use encrypted/ prefix with 360p quality
         manifestKey = 'index.m3u8';
         videoType = 'new_converted'; // As lambda expects 'new_converted' for encrypted videos
-        console.log("Using encrypted video with handler:", handler, "and quality:", selectedQuality);
+        console.log("Using encrypted video with handler:", handler, "at 360p quality");
       } else if (isConvertedVideo) {
         // New EC2-converted videos (non-encrypted)
         folder = `videos/${handler}`;  // Include videos/ prefix
@@ -311,119 +267,13 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           setQualityLevels(levels);
           setLoading(false);
           
-          // Handle pending seek time after quality change
-          if (pendingSeekTime !== null && vdrf.current) {
-            console.log(`MANIFEST_PARSED: Seeking to pending time: ${pendingSeekTime}`);
-            console.log(`MANIFEST_PARSED: Video readyState: ${vdrf.current.readyState}, duration: ${vdrf.current.duration}`);
-            
-            // Add a small delay to ensure the video is fully ready for seeking
-            setTimeout(() => {
-              if (!vdrf.current) return;
-              
-              // Safety check: ensure the seek time is valid and video is ready
-              const videoDuration = vdrf.current.duration;
-              const seekTime = videoDuration ? Math.min(pendingSeekTime, videoDuration) : pendingSeekTime;
-              
-              console.log(`MANIFEST_PARSED: Video duration: ${videoDuration}, seeking to: ${seekTime}`);
-              
-              // Only seek if we have a valid duration or if we're forcing the seek
-              if (videoDuration > 0 || pendingSeekTime > 0) {
-                vdrf.current.currentTime = seekTime;
-                
-                // Set a timeout in case seek doesn't complete
-                const seekTimeout = setTimeout(() => {
-                  console.warn('MANIFEST_PARSED: Seek timeout - forcing completion');
-                  if (wasPlayingBeforeQualityChange && canPlay) {
-                    vdrf.current?.play();
-                  }
-                  setPendingSeekTime(null);
-                  setWasPlayingBeforeQualityChange(false);
-                  setIsChangingQuality(false);
-                }, 3000); // 3 second timeout
-                
-                // Wait for seek to complete, then resume playback if needed
-                const handleSeeked = () => {
-                  console.log(`MANIFEST_PARSED: Seek completed to: ${vdrf.current.currentTime}`);
-                  clearTimeout(seekTimeout); // Clear the timeout
-                  
-                  if (wasPlayingBeforeQualityChange && canPlay) {
-                    vdrf.current.play();
-                  }
-                  // Clear pending states
-                  setPendingSeekTime(null);
-                  setWasPlayingBeforeQualityChange(false);
-                  setIsChangingQuality(false);
-                  
-                  // Remove the event listener
-                  vdrf.current.removeEventListener('seeked', handleSeeked);
-                };
-                
-                vdrf.current.addEventListener('seeked', handleSeeked);
-              } else {
-                console.warn('MANIFEST_PARSED: Video not ready for seeking, will try with FRAG_LOADED event');
-                // Don't clear pending states yet, let FRAG_LOADED handle it
-              }
-            }, 200); // 200ms delay to ensure video is ready
-          } else {
-            // Normal playback (no quality change)
-            if (canPlay) {
-              vdrf.current.play();
-            }
-            // Make sure to reset changing quality state
-            setIsChangingQuality(false);
+          if (canPlay) {
+            vdrf.current.play();
           }
         });
 
         hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
           console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
-        });
-
-        // Additional event to handle seeking when video is actually ready to play
-        hls.on(Hls.Events.FRAG_LOADED, () => {
-          // Only handle this if we have a pending seek and haven't already processed it
-          if (pendingSeekTime !== null && vdrf.current && isChangingQuality) {
-            console.log('First fragment loaded, checking if video is ready for seek');
-            
-            // Wait for the video element to be in a ready state
-            const checkVideoReady = () => {
-              if (!vdrf.current || pendingSeekTime === null) return;
-              
-              const readyState = vdrf.current.readyState;
-              const videoDuration = vdrf.current.duration;
-              
-              console.log(`Video readyState: ${readyState}, duration: ${videoDuration}`);
-              
-              // Check if video has enough data loaded (readyState >= 2 means have current and at least the next frame)
-              if (readyState >= 2 && videoDuration > 0) {
-                const seekTime = Math.min(pendingSeekTime, videoDuration);
-                
-                console.log(`Video is ready for seek. Seeking to: ${seekTime}`);
-                vdrf.current.currentTime = seekTime;
-                
-                const handleDelayedSeeked = () => {
-                  console.log(`Delayed seek completed to: ${vdrf.current.currentTime}`);
-                  
-                  if (wasPlayingBeforeQualityChange && canPlay) {
-                    vdrf.current.play();
-                  }
-                  // Clear pending states
-                  setPendingSeekTime(null);
-                  setWasPlayingBeforeQualityChange(false);
-                  setIsChangingQuality(false);
-                  
-                  // Remove the event listener
-                  vdrf.current.removeEventListener('seeked', handleDelayedSeeked);
-                };
-                
-                vdrf.current.addEventListener('seeked', handleDelayedSeeked);
-              } else {
-                // Video not ready yet, try again after a short delay
-                setTimeout(checkVideoReady, 100);
-              }
-            };
-            
-            checkVideoReady();
-          }
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -453,67 +303,8 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
           
-          // Handle pending seek time after quality change
-          if (pendingSeekTime !== null && vdrf.current) {
-            console.log(`Seeking to pending time (Safari): ${pendingSeekTime}`);
-            
-            // Add a small delay to ensure the video is fully ready for seeking
-            setTimeout(() => {
-              if (!vdrf.current) return;
-              
-              // Safety check: ensure the seek time is valid and video is ready
-              const videoDuration = vdrf.current.duration;
-              const seekTime = videoDuration ? Math.min(pendingSeekTime, videoDuration) : pendingSeekTime;
-              
-              console.log(`Video duration (Safari): ${videoDuration}, seeking to: ${seekTime}`);
-              
-              // Only seek if we have a valid duration or if we're forcing the seek
-              if (videoDuration > 0 || pendingSeekTime > 0) {
-                vdrf.current.currentTime = seekTime;
-                
-                // Set a timeout in case seek doesn't complete
-                const seekTimeout = setTimeout(() => {
-                  console.warn('Seek timeout (Safari) - forcing completion');
-                  if (wasPlayingBeforeQualityChange && canPlay) {
-                    vdrf.current?.play();
-                  }
-                  setPendingSeekTime(null);
-                  setWasPlayingBeforeQualityChange(false);
-                  setIsChangingQuality(false);
-                }, 3000); // 3 second timeout
-                
-                // Wait for seek to complete, then resume playback if needed
-                const handleSeeked = () => {
-                  console.log(`Seek completed to (Safari): ${vdrf.current.currentTime}`);
-                  clearTimeout(seekTimeout); // Clear the timeout
-                  
-                  if (wasPlayingBeforeQualityChange && canPlay) {
-                    vdrf.current.play();
-                  }
-                  // Clear pending states
-                  setPendingSeekTime(null);
-                  setWasPlayingBeforeQualityChange(false);
-                  setIsChangingQuality(false);
-                  
-                  // Remove the event listener
-                  vdrf.current.removeEventListener('seeked', handleSeeked);
-                };
-                
-                vdrf.current.addEventListener('seeked', handleSeeked);
-              } else {
-                console.warn('Video not ready for seeking (Safari), clearing pending seek');
-                setPendingSeekTime(null);
-                setWasPlayingBeforeQualityChange(false);
-                setIsChangingQuality(false);
-              }
-            }, 200); // 200ms delay to ensure video is ready
-          } else {
-            // Normal playback (no quality change)
-            if (canPlay) {
-              vdrf.current.play();
-            }
-            // Make sure to reset changing quality state
-            setIsChangingQuality(false);
+          if (canPlay) {
+            vdrf.current.play();
           }
         });
 
@@ -525,13 +316,6 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
     } catch (error) {
       console.error('Error in fetchManifest:', error);
       setLoading(false);
-      
-      // Reset quality change states on error
-      if (pendingSeekTime !== null) {
-        setPendingSeekTime(null);
-        setWasPlayingBeforeQualityChange(false);
-        setIsChangingQuality(false);
-      }
       
       onError?.({ type: 'manifest' });
     }
@@ -703,28 +487,6 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           color: "rgba(255, 255, 255, 0.7)",
           zIndex: 1000,
         }}>{watermark}</i>
-
-        {/* Quality Indicator for Encrypted Videos */}
-        {isEncryptedVideo && (
-          <div style={{ 
-            position: "absolute",
-            top: "16px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: isChangingQuality ? "rgba(255, 152, 0, 0.8)" : "rgba(156, 39, 176, 0.8)",
-            backdropFilter: "blur(8px)",
-            borderRadius: "8px",
-            padding: "4px 8px",
-            fontSize: "12px",
-            color: "white",
-            fontWeight: "bold",
-            zIndex: 1000,
-            border: isChangingQuality ? "1px solid rgba(255, 152, 0, 0.3)" : "1px solid rgba(156, 39, 176, 0.3)",
-            transition: "all 0.3s ease"
-          }}>
-            {isChangingQuality ? "⏳ Changing..." : `🔒 ${encryptedQuality}`}
-          </div>
-        )}
 
         {/* Modern Controls with Glass Morphism */}
         <Fade in={showControls} timeout={300}>
@@ -959,7 +721,7 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
                 </IBT>
 
                 {/* Quality Settings */}
-                {(qualityLevels.length > 1 || isEncryptedVideo) && (
+                {qualityLevels.length > 1 && (
                   <IBT
                     sx={{
                       color: "white",
@@ -1028,80 +790,48 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
             }
           }}
         >
-          {isEncryptedVideo ? (
-            // Encrypted video quality options
-            <>
-              {encryptedQualities.map((quality) => (
-                <MenuItem 
-                  key={quality} 
-                  onClick={() => !isChangingQuality && handleEncryptedQualityChange(quality)}
-                  disabled={isChangingQuality}
-                  sx={{
-                    color: isChangingQuality ? 'rgba(255, 255, 255, 0.5)' : 'white',
-                    borderRadius: '8px',
-                    mx: 1,
-                    my: 0.5,
-                    '&:hover': {
-                      background: !isChangingQuality ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                    },
-                    cursor: isChangingQuality ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <ListItemText 
-                    primary={quality}
-                    secondary={encryptedQuality === quality ? '✓ Active' : isChangingQuality ? 'Changing...' : ''}
-                    primaryTypographyProps={{ fontWeight: encryptedQuality === quality ? 'bold' : 'normal' }}
-                    secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
-                  />
-                </MenuItem>
-              ))}
-            </>
-          ) : (
-            // Regular HLS quality options (for non-encrypted videos)
-            <>
-              <MenuItem 
-                onClick={() => handleQualityChange(-1)}
-                sx={{
-                  color: 'white',
-                  borderRadius: '8px',
-                  mx: 1,
-                  my: 0.5,
-                  '&:hover': {
-                    background: 'rgba(255, 255, 255, 0.1)',
-                  }
-                }}
-              >
-                <ListItemText 
-                  primary="Auto" 
-                  secondary={currentQuality === -1 ? '✓ Active' : ''}
-                  primaryTypographyProps={{ fontWeight: currentQuality === -1 ? 'bold' : 'normal' }}
-                  secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
-                />
-              </MenuItem>
-              {qualityLevels.map((level) => (
-                <MenuItem 
-                  key={level.index} 
-                  onClick={() => handleQualityChange(level.index)}
-                  sx={{
-                    color: 'white',
-                    borderRadius: '8px',
-                    mx: 1,
-                    my: 0.5,
-                    '&:hover': {
-                      background: 'rgba(255, 255, 255, 0.1)',
-                    }
-                  }}
-                >
-                  <ListItemText 
-                    primary={level.name}
-                    secondary={currentQuality === level.index ? '✓ Active' : ''}
-                    primaryTypographyProps={{ fontWeight: currentQuality === level.index ? 'bold' : 'normal' }}
-                    secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
-                  />
-                </MenuItem>
-              ))}
-            </>
-          )}
+          {/* Regular HLS quality options */}
+          <MenuItem 
+            onClick={() => handleQualityChange(-1)}
+            sx={{
+              color: 'white',
+              borderRadius: '8px',
+              mx: 1,
+              my: 0.5,
+              '&:hover': {
+                background: 'rgba(255, 255, 255, 0.1)',
+              }
+            }}
+          >
+            <ListItemText 
+              primary="Auto" 
+              secondary={currentQuality === -1 ? '✓ Active' : ''}
+              primaryTypographyProps={{ fontWeight: currentQuality === -1 ? 'bold' : 'normal' }}
+              secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
+            />
+          </MenuItem>
+          {qualityLevels.map((level) => (
+            <MenuItem 
+              key={level.index} 
+              onClick={() => handleQualityChange(level.index)}
+              sx={{
+                color: 'white',
+                borderRadius: '8px',
+                mx: 1,
+                my: 0.5,
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              <ListItemText 
+                primary={level.name}
+                secondary={currentQuality === level.index ? '✓ Active' : ''}
+                primaryTypographyProps={{ fontWeight: currentQuality === level.index ? 'bold' : 'normal' }}
+                secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
+              />
+            </MenuItem>
+          ))}
         </Menu>
 
         {/* Branding */}
