@@ -31,9 +31,9 @@ import {
   useFullScreenHandle as uFSC,
 } from "react-full-screen";
 import { jhsfg } from "../../af";
-import { Buffer } from 'buffer';
+import { videoManifestService } from "../services/videoManifestService";
 
-export default function CVPL({ watermark, url, canPlay, onError }) {
+export default function CVPL({ watermark, handler, url, canPlay, onError, isConvertedVideo, isEncryptedVideo }) {
   const fhandle = uFSC();
   const vdrf = uR(null);
   const slrf = uR(null);
@@ -188,47 +188,6 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     }
   };
 
-  const generateTheEssence = (secretCode, email) => {
-    const timestamp = Date.now().toString();
-    const base64Email = Buffer.from(email).toString('base64');
-    const combined = timestamp + secretCode + base64Email;
-    const shift = 3; 
-    let encoded = '';
-
-    for (let i = 0; i < combined.length; i++) {
-      const char = combined[i];
-      if (/[a-zA-Z]/.test(char)) {
-        const base = char >= 'a' ? 'a'.charCodeAt(0) : 'A'.charCodeAt(0);
-        encoded += String.fromCharCode(((char.charCodeAt(0) - base + shift) % 26) + base);
-      } else if (/\d/.test(char)) {
-        encoded += (parseInt(char, 10) + shift) % 10;
-      } else {
-        encoded += char;
-      }
-    }
-
-    return encoded;
-  };
-
-  const fetchWithRetry = async (url, maxRetries, delay = 1000, onRetryError) => {
-    let retries = 0;
-    const email = watermark;
-    const theessence = generateTheEssence("HET349DGHFRT#5$hY^GFS6*tH4*HW&", email);
-    const headers = {
-      'Content-Type': 'application/json',
-      email: watermark,
-      theensemble: theessence,
-    };
-    
-    try {
-      const response = await axios.get(url, { headers });
-      return response;
-    } catch (error) {
-      console.error('Error fetching manifest:', error);
-      throw error;
-    }
-  };
-
   const handleQualityChange = (qualityIndex) => {
     if (!hlsRef.current) return;
     
@@ -244,11 +203,36 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
     }
   };
 
+  // VIDEO MANIFEST FETCHING SERVICE
   const fetchManifest = async () => {
     try {
-      const response = await fetchWithRetry(url, 3, 1000, onError);
-      const data = response.data;
-      const modifiedManifest = data.modified_m3u8_content;
+      // Determine parameters based on video type
+      let folder, manifestKey, videoType;
+      
+      if (isEncryptedVideo) {
+        // Encrypted videos (latest) - hardcoded to 360p
+        folder = `encrypted/${handler}/360p`;  // Use encrypted/ prefix with 360p quality
+        manifestKey = 'index.m3u8';
+        videoType = 'new_converted'; // As lambda expects 'new_converted' for encrypted videos
+        console.log("Using encrypted video with handler:", handler, "at 360p quality");
+      } else if (isConvertedVideo) {
+        // New EC2-converted videos (non-encrypted)
+        folder = `videos/${handler}`;  // Include videos/ prefix
+        manifestKey = 'master.m3u8';
+        videoType = 'new_converted';
+        console.log("Using new EC2-converted video with handler:", handler);
+      } else {
+        // Legacy videos
+        folder = handler;  // No videos/ prefix for legacy
+        manifestKey = 'index.m3u8';
+        videoType = 'legacy';
+        console.log("Using legacy video with handler:", handler);
+      }
+      
+      console.log("CVP determined parameters:", { folder, manifestKey, videoType });
+      
+      const manifestData = await videoManifestService.fetchManifest(folder, manifestKey, videoType, onError);
+      const { modifiedManifest, manifestUrl } = manifestData;
 
       if (Hls.isSupported()) {
         if (hlsRef.current) {
@@ -263,8 +247,8 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         
         hlsRef.current = hls;
 
-        const blob = new Blob([modifiedManifest], { type: 'application/x-mpegURL' });
-        const blobUrl = URL.createObjectURL(blob);
+        // Create blob URL using the service
+        const blobUrl = videoManifestService.createManifestBlobUrl(modifiedManifest);
 
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
@@ -314,9 +298,11 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         });
 
       } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
-        vdrf.current.src = data.manifest_url;
+        // Fallback for Safari and other browsers that support HLS natively
+        vdrf.current.src = manifestUrl;
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
+          
           if (canPlay) {
             vdrf.current.play();
           }
@@ -328,8 +314,9 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
         });
       }
     } catch (error) {
-      console.error('Error fetching manifest:', error);
+      console.error('Error in fetchManifest:', error);
       setLoading(false);
+      
       onError?.({ type: 'manifest' });
     }
   };
@@ -803,6 +790,7 @@ export default function CVPL({ watermark, url, canPlay, onError }) {
             }
           }}
         >
+          {/* Regular HLS quality options */}
           <MenuItem 
             onClick={() => handleQualityChange(-1)}
             sx={{

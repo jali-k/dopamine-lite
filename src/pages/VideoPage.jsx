@@ -17,7 +17,8 @@ import {
   CalendarToday as CalendarIcon,
   Description as DescriptionIcon,
   Construction as ConstructionIcon,
-  HighQuality as HighQualityIcon
+  HighQuality as HighQualityIcon,
+  Lock as LockIcon
 } from '@mui/icons-material';
 import Appbar from "../components/Appbar";
 import { fireDB } from "../../firebaseconfig";
@@ -50,6 +51,7 @@ export default function VideoPage() {
   // New state variables for video source handling
   const [videoUrl, setVideoUrl] = useState(null);
   const [isConvertedVideo, setIsConvertedVideo] = useState(false);
+  const [isEncryptedVideo, setIsEncryptedVideo] = useState(false);
   const [videoFolderId, setVideoFolderId] = useState(null);
   const [isVideoUrlSet, setIsVideoUrlSet] = useState(false); // Added flag to prevent duplicate calls
 
@@ -77,18 +79,35 @@ export default function VideoPage() {
       if (videoDocSnap.exists()) {
         const videoData = videoDocSnap.data();
         console.log("Video document data:", videoData);
-        return videoData.status === 'completed';
+        return {
+          exists: true,
+          isCompleted: videoData.status === 'completed',
+          isEncrypted: videoData.encrypted === true,
+          data: videoData
+        };
       } else {
         console.log("No video document found for handler:", tutorialHandler);
-        return false;
+        return {
+          exists: false,
+          isCompleted: false,
+          isEncrypted: false,
+          data: null
+        };
       }
     } catch (error) {
       console.error("Error checking video status:", error);
-      return false;
+      return {
+        exists: false,
+        isCompleted: false,
+        isEncrypted: false,
+        data: null
+      };
     }
   };
 
   // Function to determine the correct video URL based on video status
+  // NOTE: This function is currently not used as CVPL component handles manifest fetching internally
+  // via videoManifestService. Commenting out URL construction logic.
   const determineVideoUrl = async (tutData) => {
     console.log("Determining video URL. Document data:", tutData);
     
@@ -97,29 +116,38 @@ export default function VideoPage() {
       return;
     }
 
-    // Check video status from videos collection
-    const isNewVideo = await checkVideoStatus(tutData.handler);
-    const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
+    // Check video status from videos collection for UI display purposes
+    const videoStatus = await checkVideoStatus(tutData.handler);
+    // const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
     
-    if (isNewVideo) {
-      console.log("Using new EC2-converted video with handler:", tutData.handler);
-      setIsConvertedVideo(true);
-      setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
-      
-      // For new EC2-converted videos, use master.m3u8
-      const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
-      setVideoUrl(url);
-      console.log("Generated URL for new EC2-converted video:", url);
+    if (videoStatus.exists && videoStatus.isCompleted) {
+      if (videoStatus.isEncrypted) {
+        // Encrypted videos (latest)
+        console.log("Using encrypted video with handler:", tutData.handler);
+        setIsConvertedVideo(true);
+        setIsEncryptedVideo(true);
+        setVideoFolderId(tutData.handler);
+        console.log("Video type: ENCRYPTED");
+      } else {
+        // New EC2-converted videos (non-encrypted)
+        console.log("Using new EC2-converted video with handler:", tutData.handler);
+        setIsConvertedVideo(true);
+        setIsEncryptedVideo(false);
+        setVideoFolderId(tutData.handler);
+        console.log("Video type: NEW_CONVERTED");
+      }
     } else {
+      // Legacy videos
       console.log("Using legacy video with handler:", tutData.handler);
       setIsConvertedVideo(false);
+      setIsEncryptedVideo(false);
       setVideoFolderId(null);
-      
-      // For legacy videos, use index.m3u8
-      const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
-      setVideoUrl(url);
-      console.log("Generated URL for legacy video:", url);
+      console.log("Video type: LEGACY");
     }
+    
+    // COMMENTED OUT: URL construction is handled by videoManifestService in CVPL component
+    // Set a dummy URL to indicate video is ready
+    setVideoUrl("ready");
   };
 
   // Improved handler fetching - only fetch once
@@ -309,63 +337,25 @@ export default function VideoPage() {
     >
       <Appbar />
       
-           {/* Multi-Quality Video Feature Banner */}
-           <Alert 
-        severity="success" 
-        icon={<BiotechIcon />}
+      {/* Auto Adaptive Bitrate Banner */}
+      <Alert 
+        severity="info" 
         sx={{
           borderRadius: 0,
-          background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(102, 187, 106, 0.08) 100%)',
-          border: '1px solid rgba(46, 125, 50, 0.3)',
+          background: 'rgba(33, 150, 243, 0.08)',
+          border: '1px solid rgba(33, 150, 243, 0.2)',
           borderLeft: 'none',
           borderRight: 'none',
+          py: 1,
           '& .MuiAlert-icon': {
-            color: '#2e7d32',
-            fontSize: '28px'
-          },
-          '& .MuiAlert-message': {
-            width: '100%'
+            color: '#1976d2',
+            fontSize: '20px'
           }
         }}
       >
-        <AlertTitle sx={{ mb: 1, fontWeight: 700, color: '#1b5e20', fontSize: '1.1rem' }}>
-          🎉 New Feature: Multi-Quality Video Streaming Now Available!
-        </AlertTitle>
-        <Typography variant="body2" sx={{ color: '#2e7d32', mb: 0.5, fontWeight: 500 }}>
-          Experience adaptive streaming with multiple video quality options for new videos:
+        <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500 }}>
+          📶 Auto Adaptive Bitrate • Quality adjusts automatically based on your connection
         </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
-          <Typography variant="body2" sx={{ 
-            color: '#1b5e20', 
-            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
-            px: 1.5, 
-            py: 0.5, 
-            borderRadius: 1,
-            fontWeight: 500
-          }}>
-            📉 Lower data usage with quality selection
-          </Typography>
-          <Typography variant="body2" sx={{ 
-            color: '#1b5e20', 
-            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
-            px: 1.5, 
-            py: 0.5, 
-            borderRadius: 1,
-            fontWeight: 500
-          }}>
-            ⚡ Faster loading times
-          </Typography>
-          <Typography variant="body2" sx={{ 
-            color: '#1b5e20', 
-            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
-            px: 1.5, 
-            py: 0.5, 
-            borderRadius: 1,
-            fontWeight: 500
-          }}>
-            📶 Adapt quality to your connection strength
-          </Typography>
-        </Box>
       </Alert>
       
       
@@ -397,23 +387,37 @@ export default function VideoPage() {
             <Typography variant="h4">
               {tut.title} - {tut.lesson}
             </Typography>
-            {isConvertedVideo && (
-                 <Chip
-               
-                 icon={<HighQualityIcon />}
-                 label="Multi-Quality"
-                 size="small"
-                 sx={{
-                   backgroundColor: '#4caf50',
-                   color: 'white',
-                   width: 'fit-content',
-                   border: '1px solid #4caf50',
-                   '& .MuiChip-icon': {
-                     color: 'white'
-                   }
-                 }}
-               />
-            )}
+            {isEncryptedVideo ? (
+              <Chip
+                icon={<LockIcon />}
+                label="Stream Protected"
+                size="small"
+                sx={{
+                  backgroundColor: '#9c27b0',
+                  color: 'white',
+                  width: 'fit-content',
+                  border: '1px solid #9c27b0',
+                  '& .MuiChip-icon': {
+                    color: 'white'
+                  }
+                }}
+              />
+            ) : isConvertedVideo ? (
+              <Chip
+                icon={<HighQualityIcon />}
+                label="Multi-Quality"
+                size="small"
+                sx={{
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  width: 'fit-content',
+                  border: '1px solid #4caf50',
+                  '& .MuiChip-icon': {
+                    color: 'white'
+                  }
+                }}
+              />
+            ) : null}
           </Box>
         </Paper>
 
@@ -429,10 +433,13 @@ export default function VideoPage() {
           <CardContent sx={{ p: 0 }}>
             {handler && videoUrl ? (
               <CVPL
+                handler={handler}
                 url={videoUrl}
                 watermark={user.email}
                 canPlay={!securityCheck && progress === 100}
                 onError={handleVideoError}
+                isConvertedVideo={isConvertedVideo}
+                isEncryptedVideo={isEncryptedVideo}
               />
             ) : (
               <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />

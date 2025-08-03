@@ -177,6 +177,7 @@ export default function StuFileView() {
                   return {
                     ...tut,
                     videoStatus: videoData.status || 'processing',
+                    isEncrypted: videoData.encrypted === true,
                     isLegacyVideo: false
                   };
                 } else {
@@ -184,6 +185,7 @@ export default function StuFileView() {
                   return {
                     ...tut,
                     videoStatus: null,
+                    isEncrypted: false,
                     isLegacyVideo: true
                   };
                 }
@@ -193,6 +195,7 @@ export default function StuFileView() {
                 return {
                   ...tut,
                   videoStatus: null,
+                  isEncrypted: false,
                   isLegacyVideo: true
                 };
               }
@@ -202,6 +205,7 @@ export default function StuFileView() {
             return {
               ...tut,
               videoStatus: null,
+              isEncrypted: false,
               isLegacyVideo: true
             };
           })
@@ -211,7 +215,7 @@ export default function StuFileView() {
       } catch (error) {
         console.error('Error enriching tutorials with video status:', error);
         // Fallback to treating all as legacy videos
-        setEnrichedTuts(tuts.map(tut => ({ ...tut, videoStatus: null, isLegacyVideo: true })));
+        setEnrichedTuts(tuts.map(tut => ({ ...tut, videoStatus: null, isEncrypted: false, isLegacyVideo: true })));
       } finally {
         setStatusLoading(false);
       }
@@ -273,63 +277,25 @@ export default function StuFileView() {
     >
       <Appbar />
       
-      {/* Multi-Quality Video Feature Banner */}
+      {/* Auto Adaptive Bitrate Banner */}
       <Alert 
-        severity="success" 
-        icon={<BiotechIcon />}
+        severity="info" 
         sx={{
           borderRadius: 0,
-          background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(102, 187, 106, 0.08) 100%)',
-          border: '1px solid rgba(46, 125, 50, 0.3)',
+          background: 'rgba(33, 150, 243, 0.08)',
+          border: '1px solid rgba(33, 150, 243, 0.2)',
           borderLeft: 'none',
           borderRight: 'none',
+          py: 1,
           '& .MuiAlert-icon': {
-            color: '#2e7d32',
-            fontSize: '28px'
-          },
-          '& .MuiAlert-message': {
-            width: '100%'
+            color: '#1976d2',
+            fontSize: '20px'
           }
         }}
       >
-        <AlertTitle sx={{ mb: 1, fontWeight: 700, color: '#1b5e20', fontSize: '1.1rem' }}>
-          🎉 New Feature: Multi-Quality Video Streaming Now Available!
-        </AlertTitle>
-        <Typography variant="body2" sx={{ color: '#2e7d32', mb: 0.5, fontWeight: 500 }}>
-          Experience adaptive streaming with multiple video quality options for new videos:
+        <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 500 }}>
+          📶 Auto Adaptive Bitrate • Quality adjusts automatically based on your connection
         </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
-          <Typography variant="body2" sx={{ 
-            color: '#1b5e20', 
-            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
-            px: 1.5, 
-            py: 0.5, 
-            borderRadius: 1,
-            fontWeight: 500
-          }}>
-            📉 Lower data usage with quality selection
-          </Typography>
-          <Typography variant="body2" sx={{ 
-            color: '#1b5e20', 
-            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
-            px: 1.5, 
-            py: 0.5, 
-            borderRadius: 1,
-            fontWeight: 500
-          }}>
-            ⚡ Faster loading times
-          </Typography>
-          <Typography variant="body2" sx={{ 
-            color: '#1b5e20', 
-            backgroundColor: 'rgba(46, 125, 50, 0.1)', 
-            px: 1.5, 
-            py: 0.5, 
-            borderRadius: 1,
-            fontWeight: 500
-          }}>
-            📶 Adapt quality to your connection strength
-          </Typography>
-        </Box>
       </Alert>
       
       <Box
