@@ -313,41 +313,57 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           
           // Handle pending seek time after quality change
           if (pendingSeekTime !== null && vdrf.current) {
-            console.log(`Seeking to pending time: ${pendingSeekTime}`);
+            console.log(`MANIFEST_PARSED: Seeking to pending time: ${pendingSeekTime}`);
+            console.log(`MANIFEST_PARSED: Video readyState: ${vdrf.current.readyState}, duration: ${vdrf.current.duration}`);
             
-            // Safety check: ensure the seek time is valid
-            const seekTime = Math.min(pendingSeekTime, vdrf.current.duration || pendingSeekTime);
-            vdrf.current.currentTime = seekTime;
-            
-            // Set a timeout in case seek doesn't complete
-            const seekTimeout = setTimeout(() => {
-              console.warn('Seek timeout - forcing completion');
-              if (wasPlayingBeforeQualityChange && canPlay) {
-                vdrf.current.play();
-              }
-              setPendingSeekTime(null);
-              setWasPlayingBeforeQualityChange(false);
-              setIsChangingQuality(false);
-            }, 3000); // 3 second timeout
-            
-            // Wait for seek to complete, then resume playback if needed
-            const handleSeeked = () => {
-              console.log(`Seek completed to: ${vdrf.current.currentTime}`);
-              clearTimeout(seekTimeout); // Clear the timeout
+            // Add a small delay to ensure the video is fully ready for seeking
+            setTimeout(() => {
+              if (!vdrf.current) return;
               
-              if (wasPlayingBeforeQualityChange && canPlay) {
-                vdrf.current.play();
-              }
-              // Clear pending states
-              setPendingSeekTime(null);
-              setWasPlayingBeforeQualityChange(false);
-              setIsChangingQuality(false);
+              // Safety check: ensure the seek time is valid and video is ready
+              const videoDuration = vdrf.current.duration;
+              const seekTime = videoDuration ? Math.min(pendingSeekTime, videoDuration) : pendingSeekTime;
               
-              // Remove the event listener
-              vdrf.current.removeEventListener('seeked', handleSeeked);
-            };
-            
-            vdrf.current.addEventListener('seeked', handleSeeked);
+              console.log(`MANIFEST_PARSED: Video duration: ${videoDuration}, seeking to: ${seekTime}`);
+              
+              // Only seek if we have a valid duration or if we're forcing the seek
+              if (videoDuration > 0 || pendingSeekTime > 0) {
+                vdrf.current.currentTime = seekTime;
+                
+                // Set a timeout in case seek doesn't complete
+                const seekTimeout = setTimeout(() => {
+                  console.warn('MANIFEST_PARSED: Seek timeout - forcing completion');
+                  if (wasPlayingBeforeQualityChange && canPlay) {
+                    vdrf.current?.play();
+                  }
+                  setPendingSeekTime(null);
+                  setWasPlayingBeforeQualityChange(false);
+                  setIsChangingQuality(false);
+                }, 3000); // 3 second timeout
+                
+                // Wait for seek to complete, then resume playback if needed
+                const handleSeeked = () => {
+                  console.log(`MANIFEST_PARSED: Seek completed to: ${vdrf.current.currentTime}`);
+                  clearTimeout(seekTimeout); // Clear the timeout
+                  
+                  if (wasPlayingBeforeQualityChange && canPlay) {
+                    vdrf.current.play();
+                  }
+                  // Clear pending states
+                  setPendingSeekTime(null);
+                  setWasPlayingBeforeQualityChange(false);
+                  setIsChangingQuality(false);
+                  
+                  // Remove the event listener
+                  vdrf.current.removeEventListener('seeked', handleSeeked);
+                };
+                
+                vdrf.current.addEventListener('seeked', handleSeeked);
+              } else {
+                console.warn('MANIFEST_PARSED: Video not ready for seeking, will try with FRAG_LOADED event');
+                // Don't clear pending states yet, let FRAG_LOADED handle it
+              }
+            }, 200); // 200ms delay to ensure video is ready
           } else {
             // Normal playback (no quality change)
             if (canPlay) {
@@ -360,6 +376,54 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
 
         hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
           console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
+        });
+
+        // Additional event to handle seeking when video is actually ready to play
+        hls.on(Hls.Events.FRAG_LOADED, () => {
+          // Only handle this if we have a pending seek and haven't already processed it
+          if (pendingSeekTime !== null && vdrf.current && isChangingQuality) {
+            console.log('First fragment loaded, checking if video is ready for seek');
+            
+            // Wait for the video element to be in a ready state
+            const checkVideoReady = () => {
+              if (!vdrf.current || pendingSeekTime === null) return;
+              
+              const readyState = vdrf.current.readyState;
+              const videoDuration = vdrf.current.duration;
+              
+              console.log(`Video readyState: ${readyState}, duration: ${videoDuration}`);
+              
+              // Check if video has enough data loaded (readyState >= 2 means have current and at least the next frame)
+              if (readyState >= 2 && videoDuration > 0) {
+                const seekTime = Math.min(pendingSeekTime, videoDuration);
+                
+                console.log(`Video is ready for seek. Seeking to: ${seekTime}`);
+                vdrf.current.currentTime = seekTime;
+                
+                const handleDelayedSeeked = () => {
+                  console.log(`Delayed seek completed to: ${vdrf.current.currentTime}`);
+                  
+                  if (wasPlayingBeforeQualityChange && canPlay) {
+                    vdrf.current.play();
+                  }
+                  // Clear pending states
+                  setPendingSeekTime(null);
+                  setWasPlayingBeforeQualityChange(false);
+                  setIsChangingQuality(false);
+                  
+                  // Remove the event listener
+                  vdrf.current.removeEventListener('seeked', handleDelayedSeeked);
+                };
+                
+                vdrf.current.addEventListener('seeked', handleDelayedSeeked);
+              } else {
+                // Video not ready yet, try again after a short delay
+                setTimeout(checkVideoReady, 100);
+              }
+            };
+            
+            checkVideoReady();
+          }
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -393,39 +457,56 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           if (pendingSeekTime !== null && vdrf.current) {
             console.log(`Seeking to pending time (Safari): ${pendingSeekTime}`);
             
-            // Safety check: ensure the seek time is valid
-            const seekTime = Math.min(pendingSeekTime, vdrf.current.duration || pendingSeekTime);
-            vdrf.current.currentTime = seekTime;
-            
-            // Set a timeout in case seek doesn't complete
-            const seekTimeout = setTimeout(() => {
-              console.warn('Seek timeout (Safari) - forcing completion');
-              if (wasPlayingBeforeQualityChange && canPlay) {
-                vdrf.current.play();
-              }
-              setPendingSeekTime(null);
-              setWasPlayingBeforeQualityChange(false);
-              setIsChangingQuality(false);
-            }, 3000); // 3 second timeout
-            
-            // Wait for seek to complete, then resume playback if needed
-            const handleSeeked = () => {
-              console.log(`Seek completed to (Safari): ${vdrf.current.currentTime}`);
-              clearTimeout(seekTimeout); // Clear the timeout
+            // Add a small delay to ensure the video is fully ready for seeking
+            setTimeout(() => {
+              if (!vdrf.current) return;
               
-              if (wasPlayingBeforeQualityChange && canPlay) {
-                vdrf.current.play();
-              }
-              // Clear pending states
-              setPendingSeekTime(null);
-              setWasPlayingBeforeQualityChange(false);
-              setIsChangingQuality(false);
+              // Safety check: ensure the seek time is valid and video is ready
+              const videoDuration = vdrf.current.duration;
+              const seekTime = videoDuration ? Math.min(pendingSeekTime, videoDuration) : pendingSeekTime;
               
-              // Remove the event listener
-              vdrf.current.removeEventListener('seeked', handleSeeked);
-            };
-            
-            vdrf.current.addEventListener('seeked', handleSeeked);
+              console.log(`Video duration (Safari): ${videoDuration}, seeking to: ${seekTime}`);
+              
+              // Only seek if we have a valid duration or if we're forcing the seek
+              if (videoDuration > 0 || pendingSeekTime > 0) {
+                vdrf.current.currentTime = seekTime;
+                
+                // Set a timeout in case seek doesn't complete
+                const seekTimeout = setTimeout(() => {
+                  console.warn('Seek timeout (Safari) - forcing completion');
+                  if (wasPlayingBeforeQualityChange && canPlay) {
+                    vdrf.current?.play();
+                  }
+                  setPendingSeekTime(null);
+                  setWasPlayingBeforeQualityChange(false);
+                  setIsChangingQuality(false);
+                }, 3000); // 3 second timeout
+                
+                // Wait for seek to complete, then resume playback if needed
+                const handleSeeked = () => {
+                  console.log(`Seek completed to (Safari): ${vdrf.current.currentTime}`);
+                  clearTimeout(seekTimeout); // Clear the timeout
+                  
+                  if (wasPlayingBeforeQualityChange && canPlay) {
+                    vdrf.current.play();
+                  }
+                  // Clear pending states
+                  setPendingSeekTime(null);
+                  setWasPlayingBeforeQualityChange(false);
+                  setIsChangingQuality(false);
+                  
+                  // Remove the event listener
+                  vdrf.current.removeEventListener('seeked', handleSeeked);
+                };
+                
+                vdrf.current.addEventListener('seeked', handleSeeked);
+              } else {
+                console.warn('Video not ready for seeking (Safari), clearing pending seek');
+                setPendingSeekTime(null);
+                setWasPlayingBeforeQualityChange(false);
+                setIsChangingQuality(false);
+              }
+            }, 200); // 200ms delay to ensure video is ready
           } else {
             // Normal playback (no quality change)
             if (canPlay) {
