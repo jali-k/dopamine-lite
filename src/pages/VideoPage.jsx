@@ -89,6 +89,8 @@ export default function VideoPage() {
   };
 
   // Function to determine the correct video URL based on video status
+  // NOTE: This function is currently not used as CVPL component handles manifest fetching internally
+  // via videoManifestService. Commenting out URL construction logic.
   const determineVideoUrl = async (tutData) => {
     console.log("Determining video URL. Document data:", tutData);
     
@@ -97,28 +99,36 @@ export default function VideoPage() {
       return;
     }
 
-    // Check video status from videos collection
+    // Check video status from videos collection for UI display purposes
     const isNewVideo = await checkVideoStatus(tutData.handler);
-    const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
+    // const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
     
     if (isNewVideo) {
       console.log("Using new EC2-converted video with handler:", tutData.handler);
       setIsConvertedVideo(true);
       setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
       
+      // COMMENTED OUT: URL construction is handled by videoManifestService in CVPL component
       // For new EC2-converted videos, use master.m3u8
-      const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
-      setVideoUrl(url);
-      console.log("Generated URL for new EC2-converted video:", url);
+      // const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
+      // setVideoUrl(url);
+      // console.log("Generated URL for new EC2-converted video:", url);
+      
+      // Set a dummy URL to indicate video is ready
+      setVideoUrl("ready");
     } else {
       console.log("Using legacy video with handler:", tutData.handler);
       setIsConvertedVideo(false);
       setVideoFolderId(null);
       
+      // COMMENTED OUT: URL construction is handled by videoManifestService in CVPL component
       // For legacy videos, use index.m3u8
-      const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
-      setVideoUrl(url);
-      console.log("Generated URL for legacy video:", url);
+      // const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
+      // setVideoUrl(url);
+      // console.log("Generated URL for legacy video:", url);
+      
+      // Set a dummy URL to indicate video is ready
+      setVideoUrl("ready");
     }
   };
 
