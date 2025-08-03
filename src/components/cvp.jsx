@@ -33,7 +33,7 @@ import {
 import { jhsfg } from "../../af";
 import { videoManifestService } from "../services/videoManifestService";
 
-export default function CVPL({ watermark, handler, url, canPlay, onError }) {
+export default function CVPL({ watermark, handler, url, canPlay, onError, isConvertedVideo }) {
   const fhandle = uFSC();
   const vdrf = uR(null);
   const slrf = uR(null);
@@ -206,9 +206,26 @@ export default function CVPL({ watermark, handler, url, canPlay, onError }) {
   // VIDEO MANIFEST FETCHING SERVICE
   const fetchManifest = async () => {
     try {
-      // Use the video manifest service with correct parameters - static 360p
-      // const manifestData = await videoManifestService.fetchManifest(`videos/${handler}/360p`, 'index.m3u8', 'new_converted', onError);
-      const manifestData = await videoManifestService.fetchManifest(`videos/${handler}`, 'master.m3u8', 'new_converted', onError);
+      // Determine parameters based on video type
+      let folder, manifestKey, videoType;
+      
+      if (isConvertedVideo) {
+        // New EC2-converted videos
+        folder = `videos/${handler}`;  // Include videos/ prefix
+        manifestKey = 'master.m3u8';
+        videoType = 'new_converted';
+        console.log("Using new EC2-converted video with handler:", handler);
+      } else {
+        // Legacy videos
+        folder = handler;  // No videos/ prefix for legacy
+        manifestKey = 'index.m3u8';
+        videoType = 'legacy';
+        console.log("Using legacy video with handler:", handler);
+      }
+      
+      console.log("CVP determined parameters:", { folder, manifestKey, videoType });
+      
+      const manifestData = await videoManifestService.fetchManifest(folder, manifestKey, videoType, onError);
       const { modifiedManifest, manifestUrl } = manifestData;
 
       if (Hls.isSupported()) {
