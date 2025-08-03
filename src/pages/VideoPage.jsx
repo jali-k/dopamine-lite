@@ -439,11 +439,12 @@ export default function VideoPage() {
           <CardContent sx={{ p: 0 }}>
             {handler && videoUrl ? (
               <CVPL
-              handler={handler}
+                handler={handler}
                 url={videoUrl}
                 watermark={user.email}
                 canPlay={!securityCheck && progress === 100}
                 onError={handleVideoError}
+                isConvertedVideo={isConvertedVideo}
               />
             ) : (
               <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
