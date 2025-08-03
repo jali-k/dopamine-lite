@@ -17,7 +17,8 @@ import {
   CalendarToday as CalendarIcon,
   Description as DescriptionIcon,
   Construction as ConstructionIcon,
-  HighQuality as HighQualityIcon
+  HighQuality as HighQualityIcon,
+  Lock as LockIcon
 } from '@mui/icons-material';
 import Appbar from "../components/Appbar";
 import { fireDB } from "../../firebaseconfig";
@@ -424,23 +425,37 @@ export default function VideoPage() {
             <Typography variant="h4">
               {tut.title} - {tut.lesson}
             </Typography>
-            {isConvertedVideo && (
-                 <Chip
-               
-                 icon={<HighQualityIcon />}
-                 label="Multi-Quality"
-                 size="small"
-                 sx={{
-                   backgroundColor: '#4caf50',
-                   color: 'white',
-                   width: 'fit-content',
-                   border: '1px solid #4caf50',
-                   '& .MuiChip-icon': {
-                     color: 'white'
-                   }
-                 }}
-               />
-            )}
+            {isEncryptedVideo ? (
+              <Chip
+                icon={<LockIcon />}
+                label="Encrypted • Multi-Quality"
+                size="small"
+                sx={{
+                  backgroundColor: '#9c27b0',
+                  color: 'white',
+                  width: 'fit-content',
+                  border: '1px solid #9c27b0',
+                  '& .MuiChip-icon': {
+                    color: 'white'
+                  }
+                }}
+              />
+            ) : isConvertedVideo ? (
+              <Chip
+                icon={<HighQualityIcon />}
+                label="Multi-Quality"
+                size="small"
+                sx={{
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  width: 'fit-content',
+                  border: '1px solid #4caf50',
+                  '& .MuiChip-icon': {
+                    color: 'white'
+                  }
+                }}
+              />
+            ) : null}
           </Box>
         </Paper>
 
