@@ -50,6 +50,7 @@ export default function VideoPage() {
   // New state variables for video source handling
   const [videoUrl, setVideoUrl] = useState(null);
   const [isConvertedVideo, setIsConvertedVideo] = useState(false);
+  const [isEncryptedVideo, setIsEncryptedVideo] = useState(false);
   const [videoFolderId, setVideoFolderId] = useState(null);
   const [isVideoUrlSet, setIsVideoUrlSet] = useState(false); // Added flag to prevent duplicate calls
 
@@ -77,14 +78,29 @@ export default function VideoPage() {
       if (videoDocSnap.exists()) {
         const videoData = videoDocSnap.data();
         console.log("Video document data:", videoData);
-        return videoData.status === 'completed';
+        return {
+          exists: true,
+          isCompleted: videoData.status === 'completed',
+          isEncrypted: videoData.encrypted === true,
+          data: videoData
+        };
       } else {
         console.log("No video document found for handler:", tutorialHandler);
-        return false;
+        return {
+          exists: false,
+          isCompleted: false,
+          isEncrypted: false,
+          data: null
+        };
       }
     } catch (error) {
       console.error("Error checking video status:", error);
-      return false;
+      return {
+        exists: false,
+        isCompleted: false,
+        isEncrypted: false,
+        data: null
+      };
     }
   };
 
@@ -100,36 +116,37 @@ export default function VideoPage() {
     }
 
     // Check video status from videos collection for UI display purposes
-    const isNewVideo = await checkVideoStatus(tutData.handler);
+    const videoStatus = await checkVideoStatus(tutData.handler);
     // const BASE_URL= import.meta.env.VITE_GET_PRESIGN_URL_FUNCTION;
     
-    if (isNewVideo) {
-      console.log("Using new EC2-converted video with handler:", tutData.handler);
-      setIsConvertedVideo(true);
-      setVideoFolderId(tutData.handler); // Using handler as folder ID for new videos
-      
-      // COMMENTED OUT: URL construction is handled by videoManifestService in CVPL component
-      // For new EC2-converted videos, use master.m3u8
-      // const url = `${BASE_URL}?manifest_key=master.m3u8&folder=videos/${tutData.handler}&expiration=28800`;
-      // setVideoUrl(url);
-      // console.log("Generated URL for new EC2-converted video:", url);
-      
-      // Set a dummy URL to indicate video is ready
-      setVideoUrl("ready");
+    if (videoStatus.exists && videoStatus.isCompleted) {
+      if (videoStatus.isEncrypted) {
+        // Encrypted videos (latest)
+        console.log("Using encrypted video with handler:", tutData.handler);
+        setIsConvertedVideo(true);
+        setIsEncryptedVideo(true);
+        setVideoFolderId(tutData.handler);
+        console.log("Video type: ENCRYPTED");
+      } else {
+        // New EC2-converted videos (non-encrypted)
+        console.log("Using new EC2-converted video with handler:", tutData.handler);
+        setIsConvertedVideo(true);
+        setIsEncryptedVideo(false);
+        setVideoFolderId(tutData.handler);
+        console.log("Video type: NEW_CONVERTED");
+      }
     } else {
+      // Legacy videos
       console.log("Using legacy video with handler:", tutData.handler);
       setIsConvertedVideo(false);
+      setIsEncryptedVideo(false);
       setVideoFolderId(null);
-      
-      // COMMENTED OUT: URL construction is handled by videoManifestService in CVPL component
-      // For legacy videos, use index.m3u8
-      // const url = `${BASE_URL}?manifest_key=index.m3u8&segment_keys=index0.ts,index1.ts&folder=${tutData.handler}&expiration=28800`;
-      // setVideoUrl(url);
-      // console.log("Generated URL for legacy video:", url);
-      
-      // Set a dummy URL to indicate video is ready
-      setVideoUrl("ready");
+      console.log("Video type: LEGACY");
     }
+    
+    // COMMENTED OUT: URL construction is handled by videoManifestService in CVPL component
+    // Set a dummy URL to indicate video is ready
+    setVideoUrl("ready");
   };
 
   // Improved handler fetching - only fetch once
@@ -445,6 +462,7 @@ export default function VideoPage() {
                 canPlay={!securityCheck && progress === 100}
                 onError={handleVideoError}
                 isConvertedVideo={isConvertedVideo}
+                isEncryptedVideo={isEncryptedVideo}
               />
             ) : (
               <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "black" }} />
