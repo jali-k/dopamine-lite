@@ -59,6 +59,11 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   const [currentQuality, setCurrentQuality] = uS(-1); // -1 means auto
   const [settingsMenuAnchor, setSettingsMenuAnchor] = uS(null);
   
+  // Encrypted video quality settings
+  const [encryptedQuality, setEncryptedQuality] = uS('360p'); // Default to 360p
+  const [isChangingQuality, setIsChangingQuality] = uS(false); // Prevent rapid quality changes
+  const encryptedQualities = ['360p', '720p']; // Available qualities for encrypted videos (can be expanded)
+  
   let timeoutId;
 
   const hTUF = () => {
@@ -203,18 +208,55 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
     }
   };
 
+  // Handle encrypted video quality changes (requires re-fetching manifest)
+  const handleEncryptedQualityChange = async (newQuality) => {
+    if (!isEncryptedVideo || encryptedQuality === newQuality || isChangingQuality) return;
+    
+    console.log(`Changing encrypted video quality from ${encryptedQuality} to ${newQuality}`);
+    setIsChangingQuality(true);
+    setEncryptedQuality(newQuality);
+    setSettingsMenuAnchor(null);
+    
+    // Store current time to resume playback
+    const currentTime = vdrf.current?.currentTime || 0;
+    const wasPlaying = !vdrf.current?.paused;
+    
+    try {
+      // Re-fetch manifest with new quality
+      await fetchManifest(newQuality);
+      
+      // Resume playback from the same position
+      setTimeout(() => {
+        if (vdrf.current && currentTime > 0) {
+          vdrf.current.currentTime = currentTime;
+          if (wasPlaying) {
+            vdrf.current.play();
+          }
+        }
+      }, 100); // Small delay to ensure video is ready
+    } catch (error) {
+      console.error('Error changing encrypted video quality:', error);
+      if (onError) {
+        onError({ type: 'quality_change', error });
+      }
+    } finally {
+      setIsChangingQuality(false);
+    }
+  };
+
   // VIDEO MANIFEST FETCHING SERVICE
-  const fetchManifest = async () => {
+  const fetchManifest = async (quality = null) => {
     try {
       // Determine parameters based on video type
       let folder, manifestKey, videoType;
       
       if (isEncryptedVideo) {
-        // Encrypted videos (latest)
-        folder = `encrypted/${handler}/360p`;  // Use encrypted/ prefix with 360p
+        // Encrypted videos (latest) - use provided quality or default
+        const selectedQuality = quality || encryptedQuality;
+        folder = `encrypted/${handler}/${selectedQuality}`;  // Use encrypted/ prefix with dynamic quality
         manifestKey = 'index.m3u8';
         videoType = 'new_converted'; // As lambda expects 'new_converted' for encrypted videos
-        console.log("Using encrypted video with handler:", handler);
+        console.log("Using encrypted video with handler:", handler, "and quality:", selectedQuality);
       } else if (isConvertedVideo) {
         // New EC2-converted videos (non-encrypted)
         folder = `videos/${handler}`;  // Include videos/ prefix
@@ -486,6 +528,27 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           zIndex: 1000,
         }}>{watermark}</i>
 
+        {/* Quality Indicator for Encrypted Videos */}
+        {isEncryptedVideo && (
+          <div style={{ 
+            position: "absolute",
+            top: "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(156, 39, 176, 0.8)",
+            backdropFilter: "blur(8px)",
+            borderRadius: "8px",
+            padding: "4px 8px",
+            fontSize: "12px",
+            color: "white",
+            fontWeight: "bold",
+            zIndex: 1000,
+            border: "1px solid rgba(156, 39, 176, 0.3)"
+          }}>
+            🔒 {encryptedQuality}
+          </div>
+        )}
+
         {/* Modern Controls with Glass Morphism */}
         <Fade in={showControls} timeout={300}>
           <B
@@ -719,7 +782,7 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
                 </IBT>
 
                 {/* Quality Settings */}
-                {qualityLevels.length > 1 && (
+                {(qualityLevels.length > 1 || isEncryptedVideo) && (
                   <IBT
                     sx={{
                       color: "white",
@@ -788,47 +851,78 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
             }
           }}
         >
-          <MenuItem 
-            onClick={() => handleQualityChange(-1)}
-            sx={{
-              color: 'white',
-              borderRadius: '8px',
-              mx: 1,
-              my: 0.5,
-              '&:hover': {
-                background: 'rgba(255, 255, 255, 0.1)',
-              }
-            }}
-          >
-            <ListItemText 
-              primary="Auto" 
-              secondary={currentQuality === -1 ? '✓ Active' : ''}
-              primaryTypographyProps={{ fontWeight: currentQuality === -1 ? 'bold' : 'normal' }}
-              secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
-            />
-          </MenuItem>
-          {qualityLevels.map((level) => (
-            <MenuItem 
-              key={level.index} 
-              onClick={() => handleQualityChange(level.index)}
-              sx={{
-                color: 'white',
-                borderRadius: '8px',
-                mx: 1,
-                my: 0.5,
-                '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.1)',
-                }
-              }}
-            >
-              <ListItemText 
-                primary={level.name}
-                secondary={currentQuality === level.index ? '✓ Active' : ''}
-                primaryTypographyProps={{ fontWeight: currentQuality === level.index ? 'bold' : 'normal' }}
-                secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
-              />
-            </MenuItem>
-          ))}
+          {isEncryptedVideo ? (
+            // Encrypted video quality options
+            <>
+              {encryptedQualities.map((quality) => (
+                <MenuItem 
+                  key={quality} 
+                  onClick={() => handleEncryptedQualityChange(quality)}
+                  sx={{
+                    color: 'white',
+                    borderRadius: '8px',
+                    mx: 1,
+                    my: 0.5,
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.1)',
+                    }
+                  }}
+                >
+                  <ListItemText 
+                    primary={quality}
+                    secondary={encryptedQuality === quality ? '✓ Active' : ''}
+                    primaryTypographyProps={{ fontWeight: encryptedQuality === quality ? 'bold' : 'normal' }}
+                    secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
+                  />
+                </MenuItem>
+              ))}
+            </>
+          ) : (
+            // Regular HLS quality options (for non-encrypted videos)
+            <>
+              <MenuItem 
+                onClick={() => handleQualityChange(-1)}
+                sx={{
+                  color: 'white',
+                  borderRadius: '8px',
+                  mx: 1,
+                  my: 0.5,
+                  '&:hover': {
+                    background: 'rgba(255, 255, 255, 0.1)',
+                  }
+                }}
+              >
+                <ListItemText 
+                  primary="Auto" 
+                  secondary={currentQuality === -1 ? '✓ Active' : ''}
+                  primaryTypographyProps={{ fontWeight: currentQuality === -1 ? 'bold' : 'normal' }}
+                  secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
+                />
+              </MenuItem>
+              {qualityLevels.map((level) => (
+                <MenuItem 
+                  key={level.index} 
+                  onClick={() => handleQualityChange(level.index)}
+                  sx={{
+                    color: 'white',
+                    borderRadius: '8px',
+                    mx: 1,
+                    my: 0.5,
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.1)',
+                    }
+                  }}
+                >
+                  <ListItemText 
+                    primary={level.name}
+                    secondary={currentQuality === level.index ? '✓ Active' : ''}
+                    primaryTypographyProps={{ fontWeight: currentQuality === level.index ? 'bold' : 'normal' }}
+                    secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
+                  />
+                </MenuItem>
+              ))}
+            </>
+          )}
         </Menu>
 
         {/* Branding */}
