@@ -207,7 +207,8 @@ export default function CVPL({ watermark, handler, url, canPlay, onError }) {
   const fetchManifest = async () => {
     try {
       // Use the video manifest service with correct parameters - static 360p
-      const manifestData = await videoManifestService.fetchManifest(`videos/${handler}/360p`, 'index.m3u8', 'new_converted', onError);
+      // const manifestData = await videoManifestService.fetchManifest(`videos/${handler}/360p`, 'index.m3u8', 'new_converted', onError);
+      const manifestData = await videoManifestService.fetchManifest(`videos/${handler}`, 'master.m3u8', 'new_converted', onError);
       const { modifiedManifest, manifestUrl } = manifestData;
 
       if (Hls.isSupported()) {
