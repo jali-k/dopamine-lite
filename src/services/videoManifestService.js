@@ -1,12 +1,12 @@
 import axios from 'axios';
-import { Buffer } from 'buffer';
 
 /**
  * Video Manifest Service
- * Handles fetching and processing of video manifests with authentication
+ * Handles fetching and processing of video manifests from AWS Lambda pre-signed URL generator
  */
 class VideoManifestService {
   constructor() {
+    this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
     this.retryConfig = {
       maxRetries: 3,
       delay: 1000,
@@ -15,64 +15,45 @@ class VideoManifestService {
   }
 
   /**
-   * Generates authentication essence for secure manifest requests
-   * @param {string} secretCode - Secret code for encoding
-   * @param {string} email - User email for authentication
-   * @returns {string} Encoded authentication string
+   * Creates query parameters for Lambda function
+   * @param {string} folder - Video folder name
+   * @param {string} manifestKey - Manifest file key (e.g., 'master.m3u8')
+   * @param {string} videoType - Video type ('legacy' or 'new_converted')
+   * @param {number} expiration - URL expiration time in seconds
+   * @returns {Object} Query parameters object
    */
-  generateTheEssence(secretCode, email) {
-    const timestamp = Date.now().toString();
-    const base64Email = Buffer.from(email).toString('base64');
-    const combined = timestamp + secretCode + base64Email;
-    const shift = 3; 
-    let encoded = '';
-
-    for (let i = 0; i < combined.length; i++) {
-      const char = combined[i];
-      if (/[a-zA-Z]/.test(char)) {
-        const base64 = char >= 'a' ? 'a'.charCodeAt(0) : 'A'.charCodeAt(0);
-        encoded += String.fromCharCode(((char.charCodeAt(0) - base64 + shift) % 26) + base64);
-      } else if (/\d/.test(char)) {
-        encoded += (parseInt(char, 10) + shift) % 10;
-      } else {
-        encoded += char;
-      }
-    }
-
-    return encoded;
-  }
-
-  /**
-   * Creates authenticated headers for manifest requests
-   * @param {string} email - User email/watermark
-   * @returns {Object} Headers object with authentication
-   */
-  createAuthHeaders(email) {
-    const theessence = this.generateTheEssence("HET349DGHFRT#5$hY^GFS6*tH4*HW&", email);
+  createLambdaParams(folder, manifestKey = 'master.m3u8', videoType = 'new_converted', expiration = 28800) {
     return {
-      'Content-Type': 'application/json',
-      email: email,
-      theensemble: theessence,
+      folder,
+      manifest_key: manifestKey,
+      video_type: videoType,
+      expiration: expiration.toString()
     };
   }
 
   /**
-   * Fetches manifest with retry logic
-   * @param {string} url - Manifest URL
-   * @param {string} email - User email for authentication
+   * Fetches manifest with retry logic from Lambda function
+   * @param {string} folder - Video folder name
+   * @param {string} manifestKey - Manifest file key
+   * @param {string} videoType - Video type ('legacy' or 'new_converted')
+   * @param {number} expiration - URL expiration time
    * @param {Function} onError - Error callback function
    * @returns {Promise<Object>} Axios response object
    */
-  async fetchManifestWithRetry(url, email, onError = null) {
+  async fetchManifestWithRetry(folder, manifestKey, videoType, expiration, onError = null) {
     let retries = 0;
-    const headers = this.createAuthHeaders(email);
+    const params = this.createLambdaParams(folder, manifestKey, videoType, expiration);
     
     while (retries <= this.retryConfig.maxRetries) {
       try {
-        console.log(`Fetching manifest (attempt ${retries + 1}/${this.retryConfig.maxRetries + 1}):`, url);
+        console.log(`Fetching manifest (attempt ${retries + 1}/${this.retryConfig.maxRetries + 1}):`, {
+          folder,
+          manifestKey,
+          videoType
+        });
         
-        const response = await axios.get(url, { 
-          headers,
+        const response = await axios.get(this.lambdaUrl, { 
+          params,
           timeout: 30000 // 30 second timeout
         });
         
@@ -119,19 +100,68 @@ class VideoManifestService {
   }
 
   /**
-   * Main method to fetch and process manifest
-   * @param {string} url - Manifest URL
-   * @param {string} email - User email for authentication
+   * Main method to fetch and process manifest from Lambda function
+   * @param {string} folder - Video folder name (e.g., 'videos/timer30min')
+   * @param {string} manifestKey - Manifest file key (default: 'master.m3u8')
+   * @param {string} videoType - Video type ('new_converted' or 'legacy')
    * @param {Function} onError - Error callback function
    * @returns {Promise<Object>} Processed manifest data
    */
-  async fetchManifest(url, email, onError = null) {
+  async fetchManifest(folder, manifestKey = 'master.m3u8', videoType = 'new_converted', onError = null) {
     try {
-      const response = await this.fetchManifestWithRetry(url, email, onError);
+      // Create params with only the 3 required parameters
+      const params = {
+        folder,
+        manifest_key: manifestKey,
+        video_type: videoType
+      };
+      
+      const response = await this.fetchManifestWithParams(params, onError);
       return this.processManifestResponse(response);
     } catch (error) {
       console.error('Failed to fetch manifest:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Fetches manifest with custom parameters
+   * @param {Object} params - Query parameters for Lambda function
+   * @param {Function} onError - Error callback function
+   * @returns {Promise<Object>} Axios response object
+   */
+  async fetchManifestWithParams(params, onError = null) {
+    let retries = 0;
+    
+    while (retries <= this.retryConfig.maxRetries) {
+      try {
+        console.log(`Fetching manifest (attempt ${retries + 1}/${this.retryConfig.maxRetries + 1}):`, params);
+        
+        const response = await axios.get(this.lambdaUrl, { 
+          params,
+          timeout: 30000 // 30 second timeout
+        });
+        
+        console.log('Manifest fetch successful');
+        return response;
+        
+      } catch (error) {
+        console.error(`Manifest fetch attempt ${retries + 1} failed:`, error.message);
+        
+        retries++;
+        
+        // If this was the last retry, throw the error
+        if (retries > this.retryConfig.maxRetries) {
+          console.error('All manifest fetch attempts failed');
+          if (onError) onError(error);
+          throw error;
+        }
+        
+        // Wait before retrying with exponential backoff
+        const delay = this.retryConfig.delay * Math.pow(this.retryConfig.backoffMultiplier, retries - 1);
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }
 
@@ -167,6 +197,5 @@ export const {
   fetchManifest,
   createManifestBlobUrl,
   revokeBlobUrl,
-  createAuthHeaders,
-  generateTheEssence
+  createLambdaParams
 } = videoManifestService;

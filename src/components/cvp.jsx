@@ -32,7 +32,6 @@ import {
 } from "react-full-screen";
 import { jhsfg } from "../../af";
 import { videoManifestService } from "../services/videoManifestService";
-import { cookieVideoManifestService } from "../services/cookieVideoManifestService";
 
 export default function CVPL({ watermark, handler, url, canPlay, onError }) {
   const fhandle = uFSC();
@@ -204,117 +203,12 @@ export default function CVPL({ watermark, handler, url, canPlay, onError }) {
     }
   };
 
-  // OLD VIDEO MANIFEST FETCHING SERVICE (COMMENTED OUT)
-  // const fetchManifest = async () => {
-  //   try {
-  //     // Use the new manifest service
-  //     const manifestData = await videoManifestService.fetchManifest(url, watermark, onError);
-  //     const { modifiedManifest, manifestUrl } = manifestData;
-
-  //     if (Hls.isSupported()) {
-  //       if (hlsRef.current) {
-  //         hlsRef.current.destroy();
-  //       }
-
-  //       const hls = new Hls({
-  //         enableWorker: true,
-  //         lowLatencyMode: false,
-  //         backBufferLength: 90,
-  //       });
-        
-  //       hlsRef.current = hls;
-
-  //       // Create blob URL using the service
-  //       const blobUrl = videoManifestService.createManifestBlobUrl(modifiedManifest);
-
-  //       hls.loadSource(blobUrl);
-  //       hls.attachMedia(vdrf.current);
-
-  //       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-  //         console.log('Manifest parsed, available levels:', hls.levels);
-          
-  //         const levels = hls.levels.map((level, index) => ({
-  //           index,
-  //           height: level.height,
-  //           width: level.width,
-  //           bitrate: level.bitrate,
-  //           name: `${level.height}p`
-  //         }));
-          
-  //         setQualityLevels(levels);
-  //         setLoading(false);
-          
-  //         if (canPlay) {
-  //           vdrf.current.play();
-  //         }
-  //       });
-
-  //       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-  //         console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
-  //       });
-
-  //       hls.on(Hls.Events.ERROR, (event, data) => {
-  //         console.error('HLS Error:', data);
-  //         setLoading(false);
-  //         if (data.fatal) {
-  //           switch (data.type) {
-  //             case Hls.ErrorTypes.NETWORK_ERROR:
-  //               console.log('Fatal network error encountered, try to recover');
-  //               hls.startLoad();
-  //               break;
-  //             case Hls.ErrorTypes.MEDIA_ERROR:
-  //               console.log('Fatal media error encountered, try to recover');
-  //               hls.recoverMediaError();
-  //               break;
-  //             default:
-  //               hls.destroy();
-  //               onError?.({ type: 'manifest' });
-  //               break;
-  //           }
-  //         }
-  //       });
-
-  //     } else if (vdrf.current.canPlayType('application/vnd.apple.mpegurl')) {
-  //       // Fallback for Safari and other browsers that support HLS natively
-  //       vdrf.current.src = manifestUrl;
-  //       vdrf.current.addEventListener('loadedmetadata', () => {
-  //         setLoading(false);
-  //         if (canPlay) {
-  //           vdrf.current.play();
-  //         }
-  //       });
-
-  //       vdrf.current.addEventListener('error', () => {
-  //         setLoading(false);
-  //         onError?.({ type: 'manifest' });
-  //       });
-  //     }
-  //   } catch (error) {
-  //     console.error('Error in fetchManifest:', error);
-  //     setLoading(false);
-  //     onError?.({ type: 'manifest' });
-  //   }
-  // };
-
-  // NEW COOKIE-BASED VIDEO MANIFEST FETCHING SERVICE
+  // VIDEO MANIFEST FETCHING SERVICE
   const fetchManifest = async () => {
     try {
-      // For demonstration, using static values as per your request
-      // TODO: Extract these from actual video URL/handler
-      const videoHandler = handler; // This should be extracted from your video URL structure
-      const videoPath = `{${handler}}/master.m3u8`; // This should be dynamic based on the video
-
-      console.log('Fetching manifest using cookie-based service...');
-      
-      // Use the new cookie-based manifest service
-      const manifestData = await cookieVideoManifestService.fetchVideoManifest(
-        videoHandler, 
-        videoPath, 
-        onError
-      );
-      
-      const { modifiedManifest, manifestUrl, cookie } = manifestData;
-      console.log('Cookie-based manifest fetch successful');
+      // Use the video manifest service with correct parameters - static 360p
+      const manifestData = await videoManifestService.fetchManifest(`videos/${handler}/360p`, 'index.m3u8', 'new_converted', onError);
+      const { modifiedManifest, manifestUrl } = manifestData;
 
       if (Hls.isSupported()) {
         if (hlsRef.current) {
@@ -330,7 +224,7 @@ export default function CVPL({ watermark, handler, url, canPlay, onError }) {
         hlsRef.current = hls;
 
         // Create blob URL using the service
-        const blobUrl = cookieVideoManifestService.createManifestBlobUrl(modifiedManifest);
+        const blobUrl = videoManifestService.createManifestBlobUrl(modifiedManifest);
 
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
@@ -395,7 +289,7 @@ export default function CVPL({ watermark, handler, url, canPlay, onError }) {
         });
       }
     } catch (error) {
-      console.error('Error in cookie-based fetchManifest:', error);
+      console.error('Error in fetchManifest:', error);
       setLoading(false);
       onError?.({ type: 'manifest' });
     }
