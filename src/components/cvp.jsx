@@ -62,6 +62,8 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   // Encrypted video quality settings
   const [encryptedQuality, setEncryptedQuality] = uS('360p'); // Default to 360p
   const [isChangingQuality, setIsChangingQuality] = uS(false); // Prevent rapid quality changes
+  const [pendingSeekTime, setPendingSeekTime] = uS(null); // Store time to seek to after quality change
+  const [wasPlayingBeforeQualityChange, setWasPlayingBeforeQualityChange] = uS(false);
   const encryptedQualities = ['360p', '720p']; // Available qualities for encrypted videos (can be expanded)
   
   let timeoutId;
@@ -214,32 +216,32 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
     
     console.log(`Changing encrypted video quality from ${encryptedQuality} to ${newQuality}`);
     setIsChangingQuality(true);
-    setEncryptedQuality(newQuality);
-    setSettingsMenuAnchor(null);
     
-    // Store current time to resume playback
+    // Store current playback state before quality change
     const currentTime = vdrf.current?.currentTime || 0;
     const wasPlaying = !vdrf.current?.paused;
+    
+    console.log(`Storing playback state: currentTime=${currentTime}, wasPlaying=${wasPlaying}`);
+    
+    // Set pending seek time and playback state
+    setPendingSeekTime(currentTime);
+    setWasPlayingBeforeQualityChange(wasPlaying);
+    
+    // Update quality and close menu
+    setEncryptedQuality(newQuality);
+    setSettingsMenuAnchor(null);
     
     try {
       // Re-fetch manifest with new quality
       await fetchManifest(newQuality);
-      
-      // Resume playback from the same position
-      setTimeout(() => {
-        if (vdrf.current && currentTime > 0) {
-          vdrf.current.currentTime = currentTime;
-          if (wasPlaying) {
-            vdrf.current.play();
-          }
-        }
-      }, 100); // Small delay to ensure video is ready
     } catch (error) {
       console.error('Error changing encrypted video quality:', error);
       if (onError) {
         onError({ type: 'quality_change', error });
       }
-    } finally {
+      // Reset states on error
+      setPendingSeekTime(null);
+      setWasPlayingBeforeQualityChange(false);
       setIsChangingQuality(false);
     }
   };
@@ -309,8 +311,50 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           setQualityLevels(levels);
           setLoading(false);
           
-          if (canPlay) {
-            vdrf.current.play();
+          // Handle pending seek time after quality change
+          if (pendingSeekTime !== null && vdrf.current) {
+            console.log(`Seeking to pending time: ${pendingSeekTime}`);
+            
+            // Safety check: ensure the seek time is valid
+            const seekTime = Math.min(pendingSeekTime, vdrf.current.duration || pendingSeekTime);
+            vdrf.current.currentTime = seekTime;
+            
+            // Set a timeout in case seek doesn't complete
+            const seekTimeout = setTimeout(() => {
+              console.warn('Seek timeout - forcing completion');
+              if (wasPlayingBeforeQualityChange && canPlay) {
+                vdrf.current.play();
+              }
+              setPendingSeekTime(null);
+              setWasPlayingBeforeQualityChange(false);
+              setIsChangingQuality(false);
+            }, 3000); // 3 second timeout
+            
+            // Wait for seek to complete, then resume playback if needed
+            const handleSeeked = () => {
+              console.log(`Seek completed to: ${vdrf.current.currentTime}`);
+              clearTimeout(seekTimeout); // Clear the timeout
+              
+              if (wasPlayingBeforeQualityChange && canPlay) {
+                vdrf.current.play();
+              }
+              // Clear pending states
+              setPendingSeekTime(null);
+              setWasPlayingBeforeQualityChange(false);
+              setIsChangingQuality(false);
+              
+              // Remove the event listener
+              vdrf.current.removeEventListener('seeked', handleSeeked);
+            };
+            
+            vdrf.current.addEventListener('seeked', handleSeeked);
+          } else {
+            // Normal playback (no quality change)
+            if (canPlay) {
+              vdrf.current.play();
+            }
+            // Make sure to reset changing quality state
+            setIsChangingQuality(false);
           }
         });
 
@@ -344,8 +388,51 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
         vdrf.current.src = manifestUrl;
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
-          if (canPlay) {
-            vdrf.current.play();
+          
+          // Handle pending seek time after quality change
+          if (pendingSeekTime !== null && vdrf.current) {
+            console.log(`Seeking to pending time (Safari): ${pendingSeekTime}`);
+            
+            // Safety check: ensure the seek time is valid
+            const seekTime = Math.min(pendingSeekTime, vdrf.current.duration || pendingSeekTime);
+            vdrf.current.currentTime = seekTime;
+            
+            // Set a timeout in case seek doesn't complete
+            const seekTimeout = setTimeout(() => {
+              console.warn('Seek timeout (Safari) - forcing completion');
+              if (wasPlayingBeforeQualityChange && canPlay) {
+                vdrf.current.play();
+              }
+              setPendingSeekTime(null);
+              setWasPlayingBeforeQualityChange(false);
+              setIsChangingQuality(false);
+            }, 3000); // 3 second timeout
+            
+            // Wait for seek to complete, then resume playback if needed
+            const handleSeeked = () => {
+              console.log(`Seek completed to (Safari): ${vdrf.current.currentTime}`);
+              clearTimeout(seekTimeout); // Clear the timeout
+              
+              if (wasPlayingBeforeQualityChange && canPlay) {
+                vdrf.current.play();
+              }
+              // Clear pending states
+              setPendingSeekTime(null);
+              setWasPlayingBeforeQualityChange(false);
+              setIsChangingQuality(false);
+              
+              // Remove the event listener
+              vdrf.current.removeEventListener('seeked', handleSeeked);
+            };
+            
+            vdrf.current.addEventListener('seeked', handleSeeked);
+          } else {
+            // Normal playback (no quality change)
+            if (canPlay) {
+              vdrf.current.play();
+            }
+            // Make sure to reset changing quality state
+            setIsChangingQuality(false);
           }
         });
 
@@ -357,6 +444,14 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
     } catch (error) {
       console.error('Error in fetchManifest:', error);
       setLoading(false);
+      
+      // Reset quality change states on error
+      if (pendingSeekTime !== null) {
+        setPendingSeekTime(null);
+        setWasPlayingBeforeQualityChange(false);
+        setIsChangingQuality(false);
+      }
+      
       onError?.({ type: 'manifest' });
     }
   };
@@ -535,7 +630,7 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
             top: "16px",
             left: "50%",
             transform: "translateX(-50%)",
-            background: "rgba(156, 39, 176, 0.8)",
+            background: isChangingQuality ? "rgba(255, 152, 0, 0.8)" : "rgba(156, 39, 176, 0.8)",
             backdropFilter: "blur(8px)",
             borderRadius: "8px",
             padding: "4px 8px",
@@ -543,9 +638,10 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
             color: "white",
             fontWeight: "bold",
             zIndex: 1000,
-            border: "1px solid rgba(156, 39, 176, 0.3)"
+            border: isChangingQuality ? "1px solid rgba(255, 152, 0, 0.3)" : "1px solid rgba(156, 39, 176, 0.3)",
+            transition: "all 0.3s ease"
           }}>
-            🔒 {encryptedQuality}
+            {isChangingQuality ? "⏳ Changing..." : `🔒 ${encryptedQuality}`}
           </div>
         )}
 
@@ -857,20 +953,22 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
               {encryptedQualities.map((quality) => (
                 <MenuItem 
                   key={quality} 
-                  onClick={() => handleEncryptedQualityChange(quality)}
+                  onClick={() => !isChangingQuality && handleEncryptedQualityChange(quality)}
+                  disabled={isChangingQuality}
                   sx={{
-                    color: 'white',
+                    color: isChangingQuality ? 'rgba(255, 255, 255, 0.5)' : 'white',
                     borderRadius: '8px',
                     mx: 1,
                     my: 0.5,
                     '&:hover': {
-                      background: 'rgba(255, 255, 255, 0.1)',
-                    }
+                      background: !isChangingQuality ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                    },
+                    cursor: isChangingQuality ? 'not-allowed' : 'pointer'
                   }}
                 >
                   <ListItemText 
                     primary={quality}
-                    secondary={encryptedQuality === quality ? '✓ Active' : ''}
+                    secondary={encryptedQuality === quality ? '✓ Active' : isChangingQuality ? 'Changing...' : ''}
                     primaryTypographyProps={{ fontWeight: encryptedQuality === quality ? 'bold' : 'normal' }}
                     secondaryTypographyProps={{ color: '#4ecdc4', fontSize: '12px' }}
                   />
