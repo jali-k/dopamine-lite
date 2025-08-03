@@ -14,7 +14,8 @@ import { fireStorage } from "../../firebaseconfig";
 import { 
   HighQuality, 
   CheckCircle,
-  HourglassEmpty 
+  HourglassEmpty,
+  Lock
 } from "@mui/icons-material";
 
 export default function VCad({ tut }) {
@@ -183,13 +184,13 @@ export default function VCad({ tut }) {
             {/* Video type indicator - show for all completed/processed non-legacy videos */}
             {!tut.isLegacyVideo && (tut.videoStatus === 'completed' || tut.videoStatus === 'processed') && (
               <Chip
-                icon={<HighQuality />}
-                label="Multi-Quality"
+                icon={tut.isEncrypted ? <Lock /> : <HighQuality />}
+                label={tut.isEncrypted ? "Stream Protected" : "Multi-Quality"}
                 size="small"
                 sx={{
-                  backgroundColor: '#4caf50',
+                  backgroundColor: tut.isEncrypted ? '#9c27b0' : '#4caf50',
                   color: 'white',
-                  border: '1px solid #4caf50',
+                  border: tut.isEncrypted ? '1px solid #9c27b0' : '1px solid #4caf50',
                   '& .MuiChip-icon': {
                     color: 'white'
                   }
