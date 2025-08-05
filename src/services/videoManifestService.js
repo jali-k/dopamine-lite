@@ -6,7 +6,8 @@ import axios from 'axios';
  */
 class VideoManifestService {
   constructor() {
-    this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
+    // this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
+    this.lambdaUrl = 'https://7ezi89kw7f.execute-api.us-east-1.amazonaws.com/default/devhlsURLgenarator';
     this.retryConfig = {
       maxRetries: 3,
       delay: 1000,
@@ -27,7 +28,8 @@ class VideoManifestService {
       folder,
       manifest_key: manifestKey,
       video_type: videoType,
-      expiration: expiration.toString()
+      expiration: expiration.toString(),
+      use_cloudfront: "true"
     };
   }
 
