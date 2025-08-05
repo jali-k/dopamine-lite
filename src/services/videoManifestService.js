@@ -56,7 +56,7 @@ class VideoManifestService {
         
         const response = await axios.get(this.lambdaUrl, { 
           params,
-          timeout: 30000 // 30 second timeout
+          timeout: 60000 // 30 second timeout
         });
         
         console.log('Manifest fetch successful');
@@ -141,7 +141,7 @@ class VideoManifestService {
         
         const response = await axios.get(this.lambdaUrl, { 
           params,
-          timeout: 30000 // 30 second timeout
+          timeout: 60000 // 30 second timeout
         });
         
         console.log('Manifest fetch successful');
