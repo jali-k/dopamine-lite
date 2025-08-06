@@ -211,10 +211,10 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
       
       if (isEncryptedVideo) {
         // Encrypted videos (latest) - hardcoded to 360p
-        folder = `encrypted/${handler}/360p`;  // Use encrypted/ prefix with 360p quality
-        manifestKey = 'index.m3u8';
-        videoType = 'new_converted'; // As lambda expects 'new_converted' for encrypted videos
-        console.log("Using encrypted video with handler:", handler, "at 360p quality");
+        folder = `encrypted/${handler}`;  // Use encrypted/ prefix with 360p quality
+        manifestKey = 'master.m3u8';
+        videoType = 'encrypted'; // As lambda expects 'encrypted' for encrypted videos
+        console.log("Using encrypted video with handler:", handler, "at dynamic quality");
       } else if (isConvertedVideo) {
         // New EC2-converted videos (non-encrypted)
         folder = `videos/${handler}`;  // Include videos/ prefix
