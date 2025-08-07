@@ -21,6 +21,8 @@ import {
     Psychology,
     EmojiObjects,
     ArrowForward,
+    Warning,
+    Schedule,
   } from "@mui/icons-material";
   import { useState, useEffect } from "react";
   import { useNavigate } from "react-router-dom";
@@ -34,6 +36,25 @@ import {
     const navigate = useNavigate();
     const { user, uloading } = useUser();
     const [loading, setLoading] = useState(true);
+    
+    // Calculate maintenance date display
+    const getMaintenanceDisplayText = () => {
+      const today = new Date();
+      const maintenanceDate = new Date(2025, 7, 8); // August 8, 2025 (month is 0-indexed)
+      
+      const timeDiff = maintenanceDate.getTime() - today.getTime();
+      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+      
+      if (daysDiff === 1) {
+        return "Tomorrow, Friday 08/08/2025";
+      } else if (daysDiff === 0) {
+        return "Today, Friday 08/08/2025";
+      } else if (daysDiff < 0) {
+        return "Friday 08/08/2025 (Completed)";
+      } else {
+        return "Friday 08/08/2025";
+      }
+    };
     
     // Study tips/biology facts
     const [studyTips] = useState([
@@ -93,6 +114,43 @@ import {
         }}
       >
         <Appbar />
+        
+        {/* System Update Banner */}
+        <Paper
+          elevation={1}
+          sx={{
+            p: 2,
+            mx: 2,
+            mt: 2,
+            mb: 1,
+            borderRadius: 2,
+            background: "rgba(255, 248, 220, 0.9)",
+            border: "2px solid #FFB74D",
+            position: "relative",
+            boxShadow: "0 2px 8px rgba(255, 183, 77, 0.15)",
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Warning 
+              sx={{ 
+                color: "#F57C00", 
+                fontSize: 22,
+                opacity: 0.9 
+              }} 
+            />
+            
+            <Bx sx={{ flex: 1 }}>
+              <T variant="subtitle2" sx={{ fontWeight: 600, color: "#E65100", mb: 0.5 }}>
+                System Maintenance Notice
+              </T>
+              
+              <T variant="body2" sx={{ color: "text.primary", fontSize: "0.875rem", lineHeight: 1.3 }}>
+                <strong>{getMaintenanceDisplayText()} (1:00 PM - 4:00 PM):</strong> You may experience 
+                interruptions while watching recordings. We apologize for any inconvenience.
+              </T>
+            </Bx>
+          </Stack>
+        </Paper>
         
         {/* Welcome Banner */}
         <Paper
