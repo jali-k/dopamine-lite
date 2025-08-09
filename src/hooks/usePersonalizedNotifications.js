@@ -12,6 +12,8 @@ import {
   deleteOldPersonalizedNotifications
 } from '../services/personalizedNotificationService';
 
+import { getNotifications } from '../services/backendNotificationService';
+
 /**
  * Hook for managing personalized notifications - UPDATED with deletion functionality
  */
@@ -38,12 +40,16 @@ export const usePersonalizedNotifications = (userEmail, realTime = false) => {
       
       setError(null);
       
-      const result = await getUserPersonalizedNotifications(
-        userEmail, 
-        reset ? null : lastDoc, 
-        20
-      );
-      
+      // const result = await getUserPersonalizedNotifications(
+      //   userEmail, 
+      //   reset ? null : lastDoc, 
+      //   20
+      // );
+
+      const result = await getNotifications(userEmail);
+
+      console.log('Personalized notifications fetched:', result);
+
       if (result.success) {
         if (reset) {
           setNotifications(result.notifications);
@@ -290,6 +296,8 @@ export const usePersonalizedNotificationsBadge = (userEmail, previewCount = 5) =
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  console.log('usePersonalizedNotificationsBadge hook');
 
   const markAsRead = useCallback(async (notificationId) => {
     if (!userEmail) return;

@@ -29,6 +29,7 @@ import {
   import { collection, getDocs } from "firebase/firestore";
   import { fireDB } from "../../firebaseconfig";
   import Loading from "../components/Loading";
+  import { getNotifications } from "../services/backendNotificationService";
   
   export default function StudentDashboard() {
     const navigate = useNavigate();
@@ -59,23 +60,29 @@ import {
       },
     ]);
   
-    useEffect(() => {
-      async function fetchData() {
-        try {
-          setLoading(true);
-          setLoading(false);
-        } catch (error) {
-          console.error("Error fetching dashboard data:", error);
-          setLoading(false);
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // Fetch notifications
+        if (user?.email) {
+          console.log("Fetching notifications for user:", user.email);
+          const notifications = await getNotifications(user.email);
+          console.log("Notifications response:", notifications);
         }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        setLoading(false);
       }
-      
-      if (!uloading) {
-        fetchData();
-      }
-    }, [uloading]);
-  
-    if (uloading || loading) {
+    }
+    
+    if (!uloading && user) {
+      fetchData();
+    }
+  }, [uloading, user]);    if (uloading || loading) {
       return <Loading text="Loading Dashboard" />;
     }
     
