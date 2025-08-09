@@ -93,7 +93,7 @@ import {
       <Bx>
         {notifications.map((notification) => (
           <Card
-            key={notification.id}
+            key={notification.notificationId}
             variant="outlined"
             sx={{
               mb: 2,

@@ -29,7 +29,7 @@ import {
   import { collection, getDocs } from "firebase/firestore";
   import { fireDB } from "../../firebaseconfig";
   import Loading from "../components/Loading";
-  import { getNotifications } from "../services/backendNotificationService";
+  import { getUserNotifications } from "../services/backendNotificationService";
   
   export default function StudentDashboard() {
     const navigate = useNavigate();
@@ -68,7 +68,7 @@ import {
         // Fetch notifications
         if (user?.email) {
           console.log("Fetching notifications for user:", user.email);
-          const notifications = await getNotifications(user.email);
+          const notifications = await getUserNotifications(user.email);
           console.log("Notifications response:", notifications);
         }
         
