@@ -4,7 +4,7 @@ const getNotifications = async (userEmail) => {
   return response.json();
 };
 
-// Create and send notifications
+// Create and send notifications (for manually added individual users)
 const createNotification = async (notificationData) => {
   const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications', {
     method: 'POST',
@@ -16,14 +16,37 @@ const createNotification = async (notificationData) => {
   return response.json();
 };
 
-// Upload CSV and send notifications
-const uploadCsvNotifications = async (csvData) => {
+// Upload CSV and send notifications (for CSV file uploads)
+const uploadCsvNotifications = async (csvFile, notificationData) => {
+  const formData = new FormData();
+  
+  // Add the CSV file
+  formData.append('csvFile', csvFile);
+  
+  // Add notification data as form fields
+  formData.append('title', notificationData.title);
+  formData.append('content', notificationData.content);
+  if (notificationData.contentHtml) {
+    formData.append('contentHtml', notificationData.contentHtml);
+  }
+  formData.append('createdBy', notificationData.createdBy);
+  formData.append('personalized', notificationData.personalized.toString());
+
   const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/csv-upload', {
+    method: 'POST',
+    body: formData, // Don't set Content-Type header, let browser set it for multipart/form-data
+  });
+  return response.json();
+};
+
+// Send notifications with recipient array (alternative to CSV for programmatic use)
+const sendNotificationsWithRecipients = async (notificationData) => {
+  const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(csvData),
+    body: JSON.stringify(notificationData),
   });
   return response.json();
 };
@@ -72,7 +95,8 @@ const getNotificationById = async (notificationId, userEmail) => {
 export { 
   getNotifications, 
   createNotification, 
-  uploadCsvNotifications, 
+  uploadCsvNotifications,
+  sendNotificationsWithRecipients, 
   getUserNotifications, 
   markNotificationAsRead, 
   getNotificationStats,

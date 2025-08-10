@@ -33,7 +33,14 @@ import {
   import { useUser } from "../../contexts/UserProvider";
   import StudentImport from "./StudentImport";
   import NotificationPreview from "./NotificationPreview";
-  import { createNotification, processMarkdownLinks } from "../../services/notificationService";
+  import { sendNotificationsWithRecipients } from "../../services/backendNotificationService";
+  
+  // Helper function to process markdown links
+  const processMarkdownLinks = (text) => {
+    if (!text) return "";
+    // Convert [text](url) to <a href="url">text</a>
+    return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  };
   
   export default function NotificationForm({ onNotificationSent }) {
     const { user } = useUser();
@@ -71,20 +78,22 @@ import {
         // Process content to convert markdown links to HTML
         const contentHtml = processMarkdownLinks(content);
         
-        // Prepare target users (just emails for the notification)
-        const targetUsers = students.map(student => student.email);
-  
+        // Prepare notification data for backend service
         const notificationData = {
           title: title.trim(),
           content: content.trim(),
           contentHtml,
-          targetUsers,
           createdBy: user.email,
-          recipients: students // Store full student data for admin reference
+          personalized: false, // This is regular notification, not personalized
+          targetUsers: students.map(student => ({
+            name: student.name,
+            email: student.email,
+            registration: student.registration || ""
+          }))
         };
-  
-        const result = await createNotification(notificationData);
-  
+
+        const result = await sendNotificationsWithRecipients(notificationData);
+
         if (result.success) {
           // Reset form
           setTitle("");
@@ -93,7 +102,7 @@ import {
           
           // Show success message
           if (onNotificationSent) {
-            onNotificationSent(result.message);
+            onNotificationSent("Notification sent successfully!");
           }
         } else {
           setError(result.error || "Failed to send notification");
@@ -260,7 +269,7 @@ import {
         <Bx sx={{ mb: 4 }}>
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
             <Group color="primary" />
-            <T variant="h6">Recipients</T>
+            <T variant="h6">Recipients...</T>
             {students.length > 0 && (
               <Chip 
                 label={`${students.length} students`}

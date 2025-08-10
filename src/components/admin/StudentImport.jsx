@@ -36,7 +36,13 @@ import {
 import { useState, useRef, useEffect } from "react";
 import Papa from "papaparse";
 
-export default function StudentImport({ students = [], onStudentsChange, onPreviewStudent }) {
+export default function StudentImport({ 
+  students = [], 
+  onStudentsChange, 
+  onPreviewStudent,
+  onCsvUpload,
+  onManualAdd 
+}) {
   const [tabValue, setTabValue] = useState(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -100,6 +106,11 @@ export default function StudentImport({ students = [], onStudentsChange, onPrevi
     onStudentsChange([...students, newStudent]);
     setShowStudentList(true);
 
+    // Call manual add callback if provided
+    if (onManualAdd) {
+      onManualAdd();
+    }
+
     // Show success message
     setSuccessAlert({ open: true, message: "Student added successfully!" });
 
@@ -158,6 +169,7 @@ export default function StudentImport({ students = [], onStudentsChange, onPrevi
             const emails = new Set();
             const registrations = new Set(); // Track registration numbers to prevent duplicates
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const duplicateWarnings = []; // Track duplicate emails with row numbers
 
             results.data.forEach((row, index) => {
               // Find the columns - be more flexible with column names
@@ -206,10 +218,11 @@ export default function StudentImport({ students = [], onStudentsChange, onPrevi
                 );
               }
 
+              // Check for duplicate emails within CSV
               if (emails.has(email)) {
-                throw new Error(
-                  `Row ${index + 2}: Duplicate email: ${email}`
-                );
+                // Add to duplicate warnings instead of throwing error
+                duplicateWarnings.push(`Row ${index + 2}: Duplicate email "${email}"`);
+                return; // Skip this row but continue processing
               }
 
               // Check for duplicate registration numbers if provided
@@ -253,7 +266,7 @@ export default function StudentImport({ students = [], onStudentsChange, onPrevi
                 (!newStudent.registration || !duplicateRegs.has(newStudent.registration))
             );
 
-            if (newStudents.length === 0) {
+            if (newStudents.length === 0 && duplicateWarnings.length === 0) {
               if (duplicateEmails.size > 0 || duplicateRegs.size > 0) {
                 const emailMsg = duplicateEmails.size > 0 ? `${duplicateEmails.size} duplicate emails` : "";
                 const regMsg = duplicateRegs.size > 0 ? `${duplicateRegs.size} duplicate registration numbers` : "";
@@ -267,14 +280,39 @@ export default function StudentImport({ students = [], onStudentsChange, onPrevi
             }
 
             // Add new students to the list
-            onStudentsChange([...students, ...newStudents]);
+            const updatedStudents = [...students, ...newStudents];
+            onStudentsChange(updatedStudents);
             setShowStudentList(true);
+            
+            // Call CSV upload callback if provided
+            if (onCsvUpload) {
+              onCsvUpload(file, updatedStudents);
+            }
             
             // Show success message with warning if some were skipped
             const skippedCount = validStudents.length - newStudents.length;
-            const message = skippedCount > 0 
-              ? `Added ${newStudents.length} students. Skipped ${skippedCount} duplicates.`
-              : `${newStudents.length} students imported successfully!`;
+            let message = "";
+            
+            if (newStudents.length > 0) {
+              message = `${newStudents.length} students imported successfully!`;
+              
+              if (skippedCount > 0) {
+                message += ` Skipped ${skippedCount} existing duplicates.`;
+              }
+              
+              if (duplicateWarnings.length > 0) {
+                message += ` Found ${duplicateWarnings.length} duplicate(s) in CSV.`;
+              }
+            } else {
+              message = "No new students were added.";
+            }
+            
+            // Show warnings for CSV duplicates
+            if (duplicateWarnings.length > 0) {
+              const warningMessage = duplicateWarnings.slice(0, 5).join(", ") + 
+                (duplicateWarnings.length > 5 ? ` and ${duplicateWarnings.length - 5} more...` : "");
+              setCsvError(`Warning: ${warningMessage}`);
+            }
               
             setSuccessAlert({ 
               open: true, 

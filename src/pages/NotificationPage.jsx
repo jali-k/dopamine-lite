@@ -24,7 +24,7 @@ import {
   } from "@mui/icons-material";
   import { useState, useEffect } from "react";
   import { useUser } from "../contexts/UserProvider";
-  import { useNotifications } from "../hooks/useNotifications";
+  import { useBackendNotifications } from "../hooks/useBackendNotifications";
   import Appbar from "../components/Appbar";
   import Loading from "../components/Loading";
   import NotificationList from "../components/notifications/NotificationList";
@@ -39,9 +39,8 @@ import {
       hasMore,
       loadMore,
       markAsRead,
-      markAllAsRead,
       refresh
-    } = useNotifications(user?.email, true); // Enable real-time updates
+    } = useBackendNotifications(user?.email); // Backend service
   
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [filterAnchorEl, setFilterAnchorEl] = useState(null);
@@ -81,18 +80,17 @@ import {
       
       // Mark as read if not already read
       if (!notification.isRead) {
-        await markAsRead(notification.id);
+        await markAsRead(notification.notificationId || notification.id);
       }
     };
   
     const handleMarkAllAsRead = async () => {
-      const result = await markAllAsRead();
-      if (result.success) {
-        setSuccessAlert({ 
-          open: true, 
-          message: `Marked ${result.markedCount} notifications as read` 
-        });
-      }
+      // TODO: Implement backend markAllAsRead functionality
+      console.log('Mark all as read not yet implemented in backend service');
+      setSuccessAlert({ 
+        open: true, 
+        message: 'Mark all as read feature coming soon' 
+      });
     };
   
     const handleFilterClick = (event) => {

@@ -26,7 +26,7 @@ import {
   } from "@mui/icons-material";
   import { useState } from "react";
   import { useNavigate } from "react-router-dom";
-  import { useBackendNotificationsBadge } from "../../hooks/useBackendNotifications";
+  import { useBackendPersonalizedNotificationsBadge } from "../../hooks/useBackendNotifications";
   import { useUser } from "../../contexts/UserProvider";
   import { format, formatDistanceToNow } from "date-fns";
   import { extractPersonalizedPlainText } from "../../services/personalizedNotificationService";
@@ -43,7 +43,7 @@ import {
       loading,
       markAsRead,
       markAllAsRead
-    } = useBackendNotificationsBadge(user?.email, 5);
+    } = useBackendPersonalizedNotificationsBadge(user?.email, 5);
 
     console.log('Notifications:', notifications);
     

@@ -45,21 +45,19 @@ export const useBackendNotificationsBadge = (userEmail, previewCount = 5) => {
           body: notif.content
         }));
         
-        console.log('All notifications:', allNotifications);
-        console.log('Personalized notifications check:', allNotifications.map(n => ({ id: n.notificationId, personalized: n.personalized })));
+        console.log('Badge - All notifications:', allNotifications);
+        console.log('Badge - Personalized notifications check:', allNotifications.map(n => ({ id: n.notificationId, personalized: n.personalized })));
         
-        // Filter for personalized notifications only
-        // For now, let's show ALL notifications to debug, then we'll filter properly
-        const personalizedNotifications = allNotifications; // Temporarily showing all
-        // const personalizedNotifications = allNotifications.filter(notif => notif.personalized === true);
+        // Filter for NON-personalized notifications only (for regular notification badge)
+        const regularNotifications = allNotifications.filter(notif => notif.personalized !== true);
         
-        console.log('Filtered personalized notifications:', personalizedNotifications);
+        console.log('Badge - Filtered regular notifications:', regularNotifications);
         
         // Take only the preview count for the badge
-        const previewNotifications = personalizedNotifications.slice(0, previewCount);
+        const previewNotifications = regularNotifications.slice(0, previewCount);
         
-        // Count unread personalized notifications
-        const unreadTotal = personalizedNotifications.filter(notif => !notif.isRead).length;
+        // Count unread regular notifications
+        const unreadTotal = regularNotifications.filter(notif => !notif.isRead).length;
         
         console.log('Preview notifications for badge:', previewNotifications);
         console.log('Unread count:', unreadTotal);
@@ -87,6 +85,7 @@ export const useBackendNotificationsBadge = (userEmail, previewCount = 5) => {
     
     try {
       const result = await markNotificationAsRead(notificationId, userEmail);
+      console.log('Marking notification as read:', notificationId, result);
       
       if (result.success) {
         // Update local state
@@ -175,21 +174,28 @@ export const useBackendNotifications = (userEmail) => {
       });
 
       if (response.success && response.data) {
-        const processedNotifications = response.data.map(notif => ({
+        const allNotifications = response.data.map(notif => ({
           ...notif,
           createdAt: new Date(notif.createdAt._seconds * 1000),
           readAt: notif.readAt ? new Date(notif.readAt._seconds * 1000) : null,
           body: notif.content
         }));
 
+        console.log('RegularNotifications - All notifications:', allNotifications);
+        
+        // Filter for non-personalized notifications only (personalized: false or undefined)
+        const regularNotifications = allNotifications.filter(notif => notif.personalized !== true);
+
+        console.log('RegularNotifications - Filtered regular:', regularNotifications);
+
         if (reset) {
-          setNotifications(processedNotifications);
+          setNotifications(regularNotifications);
         } else {
-          setNotifications(prev => [...prev, ...processedNotifications]);
+          setNotifications(prev => [...prev, ...regularNotifications]);
         }
 
-        setHasMore(processedNotifications.length === 20);
-        setOffset(currentOffset + processedNotifications.length);
+        setHasMore(regularNotifications.length === 20);
+        setOffset(currentOffset + regularNotifications.length);
       }
     } catch (err) {
       console.error('Error loading notifications:', err);
@@ -307,9 +313,7 @@ export const useBackendPersonalizedNotifications = (userEmail, realTime = false)
         console.log('PersonalizedNotifications - All notifications:', allNotifications);
         
         // Filter for personalized notifications only
-        // For now, let's show ALL notifications to debug, then we'll filter properly
-        const personalizedNotifications = allNotifications; // Temporarily showing all
-        // const personalizedNotifications = allNotifications.filter(notif => notif.personalized === true);
+        const personalizedNotifications = allNotifications.filter(notif => notif.personalized === true);
 
         console.log('PersonalizedNotifications - Filtered personalized:', personalizedNotifications);
 
@@ -444,5 +448,130 @@ export const useCreateNotification = () => {
     sendNotification,
     loading,
     error
+  };
+};
+
+/**
+ * Hook specifically for personalized notifications badge
+ */
+export const useBackendPersonalizedNotificationsBadge = (userEmail, previewCount = 5) => {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadNotifications = useCallback(async (options = {}) => {
+    if (!userEmail) {
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await getUserNotifications(userEmail, {
+        limit: previewCount,
+        offset: 0,
+        readStatus: 'all',
+        ...options
+      });
+      
+      if (response.success && response.data) {
+        const allNotifications = response.data.map(notif => ({
+          ...notif,
+          createdAt: new Date(notif.createdAt._seconds * 1000),
+          readAt: notif.readAt ? new Date(notif.readAt._seconds * 1000) : null,
+          body: notif.content
+        }));
+        
+        console.log('PersonalizedBadge - All notifications:', allNotifications);
+        
+        // Filter for PERSONALIZED notifications only
+        const personalizedNotifications = allNotifications.filter(notif => notif.personalized === true);
+        
+        console.log('PersonalizedBadge - Filtered personalized notifications:', personalizedNotifications);
+        
+        // Take only the preview count for the badge
+        const previewNotifications = personalizedNotifications.slice(0, previewCount);
+        
+        // Count unread personalized notifications
+        const unreadTotal = personalizedNotifications.filter(notif => !notif.isRead).length;
+        
+        console.log('PersonalizedBadge - Preview notifications:', previewNotifications);
+        console.log('PersonalizedBadge - Unread count:', unreadTotal);
+        
+        setNotifications(previewNotifications);
+        setUnreadCount(unreadTotal);
+      } else {
+        setError('Failed to load notifications');
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error('Error loading personalized notifications:', err);
+      setError(err.message);
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [userEmail, previewCount]);
+
+  const markAsRead = useCallback(async (notificationId) => {
+    if (!userEmail) return { success: false, error: 'No user email' };
+    
+    try {
+      const result = await markNotificationAsRead(notificationId, userEmail);
+      
+      if (result.success) {
+        setNotifications(prev => 
+          prev.map(notif => 
+            notif.notificationId === notificationId 
+              ? { ...notif, isRead: true, readAt: new Date() }
+              : notif
+          )
+        );
+        
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+      return result;
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+      return { success: false, error: err.message };
+    }
+  }, [userEmail]);
+
+  const markAllAsRead = useCallback(async () => {
+    try {
+      console.log('Marking all personalized notifications as read');
+      
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, isRead: true }))
+      );
+      setUnreadCount(0);
+      
+      return { success: true };
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  return {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    markAsRead,
+    markAllAsRead,
+    refresh: loadNotifications
   };
 };

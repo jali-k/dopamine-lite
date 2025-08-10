@@ -49,7 +49,7 @@ export const createNotification = async (notificationData) => {
 export const getNotificationHistory = async (adminEmail, lastDoc = null, pageSize = 20, includeDeleted = false) => {
   try {
     let q = query(
-      collection(fireDB, "notifications"),
+      collection(fireDB, "notificationsNew"),
       where("createdBy", "==", adminEmail),
       orderBy("createdAt", "desc"),
       limit(pageSize)
@@ -58,23 +58,27 @@ export const getNotificationHistory = async (adminEmail, lastDoc = null, pageSiz
     // Only show active notifications by default
     if (!includeDeleted) {
       q = query(
-        collection(fireDB, "notifications"),
+        collection(fireDB, "notificationsNew"),
         where("createdBy", "==", adminEmail),
-        where("isActive", "==", true),
+        // where("isActive", "==", true),
         orderBy("createdAt", "desc"),
         limit(pageSize)
       );
     }
 
+    console.log("Query:", q);
     if (lastDoc) {
       q = query(q, startAfter(lastDoc));
     }
 
     const querySnapshot = await getDocs(q);
     const notifications = [];
+
+    console.log("Query snapshot:", querySnapshot);
     
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      console.log("Notification data:", data);
       notifications.push({
         id: doc.id,
         ...data,
@@ -84,6 +88,8 @@ export const getNotificationHistory = async (adminEmail, lastDoc = null, pageSiz
         docRef: doc // For pagination
       });
     });
+
+    console.log("Notifications for admin:", notifications);
 
     return {
       success: true,
