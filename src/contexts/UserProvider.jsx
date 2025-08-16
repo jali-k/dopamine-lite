@@ -25,17 +25,17 @@ export const UserProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // We'll keep the DevTools debugger functionality
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const t0 = Date.now();
-      debugger;
-      const t1 = Date.now();
-      console.log(`DevTools ${t0 === t1 ? "is not" : "is"} open.`);
-    }, 1000);
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     const t0 = Date.now();
+  //     debugger;
+  //     const t1 = Date.now();
+  //     console.log(`DevTools ${t0 === t1 ? "is not" : "is"} open.`);
+  //   }, 1000);
+  //   return () => {
+  //     clearInterval(interval);
+  //   };
+  // }, []);
 
   useEffect(() => {
     setAdmin(false);
