@@ -30,7 +30,7 @@ const uploadCsvNotifications = async (csvFile, notificationData) => {
     formData.append('contentHtml', notificationData.contentHtml);
   }
   formData.append('createdBy', notificationData.createdBy);
-  formData.append('personalized', notificationData.personalized.toString());
+  formData.append('personalized', false);
 
   const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/csv-upload', {
     method: 'POST',
@@ -63,6 +63,7 @@ const getUserNotifications = async (userEmail, options = {}) => {
   }
   
   const response = await fetch(url);
+  console.log("User Notifications Response:", response);
   return response.json();
 };
 

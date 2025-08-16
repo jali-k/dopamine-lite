@@ -302,6 +302,8 @@ export const useBackendPersonalizedNotifications = (userEmail, realTime = false)
         readStatus: 'all'
       });
 
+      console.log("User Notifications hook Response......... :", response);
+
       if (response.success && response.data) {
         const allNotifications = response.data.map(notif => ({
           ...notif,

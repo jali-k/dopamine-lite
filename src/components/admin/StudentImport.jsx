@@ -41,7 +41,8 @@ export default function StudentImport({
   onStudentsChange, 
   onPreviewStudent,
   onCsvUpload,
-  onManualAdd 
+  onManualAdd,
+  csvOnly = false // New prop to determine if this should only handle CSV files without processing
 }) {
   const [tabValue, setTabValue] = useState(0);
   const [name, setName] = useState("");
@@ -149,7 +150,23 @@ export default function StudentImport({
       return;
     }
 
-    // Use FileReader to read the file content
+    // If csvOnly mode, just pass the file to parent without processing
+    if (csvOnly) {
+      console.log('CSV only mode - uploading file:', file.name);
+      if (onCsvUpload) {
+        console.log('Calling onCsvUpload callback');
+        onCsvUpload(file);
+      }
+      setSuccessAlert({ 
+        open: true, 
+        message: `CSV file "${file.name}" attached successfully!`
+      });
+      // Reset file input
+      event.target.value = null;
+      return;
+    }
+
+    // Original processing logic for when we need to parse the CSV
     const reader = new FileReader();
     reader.onload = (e) => {
       const csvContent = e.target.result;
