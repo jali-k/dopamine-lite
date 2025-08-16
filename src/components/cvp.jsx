@@ -330,10 +330,10 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   uE(() => {
     fetchManifest();
     console.log("Fetching...");
-    const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000);
+    // const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000);
 
     return () => {
-      clearInterval(intervalId);
+      // clearInterval(intervalId);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
