@@ -1,51 +1,64 @@
 import axios from 'axios';
 
 /**
- * Video Manifest Service
- * Handles fetching and processing of video manifests from AWS Lambda pre-signed URL generator
+ * Video Manifest Service - Optimized for CloudFront Caching
+ * Reduced Lambda calls, better caching, static URLs
  */
 class VideoManifestService {
   constructor() {
-    // this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
-    // this.lambdaUrl = 'https://7ezi89kw7f.execute-api.us-east-1.amazonaws.com/default/devhlsURLgenarator';
     this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
     this.retryConfig = {
-      maxRetries: 3,
+      maxRetries: 2,  // Reduced retries since we have better caching
       delay: 1000,
       backoffMultiplier: 1.5
     };
+    
+    // In-memory cache to avoid redundant Lambda calls
+    this.manifestCache = new Map();
+    this.cacheExpiry = 30 * 60 * 1000; // 30 minutes cache
+  }
+
+  /**
+   * Creates cache key for manifest
+   */
+  createCacheKey(folder, manifestKey, videoType) {
+    return `${folder}:${manifestKey}:${videoType}`;
+  }
+
+  /**
+   * Check if cached manifest is still valid
+   */
+  isCacheValid(cacheEntry) {
+    return cacheEntry && (Date.now() - cacheEntry.timestamp) < this.cacheExpiry;
   }
 
   /**
    * Creates query parameters for Lambda function
-   * @param {string} folder - Video folder name
-   * @param {string} manifestKey - Manifest file key (e.g., 'master.m3u8')
-   * @param {string} videoType - Video type ('legacy' or 'new_converted')
-   * @param {number} expiration - URL expiration time in seconds
-   * @returns {Object} Query parameters object
    */
-  createLambdaParams(folder, manifestKey = 'master.m3u8', videoType = 'new_converted', expiration = 28800) {
+  createLambdaParams(folder, manifestKey = 'master.m3u8', videoType = 'new_converted') {
     return {
       folder,
       manifest_key: manifestKey,
       video_type: videoType,
-      expiration: expiration.toString(),
-      use_cloudfront: "true"
+      // Removed expiration and use_cloudfront - using static URLs now
     };
   }
 
   /**
-   * Fetches manifest with retry logic from Lambda function
-   * @param {string} folder - Video folder name
-   * @param {string} manifestKey - Manifest file key
-   * @param {string} videoType - Video type ('legacy' or 'new_converted')
-   * @param {number} expiration - URL expiration time
-   * @param {Function} onError - Error callback function
-   * @returns {Promise<Object>} Axios response object
+   * Fetches manifest with improved caching and retry logic
    */
-  async fetchManifestWithRetry(folder, manifestKey, videoType, expiration, onError = null) {
+  async fetchManifestWithRetry(folder, manifestKey, videoType, onError = null) {
+    const cacheKey = this.createCacheKey(folder, manifestKey, videoType);
+    
+    // Check in-memory cache first
+    const cached = this.manifestCache.get(cacheKey);
+    if (this.isCacheValid(cached)) {
+      console.log('Using cached manifest:', cacheKey);
+      return cached.response;
+    }
+
     let retries = 0;
-    const params = this.createLambdaParams(folder, manifestKey, videoType, expiration);
+    const params = this.createLambdaParams(folder, manifestKey, videoType);
     
     while (retries <= this.retryConfig.maxRetries) {
       try {
@@ -57,10 +70,19 @@ class VideoManifestService {
         
         const response = await axios.get(this.lambdaUrl, { 
           params,
-          timeout: 60000 // 30 second timeout
+          timeout: 30000, // Reduced timeout
+          headers: {
+            'Cache-Control': 'max-age=3600', // Request caching
+          }
         });
         
-        console.log('Manifest fetch successful');
+        // Cache the successful response
+        this.manifestCache.set(cacheKey, {
+          response,
+          timestamp: Date.now()
+        });
+        
+        console.log('Manifest fetch successful and cached');
         return response;
         
       } catch (error) {
@@ -68,14 +90,12 @@ class VideoManifestService {
         
         retries++;
         
-        // If this was the last retry, throw the error
         if (retries > this.retryConfig.maxRetries) {
           console.error('All manifest fetch attempts failed');
           if (onError) onError(error);
           throw error;
         }
         
-        // Wait before retrying with exponential backoff
         const delay = this.retryConfig.delay * Math.pow(this.retryConfig.backoffMultiplier, retries - 1);
         console.log(`Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -85,8 +105,6 @@ class VideoManifestService {
 
   /**
    * Processes the manifest response and extracts the content
-   * @param {Object} response - Axios response object
-   * @returns {Object} Processed manifest data
    */
   processManifestResponse(response) {
     const data = response.data;
@@ -98,28 +116,18 @@ class VideoManifestService {
     return {
       modifiedManifest: data.modified_m3u8_content,
       manifestUrl: data.manifest_url,
-      originalData: data
+      originalData: data,
+      deliveryMethod: data.delivery_method || 'cloudfront_static'
     };
   }
 
   /**
    * Main method to fetch and process manifest from Lambda function
-   * @param {string} folder - Video folder name (e.g., 'videos/timer30min')
-   * @param {string} manifestKey - Manifest file key (default: 'master.m3u8')
-   * @param {string} videoType - Video type ('new_converted' or 'legacy')
-   * @param {Function} onError - Error callback function
-   * @returns {Promise<Object>} Processed manifest data
+   * Now with intelligent caching to reduce Lambda calls
    */
   async fetchManifest(folder, manifestKey = 'master.m3u8', videoType = 'new_converted', onError = null) {
     try {
-      // Create params with only the 3 required parameters
-      const params = {
-        folder,
-        manifest_key: manifestKey,
-        video_type: videoType
-      };
-      
-      const response = await this.fetchManifestWithParams(params, onError);
+      const response = await this.fetchManifestWithRetry(folder, manifestKey, videoType, onError);
       return this.processManifestResponse(response);
     } catch (error) {
       console.error('Failed to fetch manifest:', error);
@@ -128,50 +136,7 @@ class VideoManifestService {
   }
 
   /**
-   * Fetches manifest with custom parameters
-   * @param {Object} params - Query parameters for Lambda function
-   * @param {Function} onError - Error callback function
-   * @returns {Promise<Object>} Axios response object
-   */
-  async fetchManifestWithParams(params, onError = null) {
-    let retries = 0;
-    
-    while (retries <= this.retryConfig.maxRetries) {
-      try {
-        console.log(`Fetching manifest (attempt ${retries + 1}/${this.retryConfig.maxRetries + 1}):`, params);
-        
-        const response = await axios.get(this.lambdaUrl, { 
-          params,
-          timeout: 60000 // 30 second timeout
-        });
-        
-        console.log('Manifest fetch successful');
-        return response;
-        
-      } catch (error) {
-        console.error(`Manifest fetch attempt ${retries + 1} failed:`, error.message);
-        
-        retries++;
-        
-        // If this was the last retry, throw the error
-        if (retries > this.retryConfig.maxRetries) {
-          console.error('All manifest fetch attempts failed');
-          if (onError) onError(error);
-          throw error;
-        }
-        
-        // Wait before retrying with exponential backoff
-        const delay = this.retryConfig.delay * Math.pow(this.retryConfig.backoffMultiplier, retries - 1);
-        console.log(`Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  /**
    * Creates a blob URL from manifest content
-   * @param {string} manifestContent - M3U8 manifest content
-   * @returns {string} Blob URL
    */
   createManifestBlobUrl(manifestContent) {
     const blob = new Blob([manifestContent], { type: 'application/x-mpegURL' });
@@ -179,18 +144,51 @@ class VideoManifestService {
   }
 
   /**
-   * Cleans up blob URLs to prevent memory leaks
-   * @param {string} blobUrl - Blob URL to revoke
+   * Cleans up blob URLs and cache to prevent memory leaks
    */
   revokeBlobUrl(blobUrl) {
     if (blobUrl && blobUrl.startsWith('blob:')) {
       URL.revokeObjectURL(blobUrl);
     }
   }
+
+  /**
+   * Clear expired cache entries (call periodically)
+   */
+  cleanupCache() {
+    const now = Date.now();
+    for (const [key, entry] of this.manifestCache.entries()) {
+      if ((now - entry.timestamp) > this.cacheExpiry) {
+        this.manifestCache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Manual cache clear (for debugging)
+   */
+  clearCache() {
+    this.manifestCache.clear();
+    console.log('Manifest cache cleared');
+  }
 }
 
 // Export singleton instance
 export const videoManifestService = new VideoManifestService();
+
+// Cleanup cache every 2 hours (more reasonable)
+setInterval(() => {
+  videoManifestService.cleanupCache();
+}, 2 * 60 * 60 * 1000);
+
+// Also cleanup when cache gets too large (safety measure)
+const originalSet = videoManifestService.manifestCache.set;
+videoManifestService.manifestCache.set = function(key, value) {
+  if (this.size > 100) { // Limit to 100 cached manifests
+    videoManifestService.cleanupCache();
+  }
+  return originalSet.call(this, key, value);
+};
 
 // Export class for custom instances if needed
 export { VideoManifestService };
@@ -200,5 +198,5 @@ export const {
   fetchManifest,
   createManifestBlobUrl,
   revokeBlobUrl,
-  createLambdaParams
+  clearCache
 } = videoManifestService;
