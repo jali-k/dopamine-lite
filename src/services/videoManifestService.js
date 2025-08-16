@@ -6,7 +6,8 @@ import axios from 'axios';
  */
 class VideoManifestService {
   constructor() {
-    this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
+    // this.lambdaUrl = 'https://i1kwmbic8c.execute-api.us-east-1.amazonaws.com/geturl';
+    this.lambdaUrl = 'https://7ezi89kw7f.execute-api.us-east-1.amazonaws.com/default/devhlsURLgenarator';
     this.retryConfig = {
       maxRetries: 2,  // Reduced retries since we have better caching
       delay: 1000,
