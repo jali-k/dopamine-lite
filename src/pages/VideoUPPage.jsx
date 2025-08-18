@@ -551,7 +551,8 @@ export default function VideoUPPage() {
     };
     
     try {
-      const ec2BaseUrl = "https://upload.sddopamine.com/api";
+      // const ec2BaseUrl = "https://upload.sddopamine.com/api";
+      const ec2BaseUrl = "https://44.219.87.48/api";
       let uploadedChunks = 0;
       const startTime = Date.now();
       
