@@ -26,12 +26,14 @@ import {
   } from "@mui/icons-material";
   import { useState } from "react";
   import { useNavigate } from "react-router-dom";
-  import { usePersonalizedNotificationsBadge } from "../../hooks/usePersonalizedNotifications";
+  import { useBackendPersonalizedNotificationsBadge } from "../../hooks/useBackendNotifications";
   import { useUser } from "../../contexts/UserProvider";
   import { format, formatDistanceToNow } from "date-fns";
   import { extractPersonalizedPlainText } from "../../services/personalizedNotificationService";
+  import { getNotifications } from "../../services/backendNotificationService";
   
   export default function PersonalizedNotificationBadge() {
+    console.log('Rendering PersonalizedNotificationBadge');
     const { user } = useUser();
     const navigate = useNavigate();
     
@@ -41,7 +43,9 @@ import {
       loading,
       markAsRead,
       markAllAsRead
-    } = usePersonalizedNotificationsBadge(user?.email, 5);
+    } = useBackendPersonalizedNotificationsBadge(user?.email, 5);
+
+    console.log('Notifications:', notifications);
     
     const [anchorEl, setAnchorEl] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
@@ -61,15 +65,14 @@ import {
     };
   
     const handleNotificationClick = async (notification) => {
-
         handleClose();
    
       // Navigate directly to the specific notification view
-      navigate(`/personalizednotifications/${notification.id}`);
+      navigate(`/personalizednotifications/${notification.notificationId}`);
       
       if (!notification.isRead) {
         setActionLoading(true);
-        await markAsRead(notification.id);
+        await markAsRead(notification.notificationId);
         setActionLoading(false);
       }
       
@@ -213,7 +216,7 @@ import {
             <Bx sx={{ maxHeight: 340, overflowY: 'auto' }}>
               {notifications.map((notification, index) => (
                 <MenuItem
-                  key={notification.id}
+                  key={notification.notificationId}
                   onClick={() => handleNotificationClick(notification)}
                   sx={{
                     py: 1.5,

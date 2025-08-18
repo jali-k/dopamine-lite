@@ -26,7 +26,7 @@ import {
     
     const handleMarkAsRead = async () => {
       if (!notification.isRead) {
-        await onMarkAsRead(notification.id);
+        await onMarkAsRead(notification.notificationId || notification.id);
       }
     };
   

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserProvider';
-import { getPersonalizedNotificationById, markPersonalizedNotificationAsRead } from '../services/personalizedNotificationService';
+import { getNotificationById, markNotificationAsRead } from '../services/backendNotificationService';
 import PersonalizedNotificationView from '../components/personalizednotifications/PersonalizedNotificationView';
 import Loading from '../components/Loading';
 import { Container, Alert } from '@mui/material';
@@ -21,14 +21,23 @@ export default function PersonalizedNotificationViewPage() {
       
       try {
         setLoading(true);
-        const result = await getPersonalizedNotificationById(id, user.email);
+        const result = await getNotificationById(id, user.email);
         
         if (result.success) {
-          setNotification(result.notification);
+          // Process the notification data
+          const processedNotification = {
+            ...result.data,
+            createdAt: new Date(result.data.createdAt._seconds * 1000),
+            readAt: result.data.readAt ? new Date(result.data.readAt._seconds * 1000) : null,
+            body: result.data.content,
+            id: result.data.notificationId
+          };
+          
+          setNotification(processedNotification);
           
           // Mark as read if not already read
-          if (!result.notification.isRead) {
-            await markPersonalizedNotificationAsRead(id, user.email);
+          if (!processedNotification.isRead) {
+            await markNotificationAsRead(id, user.email);
             setNotification(prev => ({
               ...prev,
               isRead: true,

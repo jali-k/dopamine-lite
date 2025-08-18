@@ -24,7 +24,7 @@ import {
   } from "@mui/icons-material";
   import { useState, useEffect } from "react";
   import { useUser } from "../contexts/UserProvider";
-  import { usePersonalizedNotifications } from "../hooks/usePersonalizedNotifications";
+  import { useBackendPersonalizedNotifications } from "../hooks/useBackendNotifications";
   import Appbar from "../components/Appbar";
   import Loading from "../components/Loading";
   import PersonalizedNotificationList from "../components/personalizednotifications/PersonalizedNotificationList";
@@ -42,7 +42,7 @@ import {
       markAsRead,
       markAllAsRead,
       refresh
-    } = usePersonalizedNotifications(user?.email, true); // Enable real-time updates
+    } = useBackendPersonalizedNotifications(user?.email, true); // Enable real-time updates
   
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [filterAnchorEl, setFilterAnchorEl] = useState(null);
@@ -82,7 +82,7 @@ import {
       
       // Mark as read if not already read
       if (!notification.isRead) {
-        await markAsRead(notification.id);
+        await markAsRead(notification.notificationId);
       }
     };
   

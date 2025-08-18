@@ -38,13 +38,21 @@ import {
   import Appbar from "../../components/Appbar";
   import Loading from "../../components/Loading";
   
-  // Import our custom components (we'll create these next)
+  // Import our custom components
   import PersonalizedNotificationTemplateForm from "../../components/admin/PersonalizedNotificationTemplateForm";
-  import StudentImport from "../../components/admin/StudentImport"; // Reuse existing
+  import StudentImport from "../../components/admin/StudentImport";
   import PersonalizedNotificationPreview from "../../components/admin/PersonalizedNotificationPreview";
   import PersonalizedNotificationHistory from "../../components/admin/PersonalizedNotificationHistory";
   
-  // Firebase imports
+  // Backend service imports
+  import { 
+    createNotification,
+    uploadCsvNotifications,
+    sendNotificationsWithRecipients,
+    getUserNotifications
+  } from "../../services/backendNotificationService";
+  
+  // Firebase imports (still needed for templates until backend support is added)
   import { 
     collection, 
     addDoc, 
@@ -52,8 +60,8 @@ import {
     query, 
     orderBy, 
     getDocs,
-    deleteDoc,  // Add this
-    doc        // Add this if not already imported
+    deleteDoc,
+    doc
   } from "firebase/firestore";
   import { fireDB } from "../../../firebaseconfig";
   
@@ -80,7 +88,11 @@ import {
     // The main form data
     const [notificationTitle, setNotificationTitle] = useState("");
     const [notificationBody, setNotificationBody] = useState("");
-    const [recipients, setRecipients] = useState([]); // Students from CSV
+    const [recipients, setRecipients] = useState([]); // Students from CSV or manual input
+    
+    // Track source of recipients and original CSV file
+    const [csvFile, setCsvFile] = useState(null); // Store original CSV file for upload
+    const [recipientSource, setRecipientSource] = useState('manual'); // 'manual' or 'csv'
     
     // Template management
     const [templates, setTemplates] = useState([]); // Available templates
@@ -376,10 +388,10 @@ const handleUseTemplate = (template) => {
     /**
      * Handle sending notifications - THE MAIN FUNCTION
      * 
-     * This is where the magic happens:
+     * Updated to use backend service instead of direct Firebase:
      * 1. Validate the form data
-     * 2. Create a queue document in Firestore
-     * 3. Cloud Function automatically processes it
+     * 2. Send to backend API with CSV data
+     * 3. Backend processes personalized notifications
      * 4. Show progress to admin
      */
     const handleSendNotifications = async () => {
@@ -395,46 +407,72 @@ const handleUseTemplate = (template) => {
           total: recipients.length 
         });
         
-        console.log("Creating notification queue document...");
+        console.log("Sending personalized notifications via backend...");
+        console.log("Recipient source:", recipientSource);
         
-        // Create the queue document - this triggers the Cloud Function
-        const queueData = {
-          title: notificationTitle.trim(),
-          body: notificationBody, // Keep original formatting with newlines
-          recipients: recipients, // Array of student objects from CSV
-          status: "queued",
-          queuedAt: serverTimestamp(),
-          createdBy: "admin", // TODO: Replace with actual admin email
-          totalTargets: recipients.length,
-          processedCount: 0
-        };
+        let result;
         
-        // Add to Firestore - this automatically triggers our Cloud Function
-        const queueRef = await addDoc(
-          collection(fireDB, "personalizedNotificationQueue"), 
-          queueData
-        );
+        if (recipientSource === 'csv' && csvFile) {
+          // Use CSV upload endpoint with actual file
+          console.log("Using CSV upload endpoint with file");
+          
+          const notificationData = {
+            title: notificationTitle.trim(),
+            content: notificationBody,
+            createdBy: "admin", // TODO: Replace with actual admin email
+            personalized: true
+          };
+
+          console.log("Notification data for CSV upload:", notificationData);
+          
+          result = await uploadCsvNotifications(csvFile, notificationData);
+        } else {
+          // Use individual users endpoint with targetUsers array
+          console.log("Using individual users endpoint");
+          
+          const notificationData = {
+            title: notificationTitle.trim(),
+            content: notificationBody,
+            createdBy: "admin", // TODO: Replace with actual admin email
+            personalized: true,
+            targetUsers: recipients.map(recipient => ({
+              name: recipient.StudentName,
+              email: recipient.StudentEmail,
+              registration: recipient.StudentRegNo,
+              // Add any other fields
+              ...recipient
+            }))
+          };
+          
+          result = await sendNotificationsWithRecipients(notificationData);
+        }
         
-        console.log("Queue document created:", queueRef.id);
+        console.log("Backend response:", result);
         
-        // Reset form
-        setNotificationTitle("");
-        setNotificationBody("");
-        setRecipients([]);
-        setSelectedTemplate(null);
-        
-        // Hide progress and show success
-        setSending(false);
-        setSendingProgress({ show: false, processed: 0, total: 0 });
-        
-        setSuccessAlert({ 
-          open: true, 
-          message: `Notification queued successfully! Processing ${recipients.length} recipients...` 
-        });
+        if (result.success) {
+          // Reset form on success
+          setNotificationTitle("");
+          setNotificationBody("");
+          setRecipients([]);
+          setSelectedTemplate(null);
+          setCsvFile(null);
+          setRecipientSource('manual');
+          
+          // Hide progress and show success
+          setSending(false);
+          setSendingProgress({ show: false, processed: 0, total: 0 });
+          
+          setSuccessAlert({ 
+            open: true, 
+            message: `Personalized notifications sent successfully to ${recipients.length} recipients!` 
+          });
+        } else {
+          throw new Error(result.error || 'Backend service returned error');
+        }
         
       } catch (err) {
         console.error("Error sending notifications:", err);
-        setError("Failed to queue notifications for sending");
+        setError(`Failed to send notifications: ${err.message}`);
         setSending(false);
         setSendingProgress({ show: false, processed: 0, total: 0 });
       }
@@ -564,7 +602,26 @@ const handleUseTemplate = (template) => {
                 <T variant="h6" sx={{ mb: 2 }}>Recipients</T>
                 <StudentImport 
                   students={recipients}
-                  onStudentsChange={setRecipients}
+                  onStudentsChange={(newStudents) => {
+                    setRecipients(newStudents);
+                    // If students are manually added/removed, set source to manual
+                    if (newStudents.length === 0) {
+                      setRecipientSource('manual');
+                      setCsvFile(null);
+                    }
+                  }}
+                  onCsvUpload={(file, students) => {
+                    // Track CSV file and set source
+                    setCsvFile(file);
+                    setRecipientSource('csv');
+                    setRecipients(students);
+                  }}
+                  onManualAdd={() => {
+                    // When manually adding, if no CSV was uploaded, set source to manual
+                    if (!csvFile) {
+                      setRecipientSource('manual');
+                    }
+                  }}
                   onPreviewStudent={(student) => {
                     setPreviewRecipient(student);
                     setPreviewOpen(true);
@@ -748,6 +805,9 @@ const handleUseTemplate = (template) => {
             <T variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
               Each recipient will receive a personalized version with their specific details.
             </T>
+            <T variant="body2" sx={{ mt: 1, color: 'info.main' }}>
+              Method: {recipientSource === 'csv' && csvFile ? 'CSV File Upload' : 'Individual Recipients'}
+            </T>
           </DialogContent>
           <DialogActions>
             <B onClick={() => setConfirmSendOpen(false)}>Cancel</B>
@@ -767,14 +827,14 @@ const handleUseTemplate = (template) => {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle>Processing Notifications</DialogTitle>
+          <DialogTitle>Sending Notifications</DialogTitle>
           <DialogContent>
             <T variant="body1" sx={{ mb: 2 }}>
-              Creating personalized notifications for {sendingProgress.total} recipients...
+              Sending personalized notifications to {sendingProgress.total} recipients...
             </T>
             <LinearProgress />
             <T variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
-              This process runs in the background. You can close this dialog.
+              Notifications are being processed by the backend service.
             </T>
           </DialogContent>
           <DialogActions>
@@ -854,7 +914,7 @@ const handleUseTemplate = (template) => {
    *    - Each piece of data has its own state variable for better organization
    * 
    * 2. SIDE EFFECTS (useEffect):
-   *    - Load templates when component mounts
+   *    - Load templates when component mounts (still using Firebase for templates)
    *    - Update tab based on URL changes
    *    - Only run when dependencies change (like [isAdmin, uloading])
    * 
@@ -863,7 +923,8 @@ const handleUseTemplate = (template) => {
    *    - Always start with "handle" for clarity
    * 
    * 4. ASYNC OPERATIONS:
-   *    - Use async/await for database operations
+   *    - Now uses backend REST API for sending notifications
+   *    - Still uses Firebase for template management (until backend support is added)
    *    - Always wrap in try/catch for error handling
    *    - Show loading states during operations
    * 
@@ -872,8 +933,13 @@ const handleUseTemplate = (template) => {
    *    - Provide clear error messages
    *    - Disable buttons when form is invalid
    * 
-   * 6. NEWLINE PRESERVATION:
+   * 6. BACKEND INTEGRATION:
+   *    - Uses uploadCsvNotifications() from backendNotificationService
+   *    - Sends personalized notifications with CSV recipient data
+   *    - Backend handles placeholder replacement and individual notification creation
+   * 
+   * 7. NEWLINE PRESERVATION:
    *    - Store original text with \n characters
    *    - Display with CSS white-space: pre-wrap
-   *    - Cloud Function preserves formatting when replacing placeholders
+   *    - Backend service preserves formatting when processing notifications
    */
