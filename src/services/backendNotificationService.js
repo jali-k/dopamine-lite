@@ -1,12 +1,12 @@
 const getNotifications = async (userEmail) => {
   const encodedEmail = encodeURIComponent(userEmail);
-  const response = await fetch(`http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/user/${encodedEmail}?limit=5&offset=0&readStatus=all`);
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/user/${encodedEmail}?limit=5&offset=0&readStatus=all`);
   return response.json();
 };
 
 // Create and send notifications (for manually added individual users)
 const createNotification = async (notificationData) => {
-  const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications', {
+  const response = await fetch('https://bcend.sddopamine.com/api/notifications', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -30,9 +30,9 @@ const uploadCsvNotifications = async (csvFile, notificationData) => {
     formData.append('contentHtml', notificationData.contentHtml);
   }
   formData.append('createdBy', notificationData.createdBy);
-  formData.append('personalized', false);
+  formData.append('personalized', notificationData.personalized);
 
-  const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/csv-upload', {
+  const response = await fetch('https://bcend.sddopamine.com/api/notifications/csv-upload', {
     method: 'POST',
     body: formData, // Don't set Content-Type header, let browser set it for multipart/form-data
   });
@@ -41,7 +41,7 @@ const uploadCsvNotifications = async (csvFile, notificationData) => {
 
 // Send notifications with recipient array (alternative to CSV for programmatic use)
 const sendNotificationsWithRecipients = async (notificationData) => {
-  const response = await fetch('http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications', {
+  const response = await fetch('https://bcend.sddopamine.com/api/notifications', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -56,7 +56,7 @@ const getUserNotifications = async (userEmail, options = {}) => {
   const { limit = 10, offset = 0, readStatus = 'all', personalized = null } = options;
   const encodedEmail = encodeURIComponent(userEmail);
   
-  let url = `http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/user/${encodedEmail}?limit=${limit}&offset=${offset}&readStatus=${readStatus}`;
+  let url = `https://bcend.sddopamine.com/api/notifications/user/${encodedEmail}?limit=${limit}&offset=${offset}&readStatus=${readStatus}`;
   
   if (personalized !== null) {
     url += `&personalized=${personalized}`;
@@ -69,7 +69,7 @@ const getUserNotifications = async (userEmail, options = {}) => {
 
 // Mark notification as read
 const markNotificationAsRead = async (notificationId, userEmail) => {
-  const response = await fetch(`http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/${notificationId}/read`, {
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/${notificationId}/read`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -82,14 +82,14 @@ const markNotificationAsRead = async (notificationId, userEmail) => {
 // Get notification statistics
 const getNotificationStats = async (userEmail) => {
   const encodedEmail = encodeURIComponent(userEmail);
-  const response = await fetch(`http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/stats/${encodedEmail}`);
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/stats/${encodedEmail}`);
   return response.json();
 };
 
 // Get single notification by ID
 const getNotificationById = async (notificationId, userEmail) => {
   const encodedEmail = encodeURIComponent(userEmail);
-  const response = await fetch(`http://ec2-100-29-40-217.compute-1.amazonaws.com:3000/api/notifications/${notificationId}/user/${encodedEmail}`);
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/${notificationId}/user/${encodedEmail}`);
   return response.json();
 };
 
