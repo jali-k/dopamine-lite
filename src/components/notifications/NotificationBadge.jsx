@@ -27,7 +27,7 @@ import {
 } from "@mui/icons-material";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useNotifications } from "../../hooks/useNotifications";
+import { useBackendNotificationsBadge } from "../../hooks/useBackendNotifications";
 import { useUser } from "../../contexts/UserProvider";
 import { format, formatDistanceToNow } from "date-fns";
 import { extractPlainText } from "../../services/notificationService";
@@ -40,17 +40,17 @@ export default function NotificationBadge() {
   const {
     notifications,
     loading,
+    unreadCount,
     markAsRead,
     markAllAsRead
-  } = useNotifications(user?.email, true); // Enable real-time updates
+  } = useBackendNotificationsBadge(user?.email, 5); // Backend service with 5 notifications for preview
   
   const [anchorEl, setAnchorEl] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const open = Boolean(anchorEl);
 
-  // Get unread count and recent notifications
+  // Get unread notifications and recent notifications
   const unreadNotifications = notifications.filter(n => !n.isRead);
-  const unreadCount = unreadNotifications.length;
   const recentNotifications = notifications.slice(0, 5); // Show 5 most recent
 
   const handleClick = (event) => {
@@ -71,11 +71,11 @@ export default function NotificationBadge() {
 
     handleClose();
     // Navigate directly to the specific notification view
-    navigate(`/notifications/${notification.id}`);
+    navigate(`/notifications/${notification.notificationId || notification.id}`);
     // Mark as read if unread
     if (!notification.isRead) {
       setActionLoading(true);
-      await markAsRead(notification.id);
+      await markAsRead(notification.notificationId || notification.id);
       setActionLoading(false);
     }
     

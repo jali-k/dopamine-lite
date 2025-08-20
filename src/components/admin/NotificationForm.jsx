@@ -33,24 +33,41 @@ import {
   import { useUser } from "../../contexts/UserProvider";
   import StudentImport from "./StudentImport";
   import NotificationPreview from "./NotificationPreview";
-  import { createNotification, processMarkdownLinks } from "../../services/notificationService";
+  import { sendNotificationsWithRecipients, uploadCsvNotifications } from "../../services/backendNotificationService";
+  
+  // Helper function to process markdown links
+  const processMarkdownLinks = (text) => {
+    if (!text) return "";
+    // Convert [text](url) to <a href="url">text</a>
+    return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  };
   
   export default function NotificationForm({ onNotificationSent }) {
     const { user } = useUser();
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [students, setStudents] = useState([]);
+    const [csvFile, setCsvFile] = useState(null); // Track CSV file
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [previewOpen, setPreviewOpen] = useState(false);
     const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   
-    // Validation
-    const isFormValid = title.trim() && content.trim() && students.length > 0;
+    // Validation - either manual students or CSV file
+    const isFormValid = title.trim() && content.trim() && (students.length > 0 || csvFile);
+    
+    // Debug validation
+    console.log('Form validation:', {
+      title: title.trim(),
+      content: content.trim(),
+      studentsLength: students.length,
+      csvFile: csvFile ? csvFile.name : null,
+      isFormValid
+    });
   
     const handlePreview = () => {
       if (!isFormValid) {
-        setError("Please fill in all fields and add at least one recipient.");
+        setError("Please fill in all fields and add at least one recipient or upload a CSV file.");
         return;
       }
       setError("");
@@ -59,41 +76,59 @@ import {
   
     const handleSendNotification = async () => {
       if (!isFormValid) {
-        setError("Please fill in all fields and add at least one recipient.");
+        setError("Please fill in all fields and add at least one recipient or upload a CSV file.");
         return;
       }
-  
+
       setLoading(true);
       setConfirmSendOpen(false);
       setError("");
-  
+
       try {
         // Process content to convert markdown links to HTML
         const contentHtml = processMarkdownLinks(content);
         
-        // Prepare target users (just emails for the notification)
-        const targetUsers = students.map(student => student.email);
-  
-        const notificationData = {
-          title: title.trim(),
-          content: content.trim(),
-          contentHtml,
-          targetUsers,
-          createdBy: user.email,
-          recipients: students // Store full student data for admin reference
-        };
-  
-        const result = await createNotification(notificationData);
-  
+        let result;
+        
+        if (csvFile) {
+          // Use CSV upload endpoint
+          const notificationData = {
+            title: title.trim(),
+            content: content.trim(),
+            contentHtml,
+            createdBy: user.email,
+            personalized: false // This is regular notification, not personalized
+          };
+
+          result = await uploadCsvNotifications(csvFile, notificationData);
+        } else {
+          // Use manual recipients endpoint
+          const notificationData = {
+            title: title.trim(),
+            content: content.trim(),
+            contentHtml,
+            createdBy: user.email,
+            personalized: false, // This is regular notification, not personalized
+            targetUsers: students.map(student => ({
+              name: student.name,
+              email: student.email,
+              registration: student.registration || ""
+            }))
+          };
+
+          result = await sendNotificationsWithRecipients(notificationData);
+        }
+
         if (result.success) {
           // Reset form
           setTitle("");
           setContent("");
           setStudents([]);
+          setCsvFile(null);
           
           // Show success message
           if (onNotificationSent) {
-            onNotificationSent(result.message);
+            onNotificationSent("Notification sent successfully!");
           }
         } else {
           setError(result.error || "Failed to send notification");
@@ -104,9 +139,7 @@ import {
       } finally {
         setLoading(false);
       }
-    };
-  
-    const insertMarkdownLink = () => {
+    };    const insertMarkdownLink = () => {
       const textarea = document.querySelector('textarea[name="notificationContent"]');
       if (!textarea) {
         const updatedContent = content + "[Link Text](https://example.com)";
@@ -261,6 +294,14 @@ import {
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
             <Group color="primary" />
             <T variant="h6">Recipients</T>
+            {csvFile && (
+              <Chip 
+                label={`CSV: ${csvFile.name}`}
+                color="secondary"
+                size="small"
+                onDelete={() => setCsvFile(null)}
+              />
+            )}
             {students.length > 0 && (
               <Chip 
                 label={`${students.length} students`}
@@ -272,6 +313,16 @@ import {
           <StudentImport 
             students={students}
             onStudentsChange={setStudents}
+            csvOnly={true} // Only attach CSV files, don't process them
+            onCsvUpload={(file) => {
+              console.log('NotificationForm - CSV file received:', file.name);
+              setCsvFile(file);
+              setStudents([]); // Clear manual students when CSV is uploaded
+              console.log('NotificationForm - csvFile state should now be set');
+            }}
+            onManualAdd={() => {
+              setCsvFile(null); // Clear CSV when manual students are added
+            }}
           />
         </Bx>
   
@@ -340,7 +391,7 @@ import {
           <DialogTitle>Confirm Sending</DialogTitle>
           <DialogContent>
             <T variant="body1">
-              You are about to send this notification to {students.length} recipient{students.length !== 1 ? 's' : ''}. 
+              You are about to send this notification to {csvFile ? 'recipients in the CSV file' : `${students.length} recipient${students.length !== 1 ? 's' : ''}`}. 
               Do you want to proceed?
             </T>
             <Bx sx={{ mt: 2, p: 2, bgcolor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1 }}>
@@ -348,7 +399,7 @@ import {
                 <strong>Title:</strong> {title}
               </T>
               <T variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                <strong>Recipients:</strong> {students.length} students
+                <strong>Recipients:</strong> {csvFile ? `CSV file: ${csvFile.name}` : `${students.length} students`}
               </T>
             </Bx>
           </DialogContent>

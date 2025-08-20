@@ -92,18 +92,18 @@ export default function NotificationHistory() {
   );
 
   // Filter recipients based on search query
-  const filteredRecipients = useMemo(() => {
-    if (!selectedNotification?.recipients || !recipientSearchQuery.trim()) {
-      return selectedNotification?.recipients || [];
+  const filteredtargetUsers = useMemo(() => {
+    if (!selectedNotification?.targetUsers || !recipientSearchQuery.trim()) {
+      return selectedNotification?.targetUsers || [];
     }
     
     const query = recipientSearchQuery.toLowerCase().trim();
-    return selectedNotification.recipients.filter(recipient => 
-      recipient.name?.toLowerCase().includes(query) ||
-      recipient.email?.toLowerCase().includes(query) ||
-      recipient.registration?.toLowerCase().includes(query)
+    return selectedNotification.targetUsers.filter(targetUser =>
+      targetUser.name?.toLowerCase().includes(query) ||
+      targetUser.email?.toLowerCase().includes(query) ||
+      targetUser.registration?.toLowerCase().includes(query)
     );
-  }, [selectedNotification?.recipients, recipientSearchQuery]);
+  }, [selectedNotification?.targetUsers, recipientSearchQuery]);
 
   // Pagination
   const totalPages = Math.ceil(filteredNotifications.length / itemsPerPage);
@@ -217,7 +217,7 @@ export default function NotificationHistory() {
 
   // Recipients data
   const totalRecipients = selectedNotification?.recipients?.length || 0;
-  const showingRecipientsCount = filteredRecipients.length;
+  const showingRecipientsCount = filteredtargetUsers.length;
   const hasRecipientSearch = recipientSearchQuery.trim().length > 0;
 
   return (
@@ -619,10 +619,10 @@ export default function NotificationHistory() {
                         )}
 
                         <List dense sx={{ maxHeight: recipientsExpanded || hasRecipientSearch ? 400 : 300, overflow: 'auto' }}>
-                          {(recipientsExpanded || hasRecipientSearch ? filteredRecipients : filteredRecipients.slice(0, 10))
-                            .map((recipient, index) => (
+                          {(recipientsExpanded || hasRecipientSearch ? filteredtargetUsers : filteredtargetUsers.slice(0, 10))
+                            .map((targetUser, index) => (
                               <ListItem 
-                                key={`${recipient.email}-${index}`}
+                                key={`${targetUser.email}-${index}`}
                                 sx={{
                                   borderRadius: 1,
                                   mb: 0.5,
@@ -642,19 +642,19 @@ export default function NotificationHistory() {
                                 <ListItemText
                                   primary={
                                     <T variant="subtitle2" sx={{ fontWeight: 500 }}>
-                                      {highlightSearchText(recipient.name || 'No Name', recipientSearchQuery)}
+                                      {highlightSearchText(targetUser.name || 'No Name', recipientSearchQuery)}
                                     </T>
                                   }
                                   secondary={
                                     <Bx>
                                       <T variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                                        {highlightSearchText(recipient.email, recipientSearchQuery)}
+                                        {highlightSearchText(targetUser.email, recipientSearchQuery)}
                                       </T>
-                                      {recipient.registration && (
+                                      {targetUser.registration && (
                                         <Stack direction="row" alignItems="center" spacing={1}>
                                           <Badge fontSize="small" sx={{ color: 'text.secondary' }} />
                                           <T variant="caption" color="text.secondary">
-                                            Reg: {highlightSearchText(recipient.registration, recipientSearchQuery)}
+                                            Reg: {highlightSearchText(targetUser.registration, recipientSearchQuery)}
                                           </T>
                                         </Stack>
                                       )}
