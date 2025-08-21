@@ -93,6 +93,33 @@ const getNotificationById = async (notificationId, userEmail) => {
   return response.json();
 };
 
+// Get latest 20 regular notifications
+const getRegularNotifications = async (page = 1, limit = 20) => {
+  const offset = (page - 1) * limit;          
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/all?limit=${limit}&offset=${offset}&orderDirection=desc`);
+  return response.json();
+};
+
+// Get latest 20 personalized notifications
+const getPersonalizedNotifications = async (page = 1, limit = 20) => {
+  const offset = (page - 1) * limit;
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/personalized/all?limit=${limit}&offset=${offset}&orderDirection=desc`);
+  return response.json();
+};
+
+// Get combined notifications for unified history
+const getCombinedNotifications = async (page = 1, limit = 20, type = 'all') => {
+  const offset = (page - 1) * limit;
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/combined?limit=${limit}&offset=${offset}&type=${type}&orderDirection=desc`);
+  return response.json();
+};
+
+// Get only personalized notifications from combined endpoint
+const getOnlyPersonalized = async () => {
+  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/combined?type=personalized&limit=50`);
+  return response.json();
+};
+
 export { 
   getNotifications, 
   createNotification, 
@@ -101,5 +128,9 @@ export {
   getUserNotifications, 
   markNotificationAsRead, 
   getNotificationStats,
-  getNotificationById
+  getNotificationById,
+  getRegularNotifications,
+  getPersonalizedNotifications,
+  getCombinedNotifications,
+  getOnlyPersonalized
 };

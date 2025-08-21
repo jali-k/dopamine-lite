@@ -76,8 +76,28 @@ import {
   import { fireDB } from "../../../firebaseconfig";
   import { format } from "date-fns";
   import PersonalizedNotificationPreview from "./PersonalizedNotificationPreview";
+  import { getPersonalizedNotifications, getCombinedNotifications } from "../../services/backendNotificationService";
   
   export default function PersonalizedNotificationHistory() {
+    
+    // TEST ENDPOINT - REMOVE THIS AFTER TESTING
+    useEffect(() => {
+      const testEndpoint = async () => {
+        try {
+          console.log('Testing getPersonalizedNotifications:');
+          const result1 = await getPersonalizedNotifications(1, 5);
+          console.log('Personalized Notifications Response:', result1);
+          
+          console.log('Testing getCombinedNotifications:');
+          const result2 = await getCombinedNotifications(1, 5, 'personalized');
+          console.log('Combined Notifications Response:', result2);
+        } catch (error) {
+          console.error('Error testing endpoints:', error);
+        }
+      };
+      testEndpoint();
+    }, []);
+    
     // ==================== STATE MANAGEMENT ====================
     
     // Main data states
