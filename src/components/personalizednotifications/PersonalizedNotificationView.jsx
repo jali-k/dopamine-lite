@@ -20,9 +20,11 @@ import {
   } from "@mui/icons-material";
   import { format } from "date-fns";
   import Appbar from "../Appbar";
-  import { processPersonalizedNotificationContent } from "../../services/personalizedNotificationService";
+  import { processPersonalizedNotificationContentWithUser, processTemplateVariables } from "../../services/personalizedNotificationService";
+  import { useUser } from "../../contexts/UserProvider";
   
   export default function PersonalizedNotificationView({ notification, onBack, onMarkAsRead }) {
+    const { user } = useUser();
     
     const handleMarkAsRead = async () => {
       if (!notification.isRead) {
@@ -86,7 +88,7 @@ import {
               <Bx sx={{ flex: 1 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                   <T variant="h4" fontWeight="bold" sx={{ mb: 1 }}>
-                    {notification.title}
+                    {processTemplateVariables(notification.title, user, notification)}
                   </T>
                   {notification.isRead ? (
                     <Chip
@@ -155,7 +157,7 @@ import {
                 }
               }}
               dangerouslySetInnerHTML={{ 
-                __html: processPersonalizedNotificationContent(notification.body)
+                __html: processPersonalizedNotificationContentWithUser(notification.body, user, notification)
               }}
             />
             
