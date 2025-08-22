@@ -59,25 +59,27 @@ import {
     CheckBoxOutlineBlank
   } from "@mui/icons-material";
   import { useState, useEffect, useCallback } from "react";
-  import { 
-    collection, 
-    getDocs, 
-    query, 
-    orderBy, 
-    doc, 
-    addDoc, 
-    deleteDoc,
-    serverTimestamp,
-    where,
-    limit,
-    startAfter,
-    getCountFromServer
-  } from "firebase/firestore";
-  import { fireDB } from "../../../firebaseconfig";
   import { format } from "date-fns";
   import PersonalizedNotificationPreview from "./PersonalizedNotificationPreview";
+  import { getPersonalizedNotifications, getCombinedNotifications } from "../../services/backendNotificationService";
   
   export default function PersonalizedNotificationHistory() {
+    
+    // ==================== HELPER FUNCTIONS ====================
+    
+    // Safe date formatting function
+    const formatDate = (date, formatString) => {
+      if (!date) return 'N/A';
+      try {
+        const dateObj = date instanceof Date ? date : new Date(date);
+        if (isNaN(dateObj.getTime())) return 'Invalid Date';
+        return format(dateObj, formatString);
+      } catch (error) {
+        console.error('Date formatting error:', error);
+        return 'Invalid Date';
+      }
+    };
+    
     // ==================== STATE MANAGEMENT ====================
     
     // Main data states
@@ -91,7 +93,6 @@ import {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
-    const [lastDoc, setLastDoc] = useState(null); // For Firestore pagination
     const ITEMS_PER_PAGE = 12; // Show 12 notifications per page
     
     // Search and filter states
@@ -107,6 +108,8 @@ import {
     // Dialog states
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+    const [showAllRecipients, setShowAllRecipients] = useState(false);
+    const [recipientFilter, setRecipientFilter] = useState('all'); // 'all', 'read', 'unread'
     const [confirmResendOpen, setConfirmResendOpen] = useState(false);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
@@ -138,86 +141,40 @@ import {
         
         console.log(`Loading notifications for page ${page}`);
         
-        // Build the base query
-        let q = collection(fireDB, "personalizedNotificationQueue");
+        // Use the new backend endpoint
+        const result = await getPersonalizedNotifications(page, ITEMS_PER_PAGE);
         
-        // Apply status filter
-        if (statusFilter !== "all") {
-          q = query(q, where("status", "==", statusFilter));
-        }
-        
-        // Apply date filter
-        if (dateFilter !== "all") {
-          const now = new Date();
-          let startDate;
-          
-          switch (dateFilter) {
-            case "today":
-              startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              break;
-            case "week":
-              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-              break;
-            case "month":
-              startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-              break;
-            default:
-              startDate = null;
+        if (result.success) {
+          const notificationList = result.data.map(notification => ({
+            ...notification,
+            // Convert timestamps safely with validation
+            queuedAt: notification.createdAt ? new Date(notification.createdAt) : 
+                     notification.queuedAt ? new Date(notification.queuedAt) : new Date(),
+            processedAt: notification.processedAt ? new Date(notification.processedAt) : null,
+            completedAt: notification.completedAt ? new Date(notification.completedAt) : null,
+            // Map backend fields to component expected fields
+            body: notification.content || notification.body || "No content",
+            totalTargets: notification.targetUsers ? notification.targetUsers.length : 0,
+            processedCount: notification.recipients ? notification.recipients.length : 0,
+          }));
+
+          console.log(`Loaded notifications for page ${page}:`, notificationList);
+
+          // Update state
+          if (resetData) {
+            setNotifications(notificationList);
+          } else {
+            setNotifications(prev => [...prev, ...notificationList]);
           }
           
-          if (startDate) {
-            q = query(q, where("queuedAt", ">=", startDate));
+          // Update pagination info from meta
+          if (result.meta) {
+            setTotalCount(result.meta.count || notificationList.length);
+            setTotalPages(Math.ceil((result.meta.count || notificationList.length) / ITEMS_PER_PAGE));
           }
-        }
-        
-        // Add ordering and pagination
-        q = query(q, orderBy("queuedAt", "desc"));
-        
-        // For page 1 or when resetting, start fresh
-        if (page === 1 || resetData) {
-          q = query(q, limit(ITEMS_PER_PAGE));
         } else {
-          // For subsequent pages, start after the last document
-          if (lastDoc) {
-            q = query(q, startAfter(lastDoc), limit(ITEMS_PER_PAGE));
-          }
+          throw new Error(result.error || 'Failed to load notifications');
         }
-        
-        // Execute the query
-        const querySnapshot = await getDocs(q);
-        console.log(`Found ${querySnapshot.docs.length} notifications for page ${page}`);
-        
-        // Convert documents to JavaScript objects
-        const notificationList = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          notificationList.push({
-            id: doc.id,
-            ...data,
-            // Convert Firestore timestamps to JavaScript dates
-            queuedAt: data.queuedAt?.toDate() || new Date(),
-            processedAt: data.processedAt?.toDate() || null,
-            completedAt: data.completedAt?.toDate() || null,
-          });
-        });
-        
-        // Update state
-        if (resetData) {
-          setNotifications(notificationList);
-        } else {
-          setNotifications(prev => [...prev, ...notificationList]);
-        }
-        
-        // Update pagination info
-        if (querySnapshot.docs.length > 0) {
-          setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-        }
-        
-        // Calculate total pages (this is approximate for performance)
-        const estimatedTotal = Math.max(notifications.length + notificationList.length, 
-                                       page * ITEMS_PER_PAGE);
-        setTotalCount(estimatedTotal);
-        setTotalPages(Math.ceil(estimatedTotal / ITEMS_PER_PAGE));
         
         setLoading(false);
         setLoadingMore(false);
@@ -228,7 +185,7 @@ import {
         setLoading(false);
         setLoadingMore(false);
       }
-    }, [statusFilter, dateFilter, lastDoc, notifications.length]);
+    }, [statusFilter, dateFilter, notifications.length]);
   
     /**
      * Search through notifications
@@ -575,11 +532,16 @@ import {
       loadNotifications(1, true);
     };
   
-    /**
-     * View notification details
-     */
     const handleViewNotification = (notification) => {
       setSelectedNotification(notification);
+      setShowAllRecipients(false); // Reset to show only first 10 recipients
+      setRecipientFilter('all'); // Reset filter to show all recipients
+      
+      // Debug: Let's see the structure of the data
+      console.log('Notification data:', notification);
+      console.log('Target Users:', notification.targetUsers);
+      console.log('Recipients (who read):', notification.recipients);
+      
       setDetailDialogOpen(true);
     };
   
@@ -600,7 +562,7 @@ import {
         const resendData = {
           title: selectedNotification.title,
           body: selectedNotification.body,
-          recipients: selectedNotification.recipients || [],
+          recipients: selectedNotification.targetUsers || [],
           status: "queued",
           queuedAt: serverTimestamp(),
           createdBy: "admin", // TODO: Replace with actual admin email
@@ -967,7 +929,7 @@ import {
                         variant="outlined"
                       />
                       <T variant="caption" color="text.secondary">
-                        {format(notification.queuedAt, "MMM d, yyyy")}
+                        {formatDate(notification.queuedAt, "MMM d, yyyy")}
                       </T>
                     </Stack>
 
@@ -997,27 +959,52 @@ import {
                       <Stack direction="row" spacing={0.5} alignItems="center">
                         <Email fontSize="small" color="primary" />
                         <T variant="caption">
-                          {notification.totalTargets || 0} recipients
+                          {notification.totalTargets || 0} sent
                         </T>
                       </Stack>
                       
-                      {notification.status === "completed" && (
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <CheckCircle fontSize="small" color="success" />
-                          <T variant="caption" color="success.main">
-                            {notification.processedCount || 0} sent
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <CheckCircle fontSize="small" color="success" />
+                        <T variant="caption" color="success.main">
+                          {notification.processedCount || 0} read
+                        </T>
+                      </Stack>
+                    </Stack>
+
+                    {/* Read Progress Bar */}
+                    {notification.totalTargets > 0 && (
+                      <Bx sx={{ mb: 2 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                          <T variant="caption" color="text.secondary">
+                            Read Progress
+                          </T>
+                          <T variant="caption" color="text.secondary">
+                            {Math.round(((notification.processedCount || 0) / notification.totalTargets) * 100)}%
                           </T>
                         </Stack>
-                      )}
-                    </Stack>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.min(((notification.processedCount || 0) / notification.totalTargets) * 100, 100)}
+                          sx={{
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: 'action.hover',
+                            '& .MuiLinearProgress-bar': {
+                              borderRadius: 3,
+                              backgroundColor: notification.processedCount === notification.totalTargets ? 'success.main' : 'primary.main'
+                            }
+                          }}
+                        />
+                      </Bx>
+                    )}
 
                     {/* Timestamps */}
                     <T variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Queued: {format(notification.queuedAt, "MMM d, h:mm a")}
+                      Queued: {formatDate(notification.queuedAt, "MMM d, h:mm a")}
                     </T>
                     {notification.completedAt && (
                       <T variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        Completed: {format(notification.completedAt, "MMM d, h:mm a")}
+                        Completed: {formatDate(notification.completedAt, "MMM d, h:mm a")}
                       </T>
                     )}
                   </CardContent>
@@ -1040,23 +1027,11 @@ import {
                           setConfirmResendOpen(true);
                         }}
                         size="small"
-                        disabled={!notification.recipients || notification.recipients.length === 0}
+                        disabled={!notification.targetUsers || notification.targetUsers.length === 0}
                       >
                         Resend
                       </B>
                     </Stack>
-                    
-                    <IconButton
-                      color="error"
-                      size="small"
-                      onClick={() => {
-                        setSelectedNotification(notification);
-                        setConfirmDeleteOpen(true);
-                      }}
-                      disabled={deleting}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
                   </CardActions>
                 </Card>
               </Grid>
@@ -1128,12 +1103,12 @@ import {
                   </Stack>
                   
                   <T variant="body2">
-                    <strong>Queued:</strong> {format(selectedNotification.queuedAt, "PPpp")}
+                    <strong>Queued:</strong> {formatDate(selectedNotification.queuedAt, "PPpp")}
                   </T>
                   
                   {selectedNotification.completedAt && (
                     <T variant="body2">
-                      <strong>Completed:</strong> {format(selectedNotification.completedAt, "PPpp")}
+                      <strong>Completed:</strong> {formatDate(selectedNotification.completedAt, "PPpp")}
                     </T>
                   )}
                   
@@ -1161,59 +1136,146 @@ import {
                   }}
                 />
 
-                {/* Recipients List (if not too many) */}
-                {selectedNotification.recipients && selectedNotification.recipients.length > 0 && selectedNotification.recipients.length <= 10 && (
+                {/* Recipients List */}
+                {selectedNotification.targetUsers && selectedNotification.targetUsers.length > 0 && (
                   <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
-                    <T variant="subtitle2" gutterBottom>Recipients</T>
-                    <List dense>
-                      {selectedNotification.recipients.map((recipient, index) => (
-                        <ListItem key={index} divider={index < selectedNotification.recipients.length - 1}>
-                          <ListItemIcon>
-                            <Email fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={recipient.name}
-                            secondary={
-                              <>
-                                {recipient.email}
-                                {recipient.registration && (
-                                  <span style={{ display: 'block' }}>
-                                    Reg: {recipient.registration}
-                                  </span>
-                                )}
-                              </>
-                            }
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <T variant="subtitle2">Recipients ({selectedNotification.targetUsers.length})</T>
+                        <Stack direction="row" spacing={1}>
+                          <Chip 
+                            icon={<CheckCircle fontSize="small" />}
+                            label={`${selectedNotification.processedCount || 0} Read`}
+                            size="small" 
+                            color={recipientFilter === 'read' ? 'success' : 'default'}
+                            variant={recipientFilter === 'read' ? 'filled' : 'outlined'}
+                            onClick={() => setRecipientFilter(recipientFilter === 'read' ? 'all' : 'read')}
+                            sx={{ cursor: 'pointer' }}
                           />
-                        </ListItem>
-                      ))}
+                          <Chip 
+                            label={`${(selectedNotification.totalTargets || selectedNotification.targetUsers.length) - (selectedNotification.processedCount || 0)} Unread`}
+                            size="small" 
+                            color={recipientFilter === 'unread' ? 'warning' : 'default'}
+                            variant={recipientFilter === 'unread' ? 'filled' : 'outlined'}
+                            onClick={() => setRecipientFilter(recipientFilter === 'unread' ? 'all' : 'unread')}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                          <Chip 
+                            label="All"
+                            size="small" 
+                            color={recipientFilter === 'all' ? 'primary' : 'default'}
+                            variant={recipientFilter === 'all' ? 'filled' : 'outlined'}
+                            onClick={() => setRecipientFilter('all')}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        </Stack>
+                      </Stack>
+                      {selectedNotification.targetUsers.filter(user => {
+                        const hasRead = selectedNotification.recipients && selectedNotification.recipients.includes(user.email);
+                        if (recipientFilter === 'read') return hasRead;
+                        if (recipientFilter === 'unread') return !hasRead;
+                        return true;
+                      }).length > 10 && (
+                        <B
+                          size="small"
+                          variant="outlined"
+                          onClick={() => setShowAllRecipients(!showAllRecipients)}
+                        >
+                          {showAllRecipients ? 'Show Less' : 'Show All'}
+                        </B>
+                      )}
+                    </Stack>
+                    <List dense>
+                      {(() => {
+                        // First filter based on read status
+                        const filteredUsers = selectedNotification.targetUsers.filter(user => {
+                          const hasRead = selectedNotification.recipients && selectedNotification.recipients.includes(user.email);
+                          if (recipientFilter === 'read') return hasRead;
+                          if (recipientFilter === 'unread') return !hasRead;
+                          return true; // show all
+                        });
+                        
+                        // Then apply pagination
+                        const usersToShow = showAllRecipients ? filteredUsers : filteredUsers.slice(0, 10);
+                        
+                        return usersToShow.map((recipient, index) => {
+                          const hasRead = selectedNotification.recipients && selectedNotification.recipients.includes(recipient.email);
+                          
+                          return (
+                            <ListItem key={index} divider={index < usersToShow.length - 1}>
+                              <ListItemIcon>
+                                {hasRead ? (
+                                  <CheckCircle fontSize="small" color="success" />
+                                ) : (
+                                  <Email fontSize="small" color="action" />
+                                )}
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Stack direction="row" alignItems="center" spacing={1}>
+                                    <span style={{ color: hasRead ? '#2e7d32' : 'inherit', fontWeight: hasRead ? 500 : 'normal' }}>
+                                      {recipient.name || recipient.email}
+                                    </span>
+                                    {hasRead && (
+                                      <Chip 
+                                        label="Read" 
+                                        size="small" 
+                                        color="success" 
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.7rem', height: '20px' }}
+                                      />
+                                    )}
+                                  </Stack>
+                                }
+                                secondary={
+                                  <>
+                                    <span style={{ color: hasRead ? '#4caf50' : 'inherit' }}>
+                                      {recipient.email}
+                                    </span>
+                                    {recipient.registration && (
+                                      <span style={{ display: 'block', color: hasRead ? '#4caf50' : 'inherit' }}>
+                                        Reg: {recipient.registration}
+                                      </span>
+                                    )}
+                                  </>
+                                }
+                              />
+                            </ListItem>
+                          );
+                        });
+                      })()}
                     </List>
+                    {(() => {
+                      const filteredUsers = selectedNotification.targetUsers.filter(user => {
+                        const hasRead = selectedNotification.recipients && selectedNotification.recipients.includes(user.email);
+                        if (recipientFilter === 'read') return hasRead;
+                        if (recipientFilter === 'unread') return !hasRead;
+                        return true;
+                      });
+                      
+                      if (!showAllRecipients && filteredUsers.length > 10) {
+                        const filterText = recipientFilter === 'all' ? 'recipients' : 
+                                         recipientFilter === 'read' ? 'read recipients' : 'unread recipients';
+                        return (
+                          <T variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Showing 10 of {filteredUsers.length} {filterText}
+                          </T>
+                        );
+                      }
+                      return null;
+                    })()}
                   </Paper>
-                )}
-
-                {selectedNotification.recipients && selectedNotification.recipients.length > 10 && (
-                  <Alert severity="info" sx={{ mt: 2 }}>
-                    This notification was sent to {selectedNotification.recipients.length} recipients. 
-                    Too many to display individually.
-                  </Alert>
                 )}
               </Bx>
             )}
           </DialogContent>
           <DialogActions>
             <B
-              color="error"
-              variant="outlined"
-              startIcon={<Delete />}
-              onClick={() => setConfirmDeleteOpen(true)}
-            >
-              Delete
-            </B>
-            <B
               color="primary"
               variant="contained"
               startIcon={<Send />}
               onClick={() => setConfirmResendOpen(true)}
-              disabled={!selectedNotification?.recipients || selectedNotification.recipients.length === 0}
+              disabled={!selectedNotification?.targetUsers || selectedNotification.targetUsers.length === 0}
             >
               Resend
             </B>
