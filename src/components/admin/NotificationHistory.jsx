@@ -24,6 +24,7 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
+  ListItemIcon,
   Pagination,
   Tooltip,
   Checkbox,
@@ -52,32 +53,111 @@ import {
 } from "@mui/icons-material";
 import { useState, useEffect, useMemo } from "react";
 import { useUser } from "../../contexts/UserProvider";
-import { useNotificationHistory } from "../../hooks/useNotifications";
+import { getRegularNotifications } from "../../services/backendNotificationService";
 import { format } from "date-fns";
 import { processMarkdownLinks } from "../../services/notificationService";
 
 export default function NotificationHistory() {
   const { user } = useUser();
-  const {
-    notifications,
-    loading,
-    error,
-    hasMore,
-    loadMore,
-    refresh,
-    permanentlyDelete
-  } = useNotificationHistory(user.email);
+
+  // Safe date formatting function
+  const formatDate = (date, formatString) => {
+    if (!date) return 'N/A';
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      if (isNaN(dateObj.getTime())) return 'Invalid Date';
+      return format(dateObj, formatString);
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return 'Invalid Date';
+    }
+  };
+
+  // State management
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6; // Keep the original value
+
+  // Load notifications function
+  const loadNotifications = async (page = 1, resetData = true) => {
+    try {
+      if (resetData) {
+        setLoading(true);
+        setNotifications([]);
+      }
+      
+      const result = await getRegularNotifications(page, itemsPerPage);
+      
+      if (result.success) {
+        const notificationList = result.data.map(notification => ({
+          ...notification,
+          // Ensure consistent date formatting
+          createdAt: new Date(notification.createdAt),
+          // Map backend fields to component expected fields
+          targetUsers: notification.targetUsers || [],
+          totalRecipients: notification.targetUsers ? notification.targetUsers.length : 0,
+          readCount: notification.recipients ? notification.recipients.length : 0,
+        }));
+        
+        if (resetData) {
+          setNotifications(notificationList);
+        } else {
+          setNotifications(prev => [...prev, ...notificationList]);
+        }
+        
+        // Update hasMore based on response
+        setHasMore(notificationList.length === itemsPerPage);
+      } else {
+        throw new Error(result.error || 'Failed to load notifications');
+      }
+      
+      setLoading(false);
+    } catch (err) {
+      console.error("Error loading notifications:", err);
+      setError("Failed to load notification history");
+      setLoading(false);
+    }
+  };
+
+  // Refresh function
+  const refresh = () => {
+    setCurrentPage(1);
+    loadNotifications(1, true);
+  };
+
+  // Load more function
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    loadNotifications(nextPage, false);
+  };
+
+  // Permanent delete function (placeholder)
+  const permanentlyDelete = async (id) => {
+    // This would need to be implemented in the backend
+    console.log('Delete notification:', id);
+  };
+
+  // Load initial data
+  useEffect(() => {
+    if (user?.email) {
+      loadNotifications(1, true);
+    }
+  }, [user?.email]);
 
   // State
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const itemsPerPage = 6;
 
   // Recipients search state
   const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
   const [recipientsExpanded, setRecipientsExpanded] = useState(false);
+  const [recipientFilter, setRecipientFilter] = useState('all'); // 'all', 'read', 'unread'
 
   // Delete functionality
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -91,19 +171,37 @@ export default function NotificationHistory() {
     notification.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Filter recipients based on search query
+  // Filter recipients based on search query and read status
   const filteredtargetUsers = useMemo(() => {
-    if (!selectedNotification?.targetUsers || !recipientSearchQuery.trim()) {
-      return selectedNotification?.targetUsers || [];
+    if (!selectedNotification?.targetUsers) {
+      return [];
     }
     
-    const query = recipientSearchQuery.toLowerCase().trim();
-    return selectedNotification.targetUsers.filter(targetUser =>
-      targetUser.name?.toLowerCase().includes(query) ||
-      targetUser.email?.toLowerCase().includes(query) ||
-      targetUser.registration?.toLowerCase().includes(query)
-    );
-  }, [selectedNotification?.targetUsers, recipientSearchQuery]);
+    let filtered = selectedNotification.targetUsers;
+    
+    // Apply read status filter
+    if (recipientFilter === 'read') {
+      filtered = filtered.filter(user => 
+        selectedNotification.recipients && selectedNotification.recipients.includes(user.email)
+      );
+    } else if (recipientFilter === 'unread') {
+      filtered = filtered.filter(user => 
+        !selectedNotification.recipients || !selectedNotification.recipients.includes(user.email)
+      );
+    }
+    
+    // Apply search filter
+    if (recipientSearchQuery.trim()) {
+      const query = recipientSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter(targetUser =>
+        targetUser.name?.toLowerCase().includes(query) ||
+        targetUser.email?.toLowerCase().includes(query) ||
+        targetUser.registration?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [selectedNotification?.targetUsers, selectedNotification?.recipients, recipientSearchQuery, recipientFilter]);
 
   // Pagination
   const totalPages = Math.ceil(filteredNotifications.length / itemsPerPage);
@@ -116,8 +214,10 @@ export default function NotificationHistory() {
   const handleViewDetails = (notification) => {
     setSelectedNotification(notification);
     setDetailsOpen(true);
-    // Reset recipient search when opening new notification
+    // Reset recipient search and filter when opening new notification
     setRecipientSearchQuery('');
+    setRecipientFilter('all');
+    setRecipientsExpanded(false);
     setRecipientsExpanded(false);
   };
 
@@ -126,7 +226,8 @@ export default function NotificationHistory() {
       case 'processed': return 'success';
       case 'processing': return 'warning';
       case 'error': return 'error';
-      default: return 'default';
+      case 'sent': return 'success';
+      default: return 'success'; // Default to success for sent notifications
     }
   };
 
@@ -135,7 +236,8 @@ export default function NotificationHistory() {
       case 'processed': return <CheckCircle fontSize="small" />;
       case 'processing': return <Schedule fontSize="small" />;
       case 'error': return <ErrorIcon fontSize="small" />;
-      default: return <Schedule fontSize="small" />;
+      case 'sent': return <CheckCircle fontSize="small" />;
+      default: return <CheckCircle fontSize="small" />; // Default to checkmark for sent notifications
     }
   };
 
@@ -300,20 +402,6 @@ export default function NotificationHistory() {
                         size="small"
                         color={getStatusColor(notification.status)}
                       />
-                      
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteClick(notification.id)}
-                        sx={{
-                          '&:hover': {
-                            backgroundColor: 'error.light',
-                            color: 'error.dark'
-                          }
-                        }}
-                      >
-                        <DeleteForever fontSize="small" />
-                      </IconButton>
                     </Stack>
                   </Stack>
 
@@ -336,7 +424,7 @@ export default function NotificationHistory() {
                   <Stack spacing={1}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <T variant="caption" color="text.secondary">
-                        Sent: {format(notification.createdAt, "MMM d, yyyy 'at' h:mm a")}
+                        Sent: {formatDate(notification.createdAt, "MMM d, yyyy 'at' h:mm a")}
                       </T>
                       <Chip
                         label={`${notification.totalRecipients} recipients`}
@@ -446,14 +534,6 @@ export default function NotificationHistory() {
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
                     <T variant="h6" sx={{ flex: 1 }}>{selectedNotification.title}</T>
-                    <B
-                      color="error"
-                      size="small"
-                      startIcon={<DeleteForever />}
-                      onClick={() => handleDeleteClick(selectedNotification.id)}
-                    >
-                      Delete Permanently
-                    </B>
                   </Stack>
                   
                   <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
@@ -474,11 +554,11 @@ export default function NotificationHistory() {
                   </Stack>
                   
                   <T variant="body2" color="text.secondary">
-                    <strong>Sent:</strong> {format(selectedNotification.createdAt, "PPpp")}
+                    <strong>Sent:</strong> {formatDate(selectedNotification.createdAt, "PPpp")}
                   </T>
                   {selectedNotification.processedAt && (
                     <T variant="body2" color="text.secondary">
-                      <strong>Processed:</strong> {format(selectedNotification.processedAt, "PPpp")}
+                      <strong>Processed:</strong> {formatDate(selectedNotification.processedAt, "PPpp")}
                     </T>
                   )}
                 </Paper>
@@ -518,9 +598,38 @@ export default function NotificationHistory() {
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     {/* Header */}
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                      <T variant="subtitle1" fontWeight="bold">
-                        Recipients
-                      </T>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <T variant="subtitle1" fontWeight="bold">
+                          Recipients
+                        </T>
+                        <Stack direction="row" spacing={1}>
+                          <Chip 
+                            icon={<CheckCircle fontSize="small" />}
+                            label={`${selectedNotification.readCount || 0} Read`}
+                            size="small" 
+                            color={recipientFilter === 'read' ? 'success' : 'default'}
+                            variant={recipientFilter === 'read' ? 'filled' : 'outlined'}
+                            onClick={() => setRecipientFilter(recipientFilter === 'read' ? 'all' : 'read')}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                          <Chip 
+                            label={`${(selectedNotification.totalRecipients || 0) - (selectedNotification.readCount || 0)} Unread`}
+                            size="small" 
+                            color={recipientFilter === 'unread' ? 'warning' : 'default'}
+                            variant={recipientFilter === 'unread' ? 'filled' : 'outlined'}
+                            onClick={() => setRecipientFilter(recipientFilter === 'unread' ? 'all' : 'unread')}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                          <Chip 
+                            label="All"
+                            size="small" 
+                            color={recipientFilter === 'all' ? 'primary' : 'default'}
+                            variant={recipientFilter === 'all' ? 'filled' : 'outlined'}
+                            onClick={() => setRecipientFilter('all')}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        </Stack>
+                      </Stack>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Chip 
                           icon={<Person fontSize="small" />}
@@ -620,56 +729,81 @@ export default function NotificationHistory() {
 
                         <List dense sx={{ maxHeight: recipientsExpanded || hasRecipientSearch ? 400 : 300, overflow: 'auto' }}>
                           {(recipientsExpanded || hasRecipientSearch ? filteredtargetUsers : filteredtargetUsers.slice(0, 10))
-                            .map((targetUser, index) => (
-                              <ListItem 
-                                key={`${targetUser.email}-${index}`}
-                                sx={{
-                                  borderRadius: 1,
-                                  mb: 0.5,
-                                  bgcolor: hasRecipientSearch ? 'rgba(76, 175, 80, 0.04)' : 'transparent',
-                                  border: hasRecipientSearch ? '1px solid rgba(76, 175, 80, 0.2)' : 'none',
-                                  '&:hover': {
-                                    bgcolor: 'action.hover',
-                                  }
-                                }}
-                              >
-                                <ListItemAvatar>
-                                  <Avatar sx={{ bgcolor: '#4CAF50', width: 40, height: 40 }}>
-                                    <Email fontSize="small" />
-                                  </Avatar>
-                                </ListItemAvatar>
-                                
-                                <ListItemText
-                                  primary={
-                                    <T variant="subtitle2" sx={{ fontWeight: 500 }}>
-                                      {highlightSearchText(targetUser.name || 'No Name', recipientSearchQuery)}
-                                    </T>
-                                  }
-                                  secondary={
-                                    <Bx>
-                                      <T variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                                        {highlightSearchText(targetUser.email, recipientSearchQuery)}
-                                      </T>
-                                      {targetUser.registration && (
-                                        <Stack direction="row" alignItems="center" spacing={1}>
-                                          <Badge fontSize="small" sx={{ color: 'text.secondary' }} />
-                                          <T variant="caption" color="text.secondary">
-                                            Reg: {highlightSearchText(targetUser.registration, recipientSearchQuery)}
-                                          </T>
-                                        </Stack>
-                                      )}
-                                    </Bx>
-                                  }
-                                />
-                              </ListItem>
-                            ))}
+                            .map((targetUser, index) => {
+                              // Check if this user has read the message
+                              const hasRead = selectedNotification.recipients && 
+                                selectedNotification.recipients.includes(targetUser.email);
+                              
+                              return (
+                                <ListItem 
+                                  key={`${targetUser.email}-${index}`}
+                                  sx={{
+                                    borderRadius: 1,
+                                    mb: 0.5,
+                                    bgcolor: hasRecipientSearch ? 'rgba(76, 175, 80, 0.04)' : 'transparent',
+                                    border: hasRecipientSearch ? '1px solid rgba(76, 175, 80, 0.2)' : 'none',
+                                    '&:hover': {
+                                      bgcolor: 'action.hover',
+                                    }
+                                  }}
+                                >
+                                  <ListItemIcon>
+                                    {hasRead ? (
+                                      <CheckCircle fontSize="small" color="success" />
+                                    ) : (
+                                      <Email fontSize="small" color="action" />
+                                    )}
+                                  </ListItemIcon>
+                                  
+                                  <ListItemText
+                                    primary={
+                                      <Stack direction="row" alignItems="center" spacing={1}>
+                                        <span style={{ 
+                                          color: hasRead ? '#2e7d32' : 'inherit',
+                                          fontWeight: hasRead ? 500 : 'normal'
+                                        }}>
+                                          {highlightSearchText(targetUser.name || targetUser.email, recipientSearchQuery)}
+                                        </span>
+                                        {hasRead && (
+                                          <Chip 
+                                            label="Read" 
+                                            size="small" 
+                                            color="success" 
+                                            variant="outlined"
+                                            sx={{ fontSize: '0.7rem', height: '20px' }}
+                                          />
+                                        )}
+                                      </Stack>
+                                    }
+                                    secondary={
+                                      <Bx>
+                                        <T variant="body2" color={hasRead ? 'success.main' : 'text.secondary'} sx={{ mb: 0.5 }}>
+                                          {highlightSearchText(targetUser.email, recipientSearchQuery)}
+                                        </T>
+                                        {targetUser.registration && (
+                                          <Stack direction="row" alignItems="center" spacing={1}>
+                                            <Badge fontSize="small" sx={{ color: hasRead ? 'success.main' : 'text.secondary' }} />
+                                            <T variant="caption" color={hasRead ? 'success.main' : 'text.secondary'}>
+                                              Reg: {highlightSearchText(targetUser.registration, recipientSearchQuery)}
+                                            </T>
+                                          </Stack>
+                                        )}
+                                      </Bx>
+                                    }
+                                  />
+                                </ListItem>
+                              );
+                            })}
                         </List>
 
                         {/* Show more indicator */}
-                        {!recipientsExpanded && !hasRecipientSearch && totalRecipients > 10 && (
+                        {!recipientsExpanded && !hasRecipientSearch && filteredtargetUsers.length > 10 && (
                           <Bx sx={{ textAlign: 'center', py: 1, bgcolor: 'grey.50', borderRadius: 1, mt: 1 }}>
                             <T variant="caption" color="text.secondary">
-                              Showing 10 of {totalRecipients} recipients
+                              Showing 10 of {filteredtargetUsers.length} {
+                                recipientFilter === 'all' ? 'recipients' : 
+                                recipientFilter === 'read' ? 'read recipients' : 'unread recipients'
+                              }
                             </T>
                           </Bx>
                         )}
