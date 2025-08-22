@@ -95,16 +95,40 @@ const getNotificationById = async (notificationId, userEmail) => {
 
 // Get latest 20 regular notifications
 const getRegularNotifications = async (page = 1, limit = 20) => {
-  const offset = (page - 1) * limit;          
-  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/all?limit=${limit}&offset=${offset}&orderDirection=desc`);
-  return response.json();
+  try {
+    const offset = (page - 1) * limit;          
+    const response = await fetch(`https://bcend.sddopamine.com/api/notifications/all?limit=${limit}&offset=${offset}&orderDirection=desc`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Regular notifications response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching regular notifications:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Get latest 20 personalized notifications
 const getPersonalizedNotifications = async (page = 1, limit = 20) => {
-  const offset = (page - 1) * limit;
-  const response = await fetch(`https://bcend.sddopamine.com/api/notifications/personalized/all?limit=${limit}&offset=${offset}&orderDirection=desc`);
-  return response.json();
+  try {
+    const offset = (page - 1) * limit;
+    const response = await fetch(`https://bcend.sddopamine.com/api/notifications/personalized/all?limit=${limit}&offset=${offset}&orderDirection=desc`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Personalized notifications response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching personalized notifications:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Get combined notifications for unified history
