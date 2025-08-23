@@ -68,6 +68,22 @@ export default function PDFUploaderPage() {
         description: values.description,
         date: values.date,
       });
+
+      // Clear cache after successful upload to show new PDF immediately
+      if (window.adminDataCache) {
+        window.adminDataCache.delete(`admin_${params.fname}`);
+      }
+      if (window.dataCache) {
+        // Clear all caches that might contain this folder's data
+        const keysToDelete = [];
+        window.dataCache.forEach((value, key) => {
+          if (key.includes(`folder_${params.fname}_`)) {
+            keysToDelete.push(key);
+          }
+        });
+        keysToDelete.forEach(key => window.dataCache.delete(key));
+      }
+
     } catch (err) {
       console.log(err);
     }
