@@ -37,6 +37,9 @@ import { useUser } from "../contexts/UserProvider";
 const dataCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Expose cache globally for clearing after uploads
+window.dataCache = dataCache;
+
 // Optimized cache helper
 const getCachedData = (key) => {
   const cached = dataCache.get(key);
