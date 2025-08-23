@@ -254,6 +254,69 @@ import {
       .filter(p => p)
       .join('');
   };
+
+  /**
+   * Process personalized content with template variable replacement
+   */
+  export const processPersonalizedNotificationContentWithUser = (content, user, notification = null) => {
+    if (!content) return "";
+    
+    let processedContent = content;
+    
+    // Replace template variables with user data
+    if (user) {
+      // Replace common placeholders
+      processedContent = processedContent.replace(/{{name}}/gi, user.displayName || user.name || '[Name]');
+      processedContent = processedContent.replace(/{{email}}/gi, user.email || '[Email]');
+      
+      // Use registration from notification data if available, otherwise from user
+      const registrationNumber = notification?.userRegistration || user.registration || '[Registration]';
+      processedContent = processedContent.replace(/{{registration}}/gi, registrationNumber);
+      
+      // Replace date placeholders
+      const now = new Date();
+      processedContent = processedContent.replace(/{{date}}/gi, now.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long', 
+        day: 'numeric'
+      }));
+      processedContent = processedContent.replace(/{{month}}/gi, now.toLocaleString('default', { month: 'long' }));
+    }
+    
+    // Then apply HTML formatting
+    return processPersonalizedNotificationContent(processedContent);
+  };
+
+  /**
+   * Process template variables in plain text (for titles, etc.)
+   */
+  export const processTemplateVariables = (text, user, notification = null) => {
+    if (!text) return "";
+    
+    let processedText = text;
+    
+    // Replace template variables with user data
+    if (user) {
+      // Replace common placeholders
+      processedText = processedText.replace(/{{name}}/gi, user.displayName || user.name || '[Name]');
+      processedText = processedText.replace(/{{email}}/gi, user.email || '[Email]');
+      
+      // Use registration from notification data if available, otherwise from user
+      const registrationNumber = notification?.userRegistration || user.registration || '[Registration]';
+      processedText = processedText.replace(/{{registration}}/gi, registrationNumber);
+      
+      // Replace date placeholders
+      const now = new Date();
+      processedText = processedText.replace(/{{date}}/gi, now.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long', 
+        day: 'numeric'
+      }));
+      processedText = processedText.replace(/{{month}}/gi, now.toLocaleString('default', { month: 'long' }));
+    }
+    
+    return processedText;
+  };
   
   /**
    * Extract plain text for previews

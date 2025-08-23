@@ -39,7 +39,20 @@ export default function PersonalizedNotificationViewPage() {
             readAt: result.data.readAt ? new Date(result.data.readAt._seconds * 1000) : null,
           };
           
+          // Find the current user's data in targetUsers for registration number
+          let userRegistration = null;
+          if (processedNotification.targetUsers && Array.isArray(processedNotification.targetUsers)) {
+            const currentUserData = processedNotification.targetUsers.find(
+              targetUser => targetUser.email === user.email
+            );
+            userRegistration = currentUserData?.registration;
+          }
+          
+          // Add user registration to the notification for template processing
+          processedNotification.userRegistration = userRegistration;
+          
           console.log('Processed notification:', processedNotification);
+          console.log('User registration found:', userRegistration);
           setNotification(processedNotification);
           
           // Mark as read if not already read
