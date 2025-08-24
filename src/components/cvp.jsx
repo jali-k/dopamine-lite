@@ -53,6 +53,9 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   const [volume, setVolume] = uS(1);
   const [isMuted, setIsMuted] = uS(false);
   const [isHovering, setIsHovering] = uS(false);
+  const [isRefreshing, setIsRefreshing] = uS(false); // Prevent concurrent refreshes
+  const [currentBlobUrl, setCurrentBlobUrl] = uS(null); // Track current blob URL for cleanup
+  const [errorHistory, setErrorHistory] = uS([]); // Track errors for debugging
   
   // Quality settings state
   const [qualityLevels, setQualityLevels] = uS([]);
@@ -60,6 +63,31 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   const [settingsMenuAnchor, setSettingsMenuAnchor] = uS(null);
   
   let timeoutId;
+
+  // Debug function for troubleshooting specific students
+  window.getVideoDebugInfo = () => {
+    return {
+      userEmail: watermark,
+      handler: handler,
+      videoType: isEncryptedVideo ? 'encrypted' : (isConvertedVideo ? 'new_converted' : 'legacy'),
+      currentTime: vdrf.current ? vdrf.current.currentTime : 0,
+      duration: duration,
+      isPlaying: isPlyV,
+      loading: loading,
+      qualityLevels: qualityLevels,
+      currentQuality: currentQuality,
+      errorHistory: errorHistory,
+      hlsLevels: hlsRef.current ? hlsRef.current.levels : null,
+      browserInfo: {
+        userAgent: navigator.userAgent,
+        connection: navigator.connection ? {
+          effectiveType: navigator.connection.effectiveType,
+          downlink: navigator.connection.downlink,
+          rtt: navigator.connection.rtt
+        } : 'Not available'
+      }
+    };
+  };
 
   const hTUF = () => {
     stCTV(vdrf.current.currentTime);
@@ -204,8 +232,24 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   };
 
   // VIDEO MANIFEST FETCHING SERVICE
-  const fetchManifest = async () => {
+  const fetchManifest = async (isRefresh = false) => {
+    // Prevent concurrent refreshes
+    if (isRefresh && isRefreshing) {
+      console.log("Refresh already in progress, skipping...");
+      return;
+    }
+    
+    if (isRefresh) {
+      setIsRefreshing(true);
+    }
+    
     try {
+      // Store current time before refresh to restore position
+      const currentTime = isRefresh && vdrf.current ? vdrf.current.currentTime : 0;
+      const wasPlaying = isRefresh && vdrf.current ? !vdrf.current.paused : false;
+      
+      console.log(`${isRefresh ? 'Refreshing' : 'Loading'} manifest. Current time: ${currentTime}s`);
+      
       // Determine parameters based on video type
       let folder, manifestKey, videoType;
       
@@ -243,12 +287,32 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           enableWorker: true,
           lowLatencyMode: false,
           backBufferLength: 90,
+          // Improved settings for poor network conditions
+          manifestLoadingTimeOut: 20000,    // 20s timeout for manifest loading
+          manifestLoadingMaxRetry: 4,       // More retries for manifest
+          levelLoadingTimeOut: 20000,       // 20s timeout for level loading
+          levelLoadingMaxRetry: 4,          // More retries for levels
+          fragLoadingTimeOut: 20000,        // 20s timeout for fragments
+          fragLoadingMaxRetry: 6,           // More retries for fragments
+          startFragPrefetch: true,          // Prefetch fragments
+          testBandwidth: true,              // Test bandwidth for better quality selection
+          abrEwmaDefaultEstimate: 1000000,  // Conservative bandwidth estimate (1Mbps)
+          // Prevent aggressive seeking that might reset position
+          seekHoleNudgeDuration: 0.1,       // Small nudge for seek holes
+          nudgeOffset: 0.1,                 // Small nudge offset
+          nudgeMaxRetry: 5                  // More nudge retries
         });
         
         hlsRef.current = hls;
 
         // Create blob URL using the service
         const blobUrl = videoManifestService.createManifestBlobUrl(modifiedManifest);
+        
+        // Clean up previous blob URL
+        if (currentBlobUrl) {
+          videoManifestService.revokeBlobUrl(currentBlobUrl);
+        }
+        setCurrentBlobUrl(blobUrl);
 
         hls.loadSource(blobUrl);
         hls.attachMedia(vdrf.current);
@@ -267,8 +331,22 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           setQualityLevels(levels);
           setLoading(false);
           
-          if (canPlay) {
+          // For refresh: restore previous position and play state
+          if (isRefresh && currentTime > 0) {
+            console.log(`Restoring video position to ${currentTime}s after refresh`);
+            vdrf.current.currentTime = currentTime;
+            stCTV(currentTime);
+            if (wasPlaying) {
+              vdrf.current.play();
+            }
+          } else if (canPlay && !isRefresh) {
+            // Only auto-play on initial load, not on refresh
             vdrf.current.play();
+          }
+          
+          // Clear refresh state
+          if (isRefresh) {
+            setIsRefreshing(false);
           }
         });
 
@@ -276,18 +354,86 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
           console.log(`Quality switched to level ${data.level}: ${hls.levels[data.level]?.height}p`);
         });
 
+        // Handle successful error recovery
+        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+          console.log('Media reattached after error recovery');
+        });
+
+        hls.on(Hls.Events.MANIFEST_LOADING, () => {
+          console.log('Manifest loading...');
+        });
+
+        // Handle buffer stalling that might cause position reset
+        hls.on(Hls.Events.BUFFER_STALLED, () => {
+          console.log('Buffer stalled detected');
+        });
+
+        hls.on(Hls.Events.BUFFER_FLUSHED, () => {
+          console.log('Buffer flushed - this may cause position issues for some users');
+        });
+
         hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS Error:', data);
+          const errorInfo = {
+            timestamp: new Date().toISOString(),
+            userEmail: watermark,
+            errorType: data.type,
+            errorDetails: data.details,
+            currentTime: vdrf.current ? vdrf.current.currentTime : 0,
+            fatal: data.fatal,
+            videoHandler: handler
+          };
+          
+          // Log error for debugging
+          console.error('HLS Error for user:', errorInfo);
+          
+          // Track error history
+          setErrorHistory(prev => [...prev.slice(-4), errorInfo]); // Keep last 5 errors
+          
           setLoading(false);
+          
+          // Store current position before any error recovery
+          const currentTime = vdrf.current ? vdrf.current.currentTime : 0;
+          const wasPlaying = vdrf.current ? !vdrf.current.paused : false;
+          
+          // Clear refresh state on error
+          if (isRefresh) {
+            setIsRefreshing(false);
+          }
+          
           if (data.fatal) {
+            console.log(`Fatal HLS error at position ${currentTime}s, attempting recovery...`);
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.log('Fatal network error encountered, try to recover');
                 hls.startLoad();
+                
+                // Restore position after network recovery
+                setTimeout(() => {
+                  if (vdrf.current && currentTime > 0) {
+                    console.log(`Restoring position to ${currentTime}s after network error recovery`);
+                    vdrf.current.currentTime = currentTime;
+                    stCTV(currentTime);
+                    if (wasPlaying) {
+                      vdrf.current.play();
+                    }
+                  }
+                }, 1000); // Wait for recovery to complete
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.log('Fatal media error encountered, try to recover');
                 hls.recoverMediaError();
+                
+                // Restore position after media recovery
+                setTimeout(() => {
+                  if (vdrf.current && currentTime > 0) {
+                    console.log(`Restoring position to ${currentTime}s after media error recovery`);
+                    vdrf.current.currentTime = currentTime;
+                    stCTV(currentTime);
+                    if (wasPlaying) {
+                      vdrf.current.play();
+                    }
+                  }
+                }, 1000); // Wait for recovery to complete
                 break;
               default:
                 hls.destroy();
@@ -303,8 +449,22 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
         vdrf.current.addEventListener('loadedmetadata', () => {
           setLoading(false);
           
-          if (canPlay) {
+          // For refresh: restore previous position and play state
+          if (isRefresh && currentTime > 0) {
+            console.log(`Restoring video position to ${currentTime}s after Safari refresh`);
+            vdrf.current.currentTime = currentTime;
+            stCTV(currentTime);
+            if (wasPlaying) {
+              vdrf.current.play();
+            }
+          } else if (canPlay && !isRefresh) {
+            // Only auto-play on initial load, not on refresh
             vdrf.current.play();
+          }
+          
+          // Clear refresh state
+          if (isRefresh) {
+            setIsRefreshing(false);
           }
         });
 
@@ -318,6 +478,10 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
       setLoading(false);
       
       onError?.({ type: 'manifest' });
+    } finally {
+      if (isRefresh) {
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -328,9 +492,9 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
   }, [canPlay]);
 
   uE(() => {
-    fetchManifest();
+    fetchManifest(false); // Initial load
     console.log("Fetching...");
-    const intervalId = setInterval(fetchManifest, 8 * 60 * 60 * 1000);
+    const intervalId = setInterval(() => fetchManifest(true), 8 * 60 * 60 * 1000); // Refresh every 8 hours
 
     return () => {
       clearInterval(intervalId);
@@ -338,8 +502,12 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      // Clean up blob URL
+      if (currentBlobUrl) {
+        videoManifestService.revokeBlobUrl(currentBlobUrl);
+      }
     };
-  }, [url]);
+  }, [handler, isConvertedVideo, isEncryptedVideo]); // Depend on actual video parameters instead of url
 
   uE(() => {
     if (vdrf.current) {
