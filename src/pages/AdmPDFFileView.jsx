@@ -57,6 +57,9 @@ import AuthorizedUsersAccordion from "../components/AuthorizedUsersAccordion ";
 const adminDataCache = new Map();
 const ADMIN_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes (extended for large email lists)
 
+// Expose cache globally for clearing after uploads
+window.adminDataCache = adminDataCache;
+
 const getCachedAdminData = (key) => {
   const cached = adminDataCache.get(key);
   if (cached && Date.now() - cached.timestamp < ADMIN_CACHE_DURATION) {
