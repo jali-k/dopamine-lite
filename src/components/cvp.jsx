@@ -496,8 +496,9 @@ export default function CVPL({ watermark, handler, url, canPlay, onError, isConv
     console.log("Fetching...");
     const intervalId = setInterval(() => fetchManifest(true), 8 * 60 * 60 * 1000); // Refresh every 8 hours
 
+
     return () => {
-      clearInterval(intervalId);
+      // clearInterval(intervalId);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
